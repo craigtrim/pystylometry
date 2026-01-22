@@ -1,7 +1,5 @@
 """Zeta score for distinctive word usage in authorship attribution."""
 
-from typing import List, Set
-
 from .._types import ZetaResult
 from .._utils import tokenize
 
@@ -62,7 +60,7 @@ def compute_zeta(text1: str, text2: str, segments: int = 10, top_n: int = 50) ->
         )
 
     # Divide texts into segments
-    def create_segments(tokens: List[str], n_segments: int) -> List[Set[str]]:
+    def create_segments(tokens: list[str], n_segments: int) -> list[set[str]]:
         segment_size = len(tokens) // n_segments
         return [set(tokens[i * segment_size : (i + 1) * segment_size]) for i in range(n_segments)]
 
