@@ -4,6 +4,62 @@ from .._types import MTLDResult
 from .._utils import tokenize
 
 
+def _calculate_mtld_direction(tokens: list[str], threshold: float, forward: bool) -> float:
+    """
+    Calculate MTLD in one direction (forward or backward).
+
+    Args:
+        tokens: List of tokens to analyze
+        threshold: TTR threshold to maintain (must be in range (0, 1))
+        forward: If True, process forward; if False, process backward
+
+    Returns:
+        MTLD score for this direction
+    """
+    if len(tokens) == 0:
+        return 0.0
+
+    # Process tokens in the specified direction
+    token_list = tokens if forward else tokens[::-1]
+
+    factors = 0.0
+    current_count = 0
+    current_types = set()
+
+    for token in token_list:
+        current_count += 1
+        current_types.add(token)
+
+        # Calculate current TTR
+        ttr = len(current_types) / current_count
+
+        # If TTR drops below threshold, we've completed a factor
+        if ttr < threshold:
+            factors += 1.0
+            current_count = 0
+            current_types = set()
+
+    # Handle remaining partial factor
+    # Add proportion of a complete factor based on how close we are to threshold
+    if current_count > 0:
+        ttr = len(current_types) / current_count
+        # If we're still above threshold, add partial factor credit
+        # Formula: (1 - current_ttr) / (1 - threshold)
+        # This represents how far we've progressed toward completing a factor
+        # Note: If ttr < threshold here, the factor was already counted in the loop
+        # and current_count would have been reset to 0, so this condition is always true
+        factors += (1.0 - ttr) / (1.0 - threshold)
+
+    # MTLD is the mean length of factors
+    # Total tokens / number of factors
+    if factors > 0:
+        return len(tokens) / factors
+    else:
+        # If no factors were completed, return the text length
+        # This happens when TTR stays above threshold for the entire text
+        return float(len(tokens))
+
+
 def compute_mtld(
     text: str,
     threshold: float = 0.72,
@@ -16,8 +72,8 @@ def compute_mtld(
     varying lengths.
 
     Formula:
-        MTLD = mean(forward_factors, backward_factors)
-        where factors are word string lengths that maintain TTR >= threshold
+        MTLD = total_tokens / factor_count
+        where factor_count is the number of completed segments that maintain TTR >= threshold
 
     References:
         McCarthy, P. M., & Jarvis, S. (2010). MTLD, vocd-D, and HD-D:
@@ -26,15 +82,25 @@ def compute_mtld(
 
     Args:
         text: Input text to analyze
-        threshold: TTR threshold to maintain (default: 0.72)
+        threshold: TTR threshold to maintain (default: 0.72, must be in range (0, 1))
 
     Returns:
         MTLDResult with forward, backward, and average MTLD scores
+
+    Raises:
+        ValueError: If threshold is not in range (0, 1)
 
     Example:
         >>> result = compute_mtld("The quick brown fox jumps over the lazy dog...")
         >>> print(f"MTLD: {result.mtld_average:.2f}")
     """
+    # Validate threshold parameter
+    if not (0 < threshold < 1):
+        raise ValueError(
+            f"Threshold must be in range (0, 1), got {threshold}. "
+            "Common values: 0.72 (default), 0.5-0.8"
+        )
+
     tokens = tokenize(text)
 
     if len(tokens) == 0:
@@ -45,9 +111,13 @@ def compute_mtld(
             metadata={"token_count": 0, "threshold": threshold},
         )
 
-    # TODO: Implement forward and backward MTLD calculation
-    mtld_forward = 0.0  # Placeholder
-    mtld_backward = 0.0  # Placeholder
+    # Calculate MTLD in forward direction
+    mtld_forward = _calculate_mtld_direction(tokens, threshold, forward=True)
+
+    # Calculate MTLD in backward direction
+    mtld_backward = _calculate_mtld_direction(tokens, threshold, forward=False)
+
+    # Average of forward and backward
     mtld_average = (mtld_forward + mtld_backward) / 2
 
     return MTLDResult(
