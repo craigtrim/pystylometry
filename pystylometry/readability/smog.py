@@ -36,7 +36,7 @@ def compute_smog(text: str) -> SMOGResult:
         still computes but a warning is included in metadata. Results may be less reliable.
 
     Example:
-        >>> result = compute_smog("The quick brown fox jumps over the lazy dog.")
+        >>> result = compute_smog("Caffeinated programmers enthusiastically debugged incomprehensible spaghetti code.")
         >>> print(f"SMOG Index: {result.smog_index:.1f}")
         >>> print(f"Grade Level: {result.grade_level}")
     """
@@ -60,7 +60,13 @@ def compute_smog(text: str) -> SMOGResult:
 
     # SMOG formula: 1.043 × √(polysyllables × 30/sentences) + 3.1291
     smog_index = 1.043 * math.sqrt(polysyllable_count * 30 / len(sentences)) + 3.1291
-    grade_level = round(smog_index)
+
+    # Use round-half-up rounding (not banker's rounding) and clamp to valid grade range [0, 20]
+    # Round half up: 4.5 → 5 (not Python's default round-half-to-even)
+    # math.floor(x + 0.5) implements round-half-up for both positive and negative values
+    # Lower bound: Prevent negative grades (though mathematically unlikely with SMOG's +3.1291 constant)
+    # Upper bound: Cap at grade 20 (post-graduate) for extreme complexity
+    grade_level = max(0, min(20, math.floor(smog_index + 0.5)))
 
     return SMOGResult(
         smog_index=smog_index,
