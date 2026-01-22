@@ -1,5 +1,7 @@
 """SMOG (Simple Measure of Gobbledygook) Index."""
 
+import math
+
 from .._types import SMOGResult
 from .._utils import split_sentences, tokenize
 from .syllables import count_syllables
@@ -27,6 +29,12 @@ def compute_smog(text: str) -> SMOGResult:
     Returns:
         SMOGResult with SMOG index and grade level
 
+        Note: For empty input (no sentences or words), smog_index and grade_level
+        will be float('nan'). This prevents conflating "no data" with actual scores.
+
+        SMOG is designed for texts with 30+ sentences. For shorter texts, the formula
+        still computes but a warning is included in metadata. Results may be less reliable.
+
     Example:
         >>> result = compute_smog("The quick brown fox jumps over the lazy dog.")
         >>> print(f"SMOG Index: {result.smog_index:.1f}")
@@ -35,15 +43,10 @@ def compute_smog(text: str) -> SMOGResult:
     sentences = split_sentences(text)
     tokens = tokenize(text)
 
-    if len(sentences) < 30:
-        # SMOG requires at least 30 sentences for accuracy
-        # We'll compute anyway but note in metadata
-        pass
-
     if len(sentences) == 0 or len(tokens) == 0:
         return SMOGResult(
-            smog_index=0.0,
-            grade_level=0,
+            smog_index=float("nan"),
+            grade_level=float("nan"),
             metadata={
                 "sentence_count": 0,
                 "word_count": 0,
@@ -55,9 +58,9 @@ def compute_smog(text: str) -> SMOGResult:
     # Count polysyllables (words with 3+ syllables)
     polysyllable_count = sum(1 for word in tokens if count_syllables(word) >= 3)
 
-    # TODO: Implement SMOG formula
-    smog_index = 0.0  # Placeholder
-    grade_level = 0  # Placeholder
+    # SMOG formula: 1.043 × √(polysyllables × 30/sentences) + 3.1291
+    smog_index = 1.043 * math.sqrt(polysyllable_count * 30 / len(sentences)) + 3.1291
+    grade_level = round(smog_index)
 
     return SMOGResult(
         smog_index=smog_index,
