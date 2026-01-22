@@ -2,8 +2,6 @@
 
 import math
 
-import pytest
-
 from pystylometry.readability import compute_flesch
 
 
@@ -43,7 +41,10 @@ def test_compute_flesch_formulas():
     assert result.metadata["syllable_count"] > 0
 
     # Complex text should have low reading ease
-    complex_text = "Notwithstanding comprehensive regulatory frameworks, organizations endeavor to facilitate interdepartmental collaboration."
+    complex_text = (
+        "Notwithstanding comprehensive regulatory frameworks, "
+        "organizations endeavor to facilitate interdepartmental collaboration."
+    )
     result2 = compute_flesch(complex_text)
 
     # Should be difficult to read
@@ -54,23 +55,6 @@ def test_compute_flesch_formulas():
 
 def test_compute_flesch_difficulty_ratings():
     """Test difficulty rating thresholds."""
-    # Test with controlled syllable/word ratios to hit specific ranges
-
-    # Very Easy: 90-100
-    # Need high reading ease: 206.835 - 1.015*(words/sent) - 84.6*(syll/words) >= 90
-    # Simple, short words
-
-    tests = [
-        # (reading_ease_range, expected_difficulty)
-        (95, "Very Easy"),
-        (85, "Easy"),
-        (75, "Fairly Easy"),
-        (65, "Standard"),
-        (55, "Fairly Difficult"),
-        (40, "Difficult"),
-        (20, "Very Difficult"),
-    ]
-
     # We can't easily construct text to hit exact scores, but we can verify
     # the mapping logic by checking actual results
     simple = "The cat sat on the mat."
@@ -93,7 +77,11 @@ def test_compute_flesch_unbounded_range():
     assert result_simple.difficulty == "Very Easy"
 
     # Very complex text should produce reading ease < 0
-    complex_text = "Notwithstanding unequivocal manifestations of multidimensional philosophical presuppositions, anthropomorphic characterizations remain fundamentally incontrovertible."
+    complex_text = (
+        "Notwithstanding unequivocal manifestations of multidimensional "
+        "philosophical presuppositions, anthropomorphic characterizations "
+        "remain fundamentally incontrovertible."
+    )
     result_complex = compute_flesch(complex_text)
     assert result_complex.reading_ease < 0, "Very complex text should be below 0"
     assert result_complex.difficulty == "Very Difficult"
@@ -159,29 +147,41 @@ def test_compute_flesch_difficulty_label_semantics():
 
     This test documents and validates this conscious design choice.
     """
-    # Create text that we can verify has a specific reading ease but different grade
-    # The difficulty label should follow reading_ease thresholds only
+    def expected_difficulty(reading_ease: float) -> str:
+        """Helper to map reading_ease to expected difficulty label."""
+        if reading_ease >= 90:
+            return "Very Easy"
+        elif reading_ease >= 80:
+            return "Easy"
+        elif reading_ease >= 70:
+            return "Fairly Easy"
+        elif reading_ease >= 60:
+            return "Standard"
+        elif reading_ease >= 50:
+            return "Fairly Difficult"
+        elif reading_ease >= 30:
+            return "Difficult"
+        else:
+            return "Very Difficult"
 
-    # Reading ease 90-100 → "Very Easy" (regardless of grade level)
-    result = compute_flesch("Go. Do. Be.")
-    assert result.reading_ease > 90
-    assert result.difficulty == "Very Easy"
-    # Note: grade_level might be negative, but label is still "Very Easy"
+    # Test various texts and verify difficulty is based only on reading_ease
+    test_cases = [
+        "Go. Do. Be.",  # Very simple, should be "Very Easy"
+        "The cat sat on the mat. The dog ran.",  # Simple
+        (
+            "Notwithstanding comprehensive regulatory frameworks, "
+            "organizations endeavor to facilitate interdepartmental collaboration."
+        ),  # Complex
+    ]
 
-    # Reading ease 80-89 → "Easy" (regardless of grade level)
-    simple_text = "The cat sat on the mat. The dog ran."
-    result = compute_flesch(simple_text)
-    if 80 <= result.reading_ease < 90:
-        assert result.difficulty == "Easy"
-        # Grade level could be anywhere, but label follows reading_ease only
-
-    # Verify the label is NOT influenced by grade_level
-    # Two texts with same reading_ease should have same difficulty label
-    # even if grade_levels differ
-    for text in ["Go. Do.", "Be. Me."]:
-        r = compute_flesch(text)
-        if r.reading_ease >= 90:
-            assert r.difficulty == "Very Easy", "Label should be based on reading_ease only"
+    for text in test_cases:
+        result = compute_flesch(text)
+        expected = expected_difficulty(result.reading_ease)
+        assert result.difficulty == expected, (
+            f"Difficulty should match reading_ease threshold. "
+            f"reading_ease={result.reading_ease:.1f}, "
+            f"expected={expected}, got={result.difficulty}"
+        )
 
 
 def test_compute_flesch_upstream_garbage():
