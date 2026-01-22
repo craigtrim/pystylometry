@@ -26,8 +26,6 @@ Usage:
     print(results.readability['flesch'].reading_ease)
 """
 
-from typing import Dict
-
 from ._types import AnalysisResult
 
 # Version
@@ -168,7 +166,7 @@ def analyze(
 
 
 # Convenient access to availability flags
-def get_available_modules() -> Dict[str, bool]:
+def get_available_modules() -> dict[str, bool]:
     """
     Get dictionary of available optional modules.
 

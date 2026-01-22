@@ -3,7 +3,6 @@
 import math
 import statistics
 from collections import Counter
-from typing import List
 
 from .._types import BurrowsDeltaResult
 from .._utils import tokenize
@@ -79,7 +78,7 @@ def compute_burrows_delta(
     most_common_words = [word for word, _ in all_words.most_common(mfw)]
 
     # Calculate relative frequencies for MFW
-    def get_relative_freqs(freq_counter: Counter, words: List[str], total: int) -> List[float]:
+    def get_relative_freqs(freq_counter: Counter, words: list[str], total: int) -> list[float]:
         return [freq_counter.get(word, 0) / total for word in words]
 
     rel_freqs1 = get_relative_freqs(freq1, most_common_words, len(tokens1))

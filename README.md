@@ -1,6 +1,6 @@
 # pystylometry
 
-[![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
+[![Python Version](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![PyPI version](https://badge.fury.io/py/pystylometry.svg)](https://badge.fury.io/py/pystylometry)
@@ -120,9 +120,46 @@ result = compute_yule(text)
 - **Flesch Reading Ease** - 0-100 difficulty scale
 - **Flesch-Kincaid Grade** - US grade level
 - **SMOG Index** - Years of education needed
-- **Gunning Fog** - Readability complexity
+- **Gunning Fog** - NLP-enhanced readability complexity (see below)
 - **Coleman-Liau** - Character-based grade level
 - **ARI** - Automated Readability Index
+
+#### Gunning Fog Index - NLP Enhancement
+
+The Gunning Fog Index implementation includes advanced NLP features when spaCy is available:
+
+**Enhanced Mode** (with spaCy):
+- Accurate proper noun detection via POS tagging (PROPN)
+- True morphological analysis via lemmatization
+- Component-based hyphenated word analysis
+- Handles edge cases: acronyms, irregular verbs, compound nouns
+
+**Basic Mode** (without spaCy):
+- Capitalization-based proper noun detection
+- Simple suffix stripping for inflections (-es, -ed, -ing)
+- Component-based hyphenated word analysis
+- Works without external dependencies
+
+```python
+from pystylometry.readability import compute_gunning_fog
+
+text = "Understanding computational linguistics requires significant dedication."
+result = compute_gunning_fog(text)
+
+print(f"Fog Index: {result.fog_index:.1f}")
+print(f"Grade Level: {result.grade_level}")
+print(f"Detection Mode: {result.metadata['mode']}")  # "enhanced" or "basic"
+```
+
+**To enable enhanced mode:**
+```bash
+pip install pystylometry[readability]
+python -m spacy download en_core_web_sm
+```
+
+**Reference:** Gunning, R. (1952). The Technique of Clear Writing. McGraw-Hill.
+
+**Implementation Details:** See [GitHub PR #4](https://github.com/craigtrim/pystylometry/pull/4) for the rationale behind NLP enhancements.
 
 ### Syntactic (requires spaCy)
 - **POS Ratios** - Noun/verb/adjective/adverb ratios
@@ -145,10 +182,16 @@ result = compute_yule(text)
 - stylometry-ttr
 
 **Optional:**
-- `readability`: pronouncing (for syllable counting)
-- `syntactic`: spacy>=3.8.0
+- `readability`: pronouncing (syllable counting), spacy>=3.8.0 (NLP-enhanced Gunning Fog)
+- `syntactic`: spacy>=3.8.0 (POS tagging and syntactic analysis)
 - `authorship`: None (pure Python + stdlib)
 - `ngrams`: None (pure Python + stdlib)
+
+**Note:** spaCy is shared between `readability` and `syntactic` groups. For enhanced Gunning Fog accuracy, download a language model:
+```bash
+python -m spacy download en_core_web_sm  # Small model (13MB)
+python -m spacy download en_core_web_md  # Medium model (better accuracy)
+```
 
 ## Development
 
