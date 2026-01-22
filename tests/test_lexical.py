@@ -1,5 +1,7 @@
 """Tests for lexical diversity metrics."""
 
+import math
+
 from pystylometry.lexical import compute_hapax_ratios, compute_mtld, compute_yule
 
 
@@ -30,8 +32,8 @@ def test_compute_yule_basic(sample_text):
 def test_compute_yule_empty():
     """Test Yule with empty text."""
     result = compute_yule("")
-    assert result.yule_k == 0.0
-    assert result.yule_i == 0.0
+    assert math.isnan(result.yule_k)
+    assert math.isnan(result.yule_i)
 
 
 def test_compute_hapax_basic(sample_text):

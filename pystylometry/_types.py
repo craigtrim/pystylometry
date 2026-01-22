@@ -1,7 +1,9 @@
 """Result dataclasses for all pystylometry metrics."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 # ===== Lexical Results =====
 
@@ -13,7 +15,7 @@ class MTLDResult:
     mtld_forward: float
     mtld_backward: float
     mtld_average: float
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
 
 @dataclass
@@ -22,7 +24,7 @@ class YuleResult:
 
     yule_k: float
     yule_i: float
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
 
 @dataclass
@@ -35,7 +37,7 @@ class HapaxResult:
     dis_hapax_ratio: float
     sichel_s: float
     honore_r: float
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
 
 # ===== Readability Results =====
@@ -48,7 +50,7 @@ class FleschResult:
     reading_ease: float
     grade_level: float
     difficulty: str  # "Very Easy", "Easy", "Fairly Easy", "Standard", etc.
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
 
 @dataclass
@@ -57,7 +59,7 @@ class SMOGResult:
 
     smog_index: float
     grade_level: int
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
 
 @dataclass
@@ -66,7 +68,7 @@ class GunningFogResult:
 
     fog_index: float
     grade_level: int
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
 
 @dataclass
@@ -75,7 +77,7 @@ class ColemanLiauResult:
 
     cli_index: float
     grade_level: int
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
 
 @dataclass
@@ -85,7 +87,7 @@ class ARIResult:
     ari_score: float
     grade_level: int
     age_range: str
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
 
 # ===== Syntactic Results =====
@@ -103,7 +105,7 @@ class POSResult:
     adjective_noun_ratio: float
     lexical_density: float
     function_word_ratio: float
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
 
 @dataclass
@@ -116,7 +118,7 @@ class SentenceStatsResult:
     min_sentence_length: int
     max_sentence_length: int
     sentence_count: int
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
 
 # ===== Authorship Results =====
@@ -129,7 +131,7 @@ class BurrowsDeltaResult:
     delta_score: float
     distance_type: str  # "burrows", "cosine", "eder"
     mfw_count: int
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
 
 @dataclass
@@ -137,9 +139,9 @@ class ZetaResult:
     """Result from Zeta score computation."""
 
     zeta_score: float
-    marker_words: List[str]
-    anti_marker_words: List[str]
-    metadata: Dict[str, Any]
+    marker_words: list[str]
+    anti_marker_words: list[str]
+    metadata: dict[str, Any]
 
 
 # ===== N-gram Results =====
@@ -152,7 +154,7 @@ class EntropyResult:
     entropy: float
     perplexity: float
     ngram_type: str  # "character_bigram", "word_bigram", "word_trigram"
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
 
 # ===== Unified Analysis Result =====
@@ -162,9 +164,9 @@ class EntropyResult:
 class AnalysisResult:
     """Unified result from comprehensive stylometric analysis."""
 
-    lexical: Optional[Dict[str, Any]] = None
-    readability: Optional[Dict[str, Any]] = None
-    syntactic: Optional[Dict[str, Any]] = None
-    authorship: Optional[Dict[str, Any]] = None
-    ngrams: Optional[Dict[str, Any]] = None
-    metadata: Optional[Dict[str, Any]] = None
+    lexical: dict[str, Any] | None = None
+    readability: dict[str, Any] | None = None
+    syntactic: dict[str, Any] | None = None
+    authorship: dict[str, Any] | None = None
+    ngrams: dict[str, Any] | None = None
+    metadata: dict[str, Any] | None = None
