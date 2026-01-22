@@ -159,28 +159,28 @@ def test_compute_smog_rounding_policy():
     """
     Test and document SMOG rounding behavior.
 
-    DESIGN DECISION: Python's round() uses "banker's rounding" (round half to even).
-    This means 12.5 rounds to 12 (nearest even), but 13.5 rounds to 14 (nearest even).
-
-    This can surprise users expecting "standard" half-up rounding where 0.5 always
-    rounds up. The implementation intentionally uses Python's default round() without
-    custom rounding logic.
+    DESIGN DECISION: Uses round-half-up rounding (math.floor(x + 0.5)) instead of
+    Python's default banker's rounding. This provides consistent, predictable behavior
+    where 0.5 always rounds up, matching user expectations and other readability tools.
 
     Example cases:
-    - SMOG index 12.5 → grade_level 12 (not 13)
-    - SMOG index 13.5 → grade_level 14 (not 13)
-    - SMOG index 12.4 → grade_level 12
-    - SMOG index 12.6 → grade_level 13
-    """
-    # We can't easily construct text to hit exact SMOG values, but we can
-    # verify that round() is being used by checking its behavior
-    assert round(12.5) == 12  # Banker's rounding to even
-    assert round(13.5) == 14  # Banker's rounding to even
-    assert round(12.4) == 12  # Normal rounding
-    assert round(12.6) == 13  # Normal rounding
+    - SMOG index 12.5 → grade_level 13 (rounds up)
+    - SMOG index 13.5 → grade_level 14 (rounds up)
+    - SMOG index 12.4 → grade_level 12 (rounds down)
+    - SMOG index 12.6 → grade_level 13 (rounds up)
 
-    # Document that SMOG uses this same round() function
-    # If users need different rounding, they should apply it to smog_index themselves
+    Additionally, grade levels are clamped to [0, 20] range for consistency with
+    other readability metrics (ARI, Coleman-Liau).
+    """
+    # Verify round-half-up behavior
+    assert math.floor(12.5 + 0.5) == 13  # Round half up
+    assert math.floor(13.5 + 0.5) == 14  # Round half up
+    assert math.floor(12.4 + 0.5) == 12  # Round down
+    assert math.floor(12.6 + 0.5) == 13  # Round up
+
+    # Document that Python's default round() uses banker's rounding (which we avoid)
+    assert round(12.5) == 12  # Banker's rounding to even (NOT used in SMOG)
+    assert round(13.5) == 14  # Banker's rounding to even (NOT used in SMOG)
 
 
 def test_compute_smog_metadata_warning_typing():
@@ -219,22 +219,21 @@ def test_compute_smog_metadata_warning_typing():
 
 def test_compute_smog_better_example():
     """
-    Test with a better example that actually demonstrates polysyllables.
+    Test that polysyllable-rich text produces higher SMOG scores.
 
-    DOCUMENTATION ISSUE: The docstring example "The quick brown fox jumps over
-    the lazy dog" contains zero polysyllables (all 1-syllable words), yielding
-    SMOG ≈ 3.13, which is an atypical and misleading demonstration.
+    Demonstrates the difference between simple text (few/no polysyllables) and
+    complex text (many polysyllables), showing how SMOG responds to vocabulary
+    complexity.
 
-    This test uses text with actual polysyllables to show how SMOG responds
-    to complex vocabulary.
+    The docstring example now uses polysyllable-rich text for better demonstration.
     """
-    # Original example has no polysyllables
+    # Simple text with no polysyllables yields minimal SMOG score
     simple = "The quick brown fox jumps over the lazy dog."
     result_simple = compute_smog(simple)
     assert result_simple.metadata["polysyllable_count"] == 0
     # SMOG ≈ 3.13 (minimal score from formula constant)
 
-    # Better example with polysyllables
+    # Complex text with many polysyllables yields much higher SMOG score
     complex_text = (
         "Understanding computational linguistics requires significant dedication. "
         "Researchers investigate sophisticated methodologies systematically. "
@@ -247,6 +246,12 @@ def test_compute_smog_better_example():
     # capabilities(5), consistently(4) = 14 polysyllables
     assert result_complex.metadata["polysyllable_count"] > 10
     assert result_complex.smog_index > 10  # Much higher than simple text
+
+    # Verify docstring example contains polysyllables (caffeinated, programmers,
+    # enthusiastically, incomprehensible = 4 polysyllables)
+    docstring_example = "Caffeinated programmers enthusiastically debugged incomprehensible spaghetti code."
+    result_doc = compute_smog(docstring_example)
+    assert result_doc.metadata["polysyllable_count"] >= 4  # Good demonstration of SMOG
 
 
 def test_compute_smog_edge_case_grade_levels():
