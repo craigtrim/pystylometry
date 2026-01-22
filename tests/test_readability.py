@@ -1,5 +1,7 @@
 """Tests for readability metrics."""
 
+import math
+
 from pystylometry.readability import (
     compute_ari,
     compute_coleman_liau,
@@ -21,7 +23,8 @@ def test_compute_flesch_basic(sample_text):
 def test_compute_flesch_empty():
     """Test Flesch with empty text."""
     result = compute_flesch("")
-    assert result.reading_ease == 0.0
+    assert math.isnan(result.reading_ease)
+    assert math.isnan(result.grade_level)
     assert result.difficulty == "Unknown"
 
 
