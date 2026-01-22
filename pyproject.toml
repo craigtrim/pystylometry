@@ -1,0 +1,77 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pystylometry"
+version = "0.1.0"
+description = "Comprehensive Python package for stylometric analysis"
+authors = [{ name = "Craig Trim", email = "craigtrim@gmail.com" }]
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+keywords = ["stylometry", "nlp", "text-analysis", "authorship", "readability"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Text Processing :: Linguistic",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+]
+
+dependencies = ["numpy>=1.20.0", "stylometry-ttr>=0.1.0"]
+
+[project.optional-dependencies]
+readability = [
+    "pronouncing>=0.2.0", # Optional: CMU dict for better syllable counting
+]
+
+syntactic = [
+    "spacy>=3.0.0", # Required for POS tagging
+]
+
+# Note: authorship and ngrams modules work with core dependencies only!
+# They're included here as empty extras for consistency with documentation
+
+authorship = [] # Uses only numpy from core
+
+ngrams = [] # Pure Python implementation, no external deps
+
+all = ["pronouncing>=0.2.0", "spacy>=3.0.0"]
+
+dev = ["pytest>=7.0.0", "pytest-cov>=4.0.0", "ruff>=0.1.0", "mypy>=1.0.0"]
+
+[project.urls]
+Homepage = "https://github.com/craigtrim/pystylometry"
+Repository = "https://github.com/craigtrim/pystylometry"
+Issues = "https://github.com/craigtrim/pystylometry/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["pystylometry*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v --cov=pystylometry --cov-report=term-missing"
+
+[tool.ruff]
+line-length = 100
+target-version = "py38"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+ignore = []
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
