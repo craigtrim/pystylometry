@@ -3,12 +3,13 @@
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-
 # ===== Lexical Results =====
+
 
 @dataclass
 class MTLDResult:
     """Result from MTLD (Measure of Textual Lexical Diversity) computation."""
+
     mtld_forward: float
     mtld_backward: float
     mtld_average: float
@@ -18,6 +19,7 @@ class MTLDResult:
 @dataclass
 class YuleResult:
     """Result from Yule's K and I computation."""
+
     yule_k: float
     yule_i: float
     metadata: Dict[str, Any]
@@ -26,6 +28,7 @@ class YuleResult:
 @dataclass
 class HapaxResult:
     """Result from Hapax Legomena analysis."""
+
     hapax_count: int
     hapax_ratio: float
     dis_hapax_count: int
@@ -37,18 +40,21 @@ class HapaxResult:
 
 # ===== Readability Results =====
 
+
 @dataclass
 class FleschResult:
     """Result from Flesch Reading Ease and Flesch-Kincaid Grade computation."""
+
     reading_ease: float
     grade_level: float
-    difficulty: str  # "Very Easy", "Easy", "Fairly Easy", "Standard", "Fairly Difficult", "Difficult", "Very Difficult"
+    difficulty: str  # "Very Easy", "Easy", "Fairly Easy", "Standard", etc.
     metadata: Dict[str, Any]
 
 
 @dataclass
 class SMOGResult:
     """Result from SMOG Index computation."""
+
     smog_index: float
     grade_level: int
     metadata: Dict[str, Any]
@@ -57,6 +63,7 @@ class SMOGResult:
 @dataclass
 class GunningFogResult:
     """Result from Gunning Fog Index computation."""
+
     fog_index: float
     grade_level: int
     metadata: Dict[str, Any]
@@ -65,6 +72,7 @@ class GunningFogResult:
 @dataclass
 class ColemanLiauResult:
     """Result from Coleman-Liau Index computation."""
+
     cli_index: float
     grade_level: int
     metadata: Dict[str, Any]
@@ -73,6 +81,7 @@ class ColemanLiauResult:
 @dataclass
 class ARIResult:
     """Result from Automated Readability Index computation."""
+
     ari_score: float
     grade_level: int
     age_range: str
@@ -81,9 +90,11 @@ class ARIResult:
 
 # ===== Syntactic Results =====
 
+
 @dataclass
 class POSResult:
     """Result from Part-of-Speech ratio analysis."""
+
     noun_ratio: float
     verb_ratio: float
     adjective_ratio: float
@@ -98,6 +109,7 @@ class POSResult:
 @dataclass
 class SentenceStatsResult:
     """Result from sentence-level statistics."""
+
     mean_sentence_length: float
     sentence_length_std: float
     sentence_length_range: int
@@ -109,9 +121,11 @@ class SentenceStatsResult:
 
 # ===== Authorship Results =====
 
+
 @dataclass
 class BurrowsDeltaResult:
     """Result from Burrows' Delta computation."""
+
     delta_score: float
     distance_type: str  # "burrows", "cosine", "eder"
     mfw_count: int
@@ -121,6 +135,7 @@ class BurrowsDeltaResult:
 @dataclass
 class ZetaResult:
     """Result from Zeta score computation."""
+
     zeta_score: float
     marker_words: List[str]
     anti_marker_words: List[str]
@@ -129,9 +144,11 @@ class ZetaResult:
 
 # ===== N-gram Results =====
 
+
 @dataclass
 class EntropyResult:
     """Result from n-gram entropy computation."""
+
     entropy: float
     perplexity: float
     ngram_type: str  # "character_bigram", "word_bigram", "word_trigram"
@@ -140,9 +157,11 @@ class EntropyResult:
 
 # ===== Unified Analysis Result =====
 
+
 @dataclass
 class AnalysisResult:
     """Unified result from comprehensive stylometric analysis."""
+
     lexical: Optional[Dict[str, Any]] = None
     readability: Optional[Dict[str, Any]] = None
     syntactic: Optional[Dict[str, Any]] = None

@@ -56,5 +56,5 @@ def compute_sentence_stats(text: str, model: str = "en_core_web_sm") -> Sentence
         sentence_count=len(sentences),
         metadata={
             "model": model,
-        }
+        },
     )

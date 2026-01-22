@@ -1,7 +1,7 @@
 """Flesch Reading Ease and Flesch-Kincaid Grade Level."""
 
 from .._types import FleschResult
-from .._utils import tokenize, split_sentences
+from .._utils import split_sentences, tokenize
 from .syllables import count_syllables
 
 
@@ -52,7 +52,7 @@ def compute_flesch(text: str) -> FleschResult:
             reading_ease=0.0,
             grade_level=0.0,
             difficulty="Unknown",
-            metadata={"sentence_count": 0, "word_count": 0, "syllable_count": 0}
+            metadata={"sentence_count": 0, "word_count": 0, "syllable_count": 0},
         )
 
     # Count syllables
@@ -64,7 +64,7 @@ def compute_flesch(text: str) -> FleschResult:
 
     # TODO: Implement Flesch formulas
     reading_ease = 0.0  # Placeholder
-    grade_level = 0.0   # Placeholder
+    grade_level = 0.0  # Placeholder
     difficulty = "Unknown"  # Placeholder
 
     return FleschResult(
@@ -77,5 +77,5 @@ def compute_flesch(text: str) -> FleschResult:
             "syllable_count": total_syllables,
             "words_per_sentence": words_per_sentence,
             "syllables_per_word": syllables_per_word,
-        }
+        },
     )

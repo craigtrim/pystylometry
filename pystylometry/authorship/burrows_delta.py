@@ -1,18 +1,16 @@
 """Burrows' Delta and Cosine Delta for authorship attribution."""
 
-from typing import List, Dict
-from collections import Counter
 import math
 import statistics
+from collections import Counter
+from typing import List
+
 from .._types import BurrowsDeltaResult
 from .._utils import tokenize
 
 
 def compute_burrows_delta(
-    text1: str,
-    text2: str,
-    mfw: int = 500,
-    distance_type: str = "burrows"
+    text1: str, text2: str, mfw: int = 500, distance_type: str = "burrows"
 ) -> BurrowsDeltaResult:
     """
     Compute Burrows' Delta or Cosine Delta between two texts.
@@ -66,8 +64,8 @@ def compute_burrows_delta(
             metadata={
                 "text1_token_count": len(tokens1),
                 "text2_token_count": len(tokens2),
-                "warning": "One or both texts are empty"
-            }
+                "warning": "One or both texts are empty",
+            },
         )
 
     # Get word frequencies
@@ -75,7 +73,7 @@ def compute_burrows_delta(
     freq2 = Counter(tokens2)
 
     # Get most frequent words across both texts
-    all_words = Counter()
+    all_words: Counter[str] = Counter()
     all_words.update(freq1)
     all_words.update(freq2)
     most_common_words = [word for word, _ in all_words.most_common(mfw)]
@@ -109,8 +107,8 @@ def compute_burrows_delta(
     elif distance_type == "cosine":
         # Cosine Delta: 1 - cosine similarity
         dot_product = sum(z1_val * z2_val for z1_val, z2_val in zip(z1, z2))
-        norm1 = math.sqrt(sum(z ** 2 for z in z1))
-        norm2 = math.sqrt(sum(z ** 2 for z in z2))
+        norm1 = math.sqrt(sum(z**2 for z in z1))
+        norm2 = math.sqrt(sum(z**2 for z in z2))
         cosine_sim = dot_product / (norm1 * norm2) if norm1 > 0 and norm2 > 0 else 0
         delta_score = 1 - cosine_sim
     elif distance_type == "eder":
@@ -130,7 +128,7 @@ def compute_burrows_delta(
             "text2_token_count": len(tokens2),
             "text1_vocab": len(freq1),
             "text2_vocab": len(freq2),
-        }
+        },
     )
 
 

@@ -1,7 +1,7 @@
 """Gunning Fog Index."""
 
 from .._types import GunningFogResult
-from .._utils import tokenize, split_sentences
+from .._utils import split_sentences, tokenize
 from .syllables import count_syllables
 
 
@@ -40,7 +40,7 @@ def compute_gunning_fog(text: str) -> GunningFogResult:
         return GunningFogResult(
             fog_index=0.0,
             grade_level=0,
-            metadata={"sentence_count": 0, "word_count": 0, "complex_word_count": 0}
+            metadata={"sentence_count": 0, "word_count": 0, "complex_word_count": 0},
         )
 
     # Count complex words (3+ syllables)
@@ -58,6 +58,6 @@ def compute_gunning_fog(text: str) -> GunningFogResult:
             "sentence_count": len(sentences),
             "word_count": len(tokens),
             "complex_word_count": complex_word_count,
-            "complex_word_percentage": (complex_word_count / len(tokens) * 100) if tokens else 0
-        }
+            "complex_word_percentage": (complex_word_count / len(tokens) * 100) if tokens else 0,
+        },
     )

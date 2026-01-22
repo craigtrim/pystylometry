@@ -1,7 +1,7 @@
 """Automated Readability Index (ARI)."""
 
 from .._types import ARIResult
-from .._utils import tokenize, split_sentences
+from .._utils import split_sentences, tokenize
 
 
 def compute_ari(text: str) -> ARIResult:
@@ -45,7 +45,7 @@ def compute_ari(text: str) -> ARIResult:
             ari_score=0.0,
             grade_level=0,
             age_range="Unknown",
-            metadata={"sentence_count": 0, "word_count": 0, "character_count": 0}
+            metadata={"sentence_count": 0, "word_count": 0, "character_count": 0},
         )
 
     # Count characters (letters, numbers, excluding spaces and punctuation)
@@ -66,5 +66,5 @@ def compute_ari(text: str) -> ARIResult:
             "character_count": character_count,
             "characters_per_word": character_count / len(tokens) if tokens else 0,
             "words_per_sentence": len(tokens) / len(sentences) if sentences else 0,
-        }
+        },
     )

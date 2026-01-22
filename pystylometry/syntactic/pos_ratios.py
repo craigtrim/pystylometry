@@ -57,5 +57,5 @@ def compute_pos_ratios(text: str, model: str = "en_core_web_sm") -> POSResult:
         metadata={
             "model": model,
             "token_count": 0,
-        }
+        },
     )

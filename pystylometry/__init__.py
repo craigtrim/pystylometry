@@ -26,7 +26,8 @@ Usage:
     print(results.readability['flesch'].reading_ease)
 """
 
-from typing import Optional
+from typing import Dict
+
 from ._types import AnalysisResult
 
 # Version
@@ -37,31 +38,36 @@ from . import lexical
 
 # Optional exports - may raise ImportError if dependencies not installed
 try:
-    from . import readability
+    from . import readability  # noqa: F401
+
     _READABILITY_AVAILABLE = True
 except ImportError:
     _READABILITY_AVAILABLE = False
 
 try:
-    from . import syntactic
+    from . import syntactic  # noqa: F401
+
     _SYNTACTIC_AVAILABLE = True
 except ImportError:
     _SYNTACTIC_AVAILABLE = False
 
 # Authorship and ngrams use only stdlib (no external dependencies)
-from . import authorship
-from . import ngrams
+from . import (
+    authorship,  # noqa: F401
+    ngrams,  # noqa: F401
+)
+
 _AUTHORSHIP_AVAILABLE = True
 _NGRAMS_AVAILABLE = True
 
 
 def analyze(
     text: str,
-    lexical: bool = True,
-    readability: bool = False,
-    syntactic: bool = False,
-    authorship: bool = False,
-    ngrams: bool = False,
+    lexical_metrics: bool = True,
+    readability_metrics: bool = False,
+    syntactic_metrics: bool = False,
+    authorship_metrics: bool = False,
+    ngram_metrics: bool = False,
 ) -> AnalysisResult:
     """
     Unified interface to compute multiple stylometric metrics at once.
@@ -72,13 +78,13 @@ def analyze(
 
     Args:
         text: Input text to analyze
-        lexical: Compute lexical diversity metrics (default: True)
-        readability: Compute readability metrics (default: False)
-        syntactic: Compute syntactic metrics (default: False)
-        authorship: Compute authorship metrics (default: False)
+        lexical_metrics: Compute lexical diversity metrics (default: True)
+        readability_metrics: Compute readability metrics (default: False)
+        syntactic_metrics: Compute syntactic metrics (default: False)
+        authorship_metrics: Compute authorship metrics (default: False)
             Note: Authorship metrics typically require multiple texts for comparison.
             This will compute features that can be used for authorship analysis.
-        ngrams: Compute n-gram entropy metrics (default: False)
+        ngram_metrics: Compute n-gram entropy metrics (default: False)
 
     Returns:
         AnalysisResult with requested metrics in nested dictionaries
@@ -103,60 +109,66 @@ def analyze(
     result = AnalysisResult(metadata={"text_length": len(text)})
 
     # Lexical metrics (always available)
-    if lexical:
+    if lexical_metrics:
         result.lexical = {}
         # TODO: Add when stylometry-ttr is integrated
         # result.lexical['ttr'] = lexical.compute_ttr(text)
-        result.lexical['mtld'] = lexical.compute_mtld(text)
-        result.lexical['yule'] = lexical.compute_yule(text)
-        result.lexical['hapax'] = lexical.compute_hapax_ratios(text)
+        result.lexical["mtld"] = lexical.compute_mtld(text)
+        result.lexical["yule"] = lexical.compute_yule(text)
+        result.lexical["hapax"] = lexical.compute_hapax_ratios(text)
 
     # Readability metrics (optional dependency)
-    if readability:
+    if readability_metrics:
         if not _READABILITY_AVAILABLE:
             raise ImportError(
                 "Readability metrics require optional dependencies. "
                 "Install with: pip install pystylometry[readability]"
             )
+        # Import locally to avoid name conflict
+        from . import readability as readability_module
+
         result.readability = {}
-        result.readability['flesch'] = readability.compute_flesch(text)
-        result.readability['smog'] = readability.compute_smog(text)
-        result.readability['gunning_fog'] = readability.compute_gunning_fog(text)
-        result.readability['coleman_liau'] = readability.compute_coleman_liau(text)
-        result.readability['ari'] = readability.compute_ari(text)
+        result.readability["flesch"] = readability_module.compute_flesch(text)
+        result.readability["smog"] = readability_module.compute_smog(text)
+        result.readability["gunning_fog"] = readability_module.compute_gunning_fog(text)
+        result.readability["coleman_liau"] = readability_module.compute_coleman_liau(text)
+        result.readability["ari"] = readability_module.compute_ari(text)
 
     # Syntactic metrics (optional dependency)
-    if syntactic:
+    if syntactic_metrics:
         if not _SYNTACTIC_AVAILABLE:
             raise ImportError(
                 "Syntactic metrics require optional dependencies. "
                 "Install with: pip install pystylometry[syntactic]"
             )
+        # Import locally to avoid name conflict
+        from . import syntactic as syntactic_module
+
         result.syntactic = {}
-        result.syntactic['pos'] = syntactic.compute_pos_ratios(text)
-        result.syntactic['sentence_stats'] = syntactic.compute_sentence_stats(text)
+        result.syntactic["pos"] = syntactic_module.compute_pos_ratios(text)
+        result.syntactic["sentence_stats"] = syntactic_module.compute_sentence_stats(text)
 
     # Authorship metrics (uses stdlib only)
     # Note: These are typically used for comparison between texts
     # Here we just note that they're available but don't compute them
     # since they require multiple texts as input
-    if authorship:
+    if authorship_metrics:
         result.authorship = {
             "note": "Authorship metrics require multiple texts for comparison. "
-                    "Use pystylometry.authorship.compute_burrows_delta(text1, text2) directly."
+            "Use pystylometry.authorship.compute_burrows_delta(text1, text2) directly."
         }
 
     # N-gram metrics (uses stdlib only)
-    if ngrams:
+    if ngram_metrics:
         result.ngrams = {}
-        result.ngrams['character_bigram'] = ngrams.compute_character_bigram_entropy(text)
-        result.ngrams['word_bigram'] = ngrams.compute_word_bigram_entropy(text)
+        result.ngrams["character_bigram"] = ngrams.compute_character_bigram_entropy(text)
+        result.ngrams["word_bigram"] = ngrams.compute_word_bigram_entropy(text)
 
     return result
 
 
 # Convenient access to availability flags
-def get_available_modules():
+def get_available_modules() -> Dict[str, bool]:
     """
     Get dictionary of available optional modules.
 

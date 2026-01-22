@@ -1,7 +1,7 @@
 """Coleman-Liau Index."""
 
 from .._types import ColemanLiauResult
-from .._utils import tokenize, split_sentences
+from .._utils import split_sentences, tokenize
 
 
 def compute_coleman_liau(text: str) -> ColemanLiauResult:
@@ -40,15 +40,15 @@ def compute_coleman_liau(text: str) -> ColemanLiauResult:
         return ColemanLiauResult(
             cli_index=0.0,
             grade_level=0,
-            metadata={"sentence_count": 0, "word_count": 0, "letter_count": 0}
+            metadata={"sentence_count": 0, "word_count": 0, "letter_count": 0},
         )
 
     # Count letters (excluding spaces and punctuation)
     letter_count = sum(1 for char in text if char.isalpha())
 
     # Calculate per 100 words
-    L = (letter_count / len(tokens)) * 100
-    S = (len(sentences) / len(tokens)) * 100
+    L = (letter_count / len(tokens)) * 100  # noqa: N806
+    S = (len(sentences) / len(tokens)) * 100  # noqa: N806
 
     # TODO: Implement Coleman-Liau formula
     cli_index = 0.0  # Placeholder
@@ -63,5 +63,5 @@ def compute_coleman_liau(text: str) -> ColemanLiauResult:
             "letter_count": letter_count,
             "letters_per_100_words": L,
             "sentences_per_100_words": S,
-        }
+        },
     )

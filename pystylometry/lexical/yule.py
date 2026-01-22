@@ -1,6 +1,7 @@
 """Yule's K and I statistics for vocabulary richness."""
 
 from collections import Counter
+
 from .._types import YuleResult
 from .._utils import tokenize
 
@@ -38,22 +39,18 @@ def compute_yule(text: str) -> YuleResult:
         >>> print(f"Yule's I: {result.yule_i:.2f}")
     """
     tokens = tokenize(text.lower())
-    N = len(tokens)
+    N = len(tokens)  # noqa: N806
 
     if N == 0:
-        return YuleResult(
-            yule_k=0.0,
-            yule_i=0.0,
-            metadata={"token_count": 0, "vocabulary_size": 0}
-        )
+        return YuleResult(yule_k=0.0, yule_i=0.0, metadata={"token_count": 0, "vocabulary_size": 0})
 
     # Count frequency of each token
     freq_counter = Counter(tokens)
-    V = len(freq_counter)
+    V = len(freq_counter)  # noqa: N806
 
     # Count how many words occur with each frequency
     # Vm[m] = number of words that occur exactly m times
-    freq_of_freqs = Counter(freq_counter.values())
+    # freq_of_freqs = Counter(freq_counter.values())  # TODO: Will be needed for Yule's K
 
     # TODO: Implement Yule's K and I calculations
     yule_k = 0.0  # Placeholder
@@ -65,5 +62,5 @@ def compute_yule(text: str) -> YuleResult:
         metadata={
             "token_count": N,
             "vocabulary_size": V,
-        }
+        },
     )

@@ -1,6 +1,5 @@
 """MTLD (Measure of Textual Lexical Diversity) implementation."""
 
-from typing import List
 from .._types import MTLDResult
 from .._utils import tokenize
 
@@ -43,7 +42,7 @@ def compute_mtld(
             mtld_forward=0.0,
             mtld_backward=0.0,
             mtld_average=0.0,
-            metadata={"token_count": 0, "threshold": threshold}
+            metadata={"token_count": 0, "threshold": threshold},
         )
 
     # TODO: Implement forward and backward MTLD calculation
@@ -58,5 +57,5 @@ def compute_mtld(
         metadata={
             "token_count": len(tokens),
             "threshold": threshold,
-        }
+        },
     )
