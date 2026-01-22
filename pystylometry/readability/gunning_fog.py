@@ -30,8 +30,8 @@ version uses the complex_words module for accurate detection via:
 See complex_words.py for detailed rationale and implementation.
 """
 
-import math
 
+from .._normalize import normalize_for_readability
 from .._types import GunningFogResult
 from .._utils import split_sentences, tokenize
 
@@ -131,7 +131,7 @@ def compute_gunning_fog(
         Mode: enhanced
 
         >>> # Complex academic text (high complexity)
-        >>> text = "Understanding phenomenological hermeneutics necessitates comprehensive analysis."
+        >>> text = "Understanding phenomenological hermeneutics necessitates comprehensive study."
         >>> result = compute_gunning_fog(text)
         >>> print(f"Fog Index: {result.fog_index:.1f}")
         Fog Index: 23.6
@@ -154,10 +154,10 @@ def compute_gunning_fog(
     sentences = split_sentences(text)
     all_tokens = tokenize(text)
 
-    # Filter to only words (exclude punctuation, numbers)
-    # Allow hyphenated words like "self-education" per Gunning (1952)
-    # Gunning (1952) focuses on lexical complexity of actual words
-    tokens = [token for token in all_tokens if (token.isalpha() or "-" in token)]
+    # Filter to only valid words (exclude punctuation, numbers, URLs, emails)
+    # Allows hyphenated words and contractions per Gunning (1952)
+    # Prevents errors in syllable counting from non-word tokens
+    tokens = normalize_for_readability(all_tokens)
 
     # Edge case: Empty or whitespace-only input
     # Return zero values rather than raising an error
