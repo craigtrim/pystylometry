@@ -1,7 +1,7 @@
 """Hapax legomena and related vocabulary richness metrics."""
 
 from collections import Counter
-import math
+
 from .._types import HapaxResult
 from .._utils import tokenize
 
@@ -36,7 +36,7 @@ def compute_hapax_ratios(text: str) -> HapaxResult:
         >>> print(f"Sichel's S: {result.sichel_s:.3f}")
     """
     tokens = tokenize(text.lower())
-    N = len(tokens)
+    N = len(tokens)  # noqa: N806
 
     if N == 0:
         return HapaxResult(
@@ -46,16 +46,16 @@ def compute_hapax_ratios(text: str) -> HapaxResult:
             dis_hapax_ratio=0.0,
             sichel_s=0.0,
             honore_r=0.0,
-            metadata={"token_count": 0, "vocabulary_size": 0}
+            metadata={"token_count": 0, "vocabulary_size": 0},
         )
 
     # Count frequency of each token
     freq_counter = Counter(tokens)
-    V = len(freq_counter)
+    V = len(freq_counter)  # noqa: N806
 
     # Count hapax legomena (V₁) and dislegomena (V₂)
-    V1 = sum(1 for count in freq_counter.values() if count == 1)
-    V2 = sum(1 for count in freq_counter.values() if count == 2)
+    V1 = sum(1 for count in freq_counter.values() if count == 1)  # noqa: N806
+    V2 = sum(1 for count in freq_counter.values() if count == 2)  # noqa: N806
 
     # TODO: Implement Sichel's S and Honoré's R
     sichel_s = 0.0  # Placeholder
@@ -71,5 +71,5 @@ def compute_hapax_ratios(text: str) -> HapaxResult:
         metadata={
             "token_count": N,
             "vocabulary_size": V,
-        }
+        },
     )

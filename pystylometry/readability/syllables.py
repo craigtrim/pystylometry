@@ -1,7 +1,5 @@
 """Syllable counting utilities using CMU Pronouncing Dictionary."""
 
-from typing import Optional
-
 
 def count_syllables(word: str) -> int:
     """
@@ -46,7 +44,7 @@ def _heuristic_syllable_count(word: str) -> int:
         previous_was_vowel = is_vowel
 
     # Adjust for silent 'e'
-    if word.endswith('e') and syllable_count > 1:
+    if word.endswith("e") and syllable_count > 1:
         syllable_count -= 1
 
     # Ensure at least one syllable

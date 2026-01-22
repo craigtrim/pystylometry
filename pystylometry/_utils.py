@@ -28,7 +28,8 @@ def split_sentences(text: str) -> List[str]:
     """
     # Simple implementation - can be improved with better sentence boundary detection
     import re
-    sentences = re.split(r'[.!?]+', text)
+
+    sentences = re.split(r"[.!?]+", text)
     return [s.strip() for s in sentences if s.strip()]
 
 

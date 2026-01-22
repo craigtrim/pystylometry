@@ -1,17 +1,12 @@
 """Zeta score for distinctive word usage in authorship attribution."""
 
 from typing import List, Set
-from collections import Counter
+
 from .._types import ZetaResult
 from .._utils import tokenize
 
 
-def compute_zeta(
-    text1: str,
-    text2: str,
-    segments: int = 10,
-    top_n: int = 50
-) -> ZetaResult:
+def compute_zeta(text1: str, text2: str, segments: int = 10, top_n: int = 50) -> ZetaResult:
     """
     Compute Zeta score for distinctive word usage between two texts or text groups.
 
@@ -62,17 +57,14 @@ def compute_zeta(
                 "text2_token_count": len(tokens2),
                 "segments": segments,
                 "top_n": top_n,
-                "warning": "Text too short for requested number of segments"
-            }
+                "warning": "Text too short for requested number of segments",
+            },
         )
 
     # Divide texts into segments
     def create_segments(tokens: List[str], n_segments: int) -> List[Set[str]]:
         segment_size = len(tokens) // n_segments
-        return [
-            set(tokens[i * segment_size:(i + 1) * segment_size])
-            for i in range(n_segments)
-        ]
+        return [set(tokens[i * segment_size : (i + 1) * segment_size]) for i in range(n_segments)]
 
     segments1 = create_segments(tokens1, segments)
     segments2 = create_segments(tokens2, segments)
@@ -99,7 +91,9 @@ def compute_zeta(
     anti_marker_words.reverse()  # Most negative first
 
     # Overall zeta score (mean of absolute zeta scores)
-    zeta_score = sum(abs(score) for score in word_scores.values()) / len(word_scores) if word_scores else 0.0
+    zeta_score = (
+        sum(abs(score) for score in word_scores.values()) / len(word_scores) if word_scores else 0.0
+    )
 
     return ZetaResult(
         zeta_score=zeta_score,
@@ -113,5 +107,5 @@ def compute_zeta(
             "total_unique_words": len(all_words),
             "marker_word_count": len(marker_words),
             "anti_marker_word_count": len(anti_marker_words),
-        }
+        },
     )

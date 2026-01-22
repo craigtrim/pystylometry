@@ -1,7 +1,7 @@
 """SMOG (Simple Measure of Gobbledygook) Index."""
 
 from .._types import SMOGResult
-from .._utils import tokenize, split_sentences
+from .._utils import split_sentences, tokenize
 from .syllables import count_syllables
 
 
@@ -48,8 +48,8 @@ def compute_smog(text: str) -> SMOGResult:
                 "sentence_count": 0,
                 "word_count": 0,
                 "polysyllable_count": 0,
-                "warning": "Insufficient text"
-            }
+                "warning": "Insufficient text",
+            },
         )
 
     # Count polysyllables (words with 3+ syllables)
@@ -57,7 +57,7 @@ def compute_smog(text: str) -> SMOGResult:
 
     # TODO: Implement SMOG formula
     smog_index = 0.0  # Placeholder
-    grade_level = 0   # Placeholder
+    grade_level = 0  # Placeholder
 
     return SMOGResult(
         smog_index=smog_index,
@@ -66,6 +66,6 @@ def compute_smog(text: str) -> SMOGResult:
             "sentence_count": len(sentences),
             "word_count": len(tokens),
             "polysyllable_count": polysyllable_count,
-            "warning": "Less than 30 sentences" if len(sentences) < 30 else None
-        }
+            "warning": "Less than 30 sentences" if len(sentences) < 30 else None,
+        },
     )

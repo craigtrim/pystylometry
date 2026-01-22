@@ -1,17 +1,13 @@
 """N-gram entropy and perplexity calculations."""
 
-from typing import List
-from collections import Counter
 import math
+from collections import Counter
+
 from .._types import EntropyResult
 from .._utils import tokenize
 
 
-def compute_ngram_entropy(
-    text: str,
-    n: int = 2,
-    ngram_type: str = "word"
-) -> EntropyResult:
+def compute_ngram_entropy(text: str, n: int = 2, ngram_type: str = "word") -> EntropyResult:
     """
     Compute n-gram entropy and perplexity for text.
 
@@ -59,14 +55,14 @@ def compute_ngram_entropy(
                 "n": n,
                 "ngram_type": ngram_type,
                 "item_count": len(items),
-                "warning": "Text too short for n-gram analysis"
-            }
+                "warning": "Text too short for n-gram analysis",
+            },
         )
 
     # Create n-grams using sliding window
     ngram_list = []
     for i in range(len(items) - n + 1):
-        ngram = tuple(items[i:i + n])
+        ngram = tuple(items[i : i + n])
         ngram_list.append(ngram)
 
     # Count n-gram frequencies
@@ -80,7 +76,7 @@ def compute_ngram_entropy(
         entropy -= probability * math.log2(probability)
 
     # Calculate perplexity: 2^H(X)
-    perplexity = 2 ** entropy
+    perplexity = 2**entropy
 
     return EntropyResult(
         entropy=entropy,
@@ -92,7 +88,7 @@ def compute_ngram_entropy(
             "item_count": len(items),
             "unique_ngrams": len(ngram_counts),
             "total_ngrams": total_ngrams,
-        }
+        },
     )
 
 

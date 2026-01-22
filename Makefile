@@ -1,7 +1,8 @@
-.PHONY: help install install-dev test lint format clean build dist publish-test publish all
+.PHONY: help install install-dev setup test lint format clean build dist publish-test publish all
 
 help:
 	@echo "Available targets:"
+	@echo "  setup         First-time setup (install dev dependencies + build tools)"
 	@echo "  install       Install package with core dependencies"
 	@echo "  install-dev   Install package with dev dependencies"
 	@echo "  test          Run tests with coverage"
@@ -13,6 +14,12 @@ help:
 	@echo "  publish-test  Publish to TestPyPI"
 	@echo "  publish       Publish to PyPI (production)"
 	@echo "  all           Complete build: clean, format, lint, test, build"
+	@echo ""
+	@echo "Quick start: make setup && make all"
+
+setup:
+	pip install -e ".[dev,all]"
+	pip install build twine
 
 install:
 	pip install -e .
