@@ -39,6 +39,12 @@ def compute_flesch(text: str) -> FleschResult:
     Returns:
         FleschResult with reading ease, grade level, and difficulty rating
 
+        Note: The difficulty label ("Very Easy", "Easy", etc.) is determined solely
+        from the reading_ease score and does NOT consider the grade_level score.
+        This means text with high reading_ease (e.g., 85 = "Easy") but high
+        grade_level (e.g., 12 = college) will still be labeled "Easy". The two
+        metrics measure different aspects of readability and may not always align.
+
         Note: For empty input (no sentences or words), reading_ease and grade_level
         will be float('nan'). This prevents conflating "no data" with "extremely
         difficult text" (score of 0). Consumers should check for NaN before
@@ -83,7 +89,9 @@ def compute_flesch(text: str) -> FleschResult:
     # Flesch-Kincaid Grade Level: 0.39 × (words/sentences) + 11.8 × (syllables/words) - 15.59
     grade_level = (0.39 * words_per_sentence) + (11.8 * syllables_per_word) - 15.59
 
-    # Determine difficulty rating based on reading ease score
+    # Determine difficulty rating based ONLY on reading ease score (not grade level)
+    # This is a conscious design choice: difficulty labels follow the Reading Ease
+    # thresholds exclusively, even though grade_level may suggest a different difficulty
     if reading_ease >= 90:
         difficulty = "Very Easy"
     elif reading_ease >= 80:
