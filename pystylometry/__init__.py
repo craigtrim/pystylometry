@@ -48,17 +48,11 @@ try:
 except ImportError:
     _SYNTACTIC_AVAILABLE = False
 
-try:
-    from . import authorship
-    _AUTHORSHIP_AVAILABLE = True
-except ImportError:
-    _AUTHORSHIP_AVAILABLE = False
-
-try:
-    from . import ngrams
-    _NGRAMS_AVAILABLE = True
-except ImportError:
-    _NGRAMS_AVAILABLE = False
+# Authorship and ngrams use only stdlib (no external dependencies)
+from . import authorship
+from . import ngrams
+_AUTHORSHIP_AVAILABLE = True
+_NGRAMS_AVAILABLE = True
 
 
 def analyze(
@@ -142,28 +136,18 @@ def analyze(
         result.syntactic['pos'] = syntactic.compute_pos_ratios(text)
         result.syntactic['sentence_stats'] = syntactic.compute_sentence_stats(text)
 
-    # Authorship metrics (optional dependency)
+    # Authorship metrics (uses stdlib only)
     # Note: These are typically used for comparison between texts
     # Here we just note that they're available but don't compute them
     # since they require multiple texts as input
     if authorship:
-        if not _AUTHORSHIP_AVAILABLE:
-            raise ImportError(
-                "Authorship metrics require optional dependencies. "
-                "Install with: pip install pystylometry[authorship]"
-            )
         result.authorship = {
             "note": "Authorship metrics require multiple texts for comparison. "
                     "Use pystylometry.authorship.compute_burrows_delta(text1, text2) directly."
         }
 
-    # N-gram metrics (optional dependency)
+    # N-gram metrics (uses stdlib only)
     if ngrams:
-        if not _NGRAMS_AVAILABLE:
-            raise ImportError(
-                "N-gram metrics require optional dependencies. "
-                "Install with: pip install pystylometry[ngrams]"
-            )
         result.ngrams = {}
         result.ngrams['character_bigram'] = ngrams.compute_character_bigram_entropy(text)
         result.ngrams['word_bigram'] = ngrams.compute_word_bigram_entropy(text)

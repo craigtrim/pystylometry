@@ -11,6 +11,7 @@ readme = "README.md"
 requires-python = ">=3.8"
 license = { text = "MIT" }
 keywords = ["stylometry", "nlp", "text-analysis", "authorship", "readability"]
+
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
@@ -26,7 +27,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Information Analysis",
 ]
 
-dependencies = ["numpy>=1.20.0", "stylometry-ttr>=0.1.0"]
+dependencies = ["stylometry-ttr>=0.1.0"]
 
 [project.optional-dependencies]
 readability = [
@@ -34,17 +35,17 @@ readability = [
 ]
 
 syntactic = [
-    "spacy>=3.0.0", # Required for POS tagging
+    "spacy>=3.8.0,<3.9.0", # Required for POS tagging
 ]
 
 # Note: authorship and ngrams modules work with core dependencies only!
 # They're included here as empty extras for consistency with documentation
 
-authorship = [] # Uses only numpy from core
+authorship = [] # Pure Python + stdlib only (math, statistics)
 
-ngrams = [] # Pure Python implementation, no external deps
+ngrams = [] # Pure Python + stdlib only (collections, math)
 
-all = ["pronouncing>=0.2.0", "spacy>=3.0.0"]
+all = ["pronouncing>=0.2.0", "spacy>=3.8.0,<3.9.0"]
 
 dev = ["pytest>=7.0.0", "pytest-cov>=4.0.0", "ruff>=0.1.0", "mypy>=1.0.0"]
 

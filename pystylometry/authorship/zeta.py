@@ -1,8 +1,9 @@
 """Zeta score for distinctive word usage in authorship attribution."""
 
-from typing import List
+from typing import List, Set
+from collections import Counter
 from .._types import ZetaResult
-from .._utils import check_optional_dependency, tokenize
+from .._utils import tokenize
 
 
 def compute_zeta(
@@ -41,30 +42,76 @@ def compute_zeta(
     Returns:
         ZetaResult with zeta score, marker words, and anti-marker words
 
-    Raises:
-        ImportError: If scipy is not installed
-
     Example:
         >>> result = compute_zeta(author1_text, author2_text)
         >>> print(f"Zeta score: {result.zeta_score:.3f}")
         >>> print(f"Marker words: {result.marker_words[:10]}")
         >>> print(f"Anti-markers: {result.anti_marker_words[:10]}")
     """
-    check_optional_dependency("scipy", "authorship")
+    # Tokenize texts
+    tokens1 = [t.lower() for t in tokenize(text1)]
+    tokens2 = [t.lower() for t in tokenize(text2)]
 
-    # TODO: Implement Zeta calculation
-    zeta_score = 0.0  # Placeholder
-    marker_words: List[str] = []  # Placeholder
-    anti_marker_words: List[str] = []  # Placeholder
+    if len(tokens1) < segments or len(tokens2) < segments:
+        return ZetaResult(
+            zeta_score=0.0,
+            marker_words=[],
+            anti_marker_words=[],
+            metadata={
+                "text1_token_count": len(tokens1),
+                "text2_token_count": len(tokens2),
+                "segments": segments,
+                "top_n": top_n,
+                "warning": "Text too short for requested number of segments"
+            }
+        )
+
+    # Divide texts into segments
+    def create_segments(tokens: List[str], n_segments: int) -> List[Set[str]]:
+        segment_size = len(tokens) // n_segments
+        return [
+            set(tokens[i * segment_size:(i + 1) * segment_size])
+            for i in range(n_segments)
+        ]
+
+    segments1 = create_segments(tokens1, segments)
+    segments2 = create_segments(tokens2, segments)
+
+    # Get all unique words
+    all_words = set(tokens1) | set(tokens2)
+
+    # Calculate document proportion (DP) for each word
+    word_scores = {}
+    for word in all_words:
+        # DP1: proportion of segments in text1 containing the word
+        dp1 = sum(1 for seg in segments1 if word in seg) / len(segments1)
+        # DP2: proportion of segments in text2 containing the word
+        dp2 = sum(1 for seg in segments2 if word in seg) / len(segments2)
+        # Zeta score for this word
+        word_scores[word] = dp1 - dp2
+
+    # Sort words by zeta score
+    sorted_words = sorted(word_scores.items(), key=lambda x: x[1], reverse=True)
+
+    # Extract top marker words (positive zeta) and anti-marker words (negative zeta)
+    marker_words = [word for word, score in sorted_words[:top_n] if score > 0]
+    anti_marker_words = [word for word, score in sorted_words[-top_n:] if score < 0]
+    anti_marker_words.reverse()  # Most negative first
+
+    # Overall zeta score (mean of absolute zeta scores)
+    zeta_score = sum(abs(score) for score in word_scores.values()) / len(word_scores) if word_scores else 0.0
 
     return ZetaResult(
         zeta_score=zeta_score,
         marker_words=marker_words,
         anti_marker_words=anti_marker_words,
         metadata={
-            "text1_token_count": len(tokenize(text1)),
-            "text2_token_count": len(tokenize(text2)),
+            "text1_token_count": len(tokens1),
+            "text2_token_count": len(tokens2),
             "segments": segments,
             "top_n": top_n,
+            "total_unique_words": len(all_words),
+            "marker_word_count": len(marker_words),
+            "anti_marker_word_count": len(anti_marker_words),
         }
     )
