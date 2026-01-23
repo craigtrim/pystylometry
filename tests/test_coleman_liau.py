@@ -110,13 +110,12 @@ class TestColemanLiauEdgeCases:
 
     def test_whitespace_only(self):
         """Test string with only whitespace returns NaN (same as empty).
-        
+
         Reference: PR #2 - Whitespace-only is semantically equivalent to empty.
         """
         import math
-        
-        result = compute_coleman_liau("   
-	  ")
+
+        result = compute_coleman_liau("   \n\t  ")
 
         assert math.isnan(result.cli_index), "Whitespace should return NaN"
         assert math.isnan(result.grade_level), "Whitespace grade_level should be NaN"
