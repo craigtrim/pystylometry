@@ -2,8 +2,6 @@
 
 import math
 
-import pytest
-
 from pystylometry.lexical import compute_yule
 
 
