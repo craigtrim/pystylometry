@@ -55,7 +55,6 @@ from .syllables import count_syllables
 # spaCy is in the [readability] extras group in pyproject.toml
 try:
     import spacy
-    from spacy.tokens import Doc
 
     _SPACY_AVAILABLE = True
 except ImportError:
@@ -463,7 +462,8 @@ def process_text_for_complex_words(
 
     # Fallback to basic heuristics
     # PR #4: This maintains backward compatibility when spaCy unavailable
-    from .._utils import split_sentences, tokenize as simple_tokenize
+    from .._utils import split_sentences
+    from .._utils import tokenize as simple_tokenize
 
     complex_count = 0
     sentences = split_sentences(text)
