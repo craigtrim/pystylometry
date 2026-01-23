@@ -16,7 +16,7 @@ class TestGunningFogBasic:
         result = compute_gunning_fog(text)
 
         assert isinstance(result.fog_index, float)
-        assert isinstance(result.grade_level, int)
+        assert isinstance(result.grade_level, float)  # Changed to float for NaN support
         assert result.grade_level >= 0
         assert result.grade_level <= 20
         assert not result.metadata["reliable"]  # < 100 words and < 3 sentences
@@ -158,7 +158,7 @@ class TestGunningFogRounding:
 
         for text in texts:
             result = compute_gunning_fog(text)
-            assert isinstance(result.grade_level, int)
+            assert isinstance(result.grade_level, float)  # Changed to float for NaN support
 
     def test_lower_bound_clamping(self):
         """Test that very simple text is clamped to grade 0."""

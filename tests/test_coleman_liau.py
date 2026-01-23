@@ -40,7 +40,7 @@ class TestColemanLiauBasic:
         result = compute_coleman_liau(text)
 
         assert isinstance(result.cli_index, float)
-        assert isinstance(result.grade_level, int)
+        assert isinstance(result.grade_level, float)  # Changed to float for NaN support
         assert result.grade_level >= 0
         # NOTE: No upper bound check (removed per PR #2 review)
         # Previously checked <= 20, but upper bound was arbitrary
@@ -89,11 +89,18 @@ class TestColemanLiauEdgeCases:
     """Test edge cases and boundary conditions."""
 
     def test_empty_string(self):
-        """Test empty string input."""
+        """Test empty string input returns NaN (API consistency).
+        
+        Reference: PR #2, aligned with Flesch PR #3, Gunning Fog PR #4
+        Empty input should return NaN, not 0.0, to prevent conflating
+        "no data" with "kindergarten level" text.
+        """
+        import math
+        
         result = compute_coleman_liau("")
 
-        assert result.cli_index == 0.0
-        assert result.grade_level == 0
+        assert math.isnan(result.cli_index), "Empty input should return NaN"
+        assert math.isnan(result.grade_level), "Empty grade_level should be NaN"
         assert result.metadata["sentence_count"] == 0
         assert result.metadata["word_count"] == 0
         assert result.metadata["letter_count"] == 0
@@ -102,11 +109,17 @@ class TestColemanLiauEdgeCases:
         assert not result.metadata["reliable"]
 
     def test_whitespace_only(self):
-        """Test string with only whitespace."""
-        result = compute_coleman_liau("   \n\t  ")
+        """Test string with only whitespace returns NaN (same as empty).
+        
+        Reference: PR #2 - Whitespace-only is semantically equivalent to empty.
+        """
+        import math
+        
+        result = compute_coleman_liau("   
+	  ")
 
-        assert result.cli_index == 0.0
-        assert result.grade_level == 0
+        assert math.isnan(result.cli_index), "Whitespace should return NaN"
+        assert math.isnan(result.grade_level), "Whitespace grade_level should be NaN"
         assert not result.metadata["reliable"]
 
     def test_no_letters(self):
@@ -148,7 +161,7 @@ class TestColemanLiauRounding:
 
         for text in texts:
             result = compute_coleman_liau(text)
-            assert isinstance(result.grade_level, int)
+            assert isinstance(result.grade_level, float)  # Changed to float for NaN support
 
     def test_lower_bound_clamping(self):
         """Test that negative CLI values are clamped to grade 0."""
@@ -191,7 +204,7 @@ class TestColemanLiauRounding:
         # Should be very high (no upper bound)
         # The empirical formula determines the actual grade level
         assert result.grade_level > 20  # Verify it exceeds the old arbitrary cap
-        assert isinstance(result.grade_level, int)  # Still an integer
+        assert isinstance(result.grade_level, float)  # Changed to float for NaN support  # Still an integer
 
 
 class TestColemanLiauMetadata:
