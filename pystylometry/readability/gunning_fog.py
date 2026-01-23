@@ -115,10 +115,27 @@ def compute_gunning_fog(
                 - complex_word_count: Number of complex words
                 - complex_word_percentage: Percentage of complex words
                 - average_words_per_sentence: Mean sentence length
+                - reliable: Bool, whether text is long enough (100+ words) for reliable results
                 - mode: "enhanced" (spaCy) or "basic" (heuristics)
                 - proper_noun_detection: Detection method used
                 - inflection_handling: Inflection analysis method used
                 - spacy_model: Model name if enhanced mode (else absent)
+
+        **Empty Input Handling (API Consistency):**
+        For empty input (no sentences or words), fog_index will be float('nan').
+        This maintains API consistency with other readability metrics (Flesch PR #3,
+        Coleman-Liau PR #2) and prevents conflating "no data" with "extremely easy text".
+
+        A kindergarten-level text legitimately scores ~0-2 (e.g., "Go. Run. Stop.").
+        Empty string semantically means "cannot measure", not "grade 0".
+
+        Consumers should check for NaN:
+            import math
+            if not math.isnan(result.fog_index):
+                # Process valid result
+
+        Reference: https://github.com/craigtrim/pystylometry/pull/4
+        Related: Flesch PR #3, Coleman-Liau PR #2
 
     Example:
         >>> # Simple text (low complexity)
@@ -144,10 +161,18 @@ def compute_gunning_fog(
         Using spaCy NLP features
 
     Notes:
-        - Empty text returns fog_index=0.0 and grade_level=0
+        - Empty text returns fog_index=NaN and grade_level=0 (API consistency with other metrics)
         - Grade levels are clamped to [0, 20] range
-        - For short texts (< 100 words), results may be unreliable
+        - For short texts (< 100 words), metadata['reliable'] will be False
         - Gunning (1952) recommends analyzing samples of 100+ words
+
+        >>> # Empty input example
+        >>> import math
+        >>> result_empty = compute_gunning_fog("")
+        >>> math.isnan(result_empty.fog_index)
+        True
+        >>> result_empty.metadata['reliable']
+        False
     """
     # Step 1: Sentence and word tokenization
     # Using the project's standard utilities for consistency
@@ -159,18 +184,39 @@ def compute_gunning_fog(
     # Gunning (1952) focuses on lexical complexity of actual words
     tokens = [token for token in all_tokens if (token.isalpha() or "-" in token)]
 
-    # Edge case: Empty or whitespace-only input
-    # Return zero values rather than raising an error
+    # Empty Input Handling: Return NaN for Undefined Measurements
+    # =============================================================
+    # Design Decision (PR #4, aligned with Flesch PR #3, Coleman-Liau PR #2):
+    #
+    # Previous implementation returned fog_index=0.0 and grade_level=0 for empty input.
+    # This was semantically incorrect because:
+    #
+    # 1. Kindergarten texts legitimately score Fog ~0-2 (e.g., "Go. Run. Stop.")
+    # 2. Empty string means "cannot measure", not "grade 0" or "extremely easy"
+    # 3. Returning 0.0 allowed empty strings to silently contaminate aggregates
+    #
+    # Correct behavior: Return float('nan') to represent undefined measurement
+    # - NaN propagates through arithmetic, signaling missing data
+    # - Consumers must explicitly filter: [x for x in scores if not math.isnan(x)]
+    # - Follows IEEE 754 standard for undefined/missing numerical values
+    # - Consistent with other metrics: Flesch, Coleman-Liau, ARI, SMOG
+    #
+    # Academic rationale: Gunning (1952) developed the Fog Index for analyzing
+    # business writing samples of 100+ words. The formula has no mathematical
+    # interpretation for zero-length input—it's undefined, not zero.
+    #
+    # See: https://github.com/craigtrim/pystylometry/pull/4
     if len(sentences) == 0 or len(tokens) == 0:
         return GunningFogResult(
-            fog_index=0.0,
-            grade_level=0,
+            fog_index=float("nan"),
+            grade_level=0,  # Keep as 0 since grade_level is int (cannot be NaN)
             metadata={
                 "sentence_count": 0,
                 "word_count": 0,
                 "complex_word_count": 0,
                 "complex_word_percentage": 0.0,
                 "average_words_per_sentence": 0.0,
+                "reliable": False,  # Empty text is not reliable
                 "mode": "none",
                 "proper_noun_detection": "N/A",
                 "inflection_handling": "N/A",
@@ -206,7 +252,12 @@ def compute_gunning_fog(
     # Note: Texts with fog_index > 20 are considered "post-graduate" level
     grade_level = max(0, min(20, round(fog_index)))
 
-    # Step 6: Assemble result with comprehensive metadata
+    # Step 6: Calculate reliability flag
+    # Gunning (1952) recommends analyzing samples of 100+ words for reliable results
+    # Shorter texts may have unstable Fog Index values due to small sample size
+    reliable = len(tokens) >= 100
+
+    # Step 7: Assemble result with comprehensive metadata
     return GunningFogResult(
         fog_index=fog_index,
         grade_level=grade_level,
@@ -218,6 +269,8 @@ def compute_gunning_fog(
             # Derived metrics
             "complex_word_percentage": complex_word_percentage,
             "average_words_per_sentence": average_words_per_sentence,
+            # Reliability flag (based on Gunning 1952 recommendations)
+            "reliable": reliable,
             # Detection method transparency (from complex_words module)
             # This allows users to verify which mode was used
             **detection_metadata,

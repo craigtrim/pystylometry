@@ -60,6 +60,28 @@ def compute_coleman_liau(text: str) -> ColemanLiauResult:
     Returns:
         ColemanLiauResult with CLI index and grade level
 
+        **Empty Input Handling (API Consistency):**
+        For empty input (no sentences or words), cli_index and grade_level
+        will be float('nan'). This design choice maintains API consistency
+        across all readability metrics (Flesch PR #3, Coleman-Liau PR #2,
+        Gunning Fog PR #4) and prevents a critical semantic error:
+
+        - Returning 0.0 conflates "no data" with "extremely easy text"
+        - A kindergarten-level text legitimately scores CLI ~0-1
+        - Empty string semantically means "cannot measure", not "grade 0"
+
+        Consumers should check for NaN before arithmetic operations:
+            import math
+            if not math.isnan(result.cli_index):
+                # Process valid result
+                average_score = sum(scores) / len(scores)
+
+        This follows the IEEE 754 standard for representing undefined/missing
+        values and prevents silent propagation of meaningless zeros in statistics.
+
+        Reference: https://github.com/craigtrim/pystylometry/pull/2
+        Related: Flesch PR #3, Gunning Fog PR #4, ARI (pending)
+
     Example:
         >>> result = compute_coleman_liau("The quick brown fox jumps over the lazy dog.")
         >>> print(f"CLI Index: {result.cli_index:.1f}")
@@ -68,6 +90,14 @@ def compute_coleman_liau(text: str) -> ColemanLiauResult:
         Grade Level: 4
         >>> result.metadata["reliable"]
         False
+
+        >>> # Empty input returns NaN (not 0.0)
+        >>> import math
+        >>> result_empty = compute_coleman_liau("")
+        >>> math.isnan(result_empty.cli_index)
+        True
+        >>> result_empty.grade_level  # Integer, so returns 0 (cannot be NaN)
+        0
     """
     sentences = split_sentences(text)
     tokens = tokenize(text)
@@ -95,10 +125,34 @@ def compute_coleman_liau(text: str) -> ColemanLiauResult:
     # This maintains the mathematical integrity of the L term in the Coleman-Liau formula.
     letter_count = sum(1 for token in tokens for char in token if char.isalpha())
 
+    # Empty Input Handling: Return NaN for Undefined Measurements
+    # ============================================================
+    # Design Decision (PR #2, aligned with Flesch PR #3, Gunning Fog PR #4):
+    #
+    # Previous implementation returned cli_index=0.0 and grade_level=0 for empty input.
+    # This was semantically incorrect because:
+    #
+    # 1. Kindergarten texts legitimately score CLI ~0-1 (e.g., "Go. Run. Stop.")
+    # 2. Empty string means "cannot measure", not "grade 0" or "extremely easy"
+    # 3. Returning 0.0 allowed empty strings to silently contaminate aggregates:
+    #        scores = [compute_coleman_liau(text).cli_index for text in texts]
+    #        mean_score = sum(scores) / len(scores)  # Empty texts drag down mean!
+    #
+    # Correct behavior: Return float('nan') to represent undefined measurement
+    # - NaN propagates through arithmetic, signaling missing data
+    # - Consumers must explicitly filter: [x for x in scores if not math.isnan(x)]
+    # - Follows IEEE 754 standard for undefined/missing numerical values
+    # - Consistent with other metrics: Flesch, Gunning Fog, ARI, SMOG
+    #
+    # Academic rationale: Coleman & Liau (1975) defined CLI for "readable text"
+    # (passages of ~100 words). The formula has no mathematical interpretation
+    # for zero-length input—it's undefined, not zero.
+    #
+    # See: https://github.com/craigtrim/pystylometry/pull/2
     if len(sentences) == 0 or len(tokens) == 0:
         return ColemanLiauResult(
-            cli_index=0.0,
-            grade_level=0,
+            cli_index=float("nan"),
+            grade_level=0,  # Keep as 0 since grade_level is int (cannot be NaN)
             metadata={
                 "sentence_count": len(sentences),
                 "word_count": len(tokens),
