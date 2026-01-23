@@ -47,9 +47,13 @@ This dual-mode approach maintains backward compatibility while providing
 enhanced accuracy when optional dependencies are available.
 """
 
+import logging
 from typing import Optional
 
 from .syllables import count_syllables
+
+# Set up logging
+_logger = logging.getLogger(__name__)
 
 # Try to import spaCy (optional dependency)
 # spaCy is in the [readability] extras group in pyproject.toml
@@ -181,6 +185,13 @@ def is_complex_word(
         # PR #4 Fix: Use lemmatization for accurate morphological analysis
         # Example: "running" (2 syl) → lemma "run" (1 syl) → not complex
         #          "companies" (3 syl) → lemma "company" (3 syl) → still complex
+        #
+        # Note on -ly adverbs:
+        # --------------------
+        # spaCy's lemmatizer does NOT strip -ly suffixes from adverbs because -ly
+        # is a derivational morpheme (creates new words), not an inflectional one
+        # (grammatical variations). Gunning (1952) explicitly mentioned "-ed, -es, -ing"
+        # (all inflectional) but did NOT mention -ly. We follow Gunning's specification.
         lemma_syllables = count_syllables(lemma)
         if lemma_syllables < 3:
             return False
@@ -402,21 +413,51 @@ def process_text_for_complex_words(
             # This may raise OSError if model not downloaded
             # User must run: python -m spacy download en_core_web_sm
             nlp = spacy.load(model)
+
+            # CRITICAL: Preserve hyphenated words while maintaining spaCy context
+            # =====================================================================
+            # Challenge: The project's tokenizer keeps hyphenated words intact
+            # (e.g., "well-known"), but spaCy's tokenizer splits them into
+            # separate tokens (e.g., ["well", "-", "known"]).
+            #
+            # Per Gunning (1952): "Do not count compound words" - hyphenated words
+            # must be excluded as a whole, not analyzed as separate components.
+            #
+            # Solution:
+            # 1. Use spaCy to analyze the full text (preserves context for PROPN detection)
+            # 2. Build a mapping from spaCy tokens to provided tokens
+            # 3. For hyphenated words in provided tokens, exclude them entirely
+            # 4. For other words, use spaCy's analysis from full context
+
+            # Analyze full text with spaCy (preserves context)
             doc = nlp(text)
+
+            # Build sentence start tracking
+            sentence_starts = {sent[0].i for sent in doc.sents if len(sent) > 0}
+
+            # Build a set of hyphenated words to exclude
+            # These come from the provided tokens list
+            hyphenated_words = {token.lower() for token in tokens if "-" in token}
 
             complex_count = 0
 
-            # Build sentence start token indices
-            # PR #4 Note: Copilot claimed sentence tracking was broken, but it's correct
-            # See: https://github.com/craigtrim/pystylometry/pull/4
-            # Original implementation at gunning_fog.py:139-153 was already correct
-            sentence_starts = {sent[0].i for sent in doc.sents if len(sent) > 0}
-
-            # Analyze each token with full NLP features
+            # Analyze each spaCy token, but skip components of hyphenated words
             for token in doc:
                 # Only count alphabetic words (skip punctuation, numbers)
-                # This aligns with Gunning's (1952) focus on lexical complexity
                 if not token.is_alpha:
+                    continue
+
+                # CRITICAL: Check if this token is part of a hyphenated word
+                # We need to check if any hyphenated word from our tokens list
+                # contains this token as a component
+                token_lower = token.text.lower()
+                is_part_of_hyphenated = any(
+                    token_lower in hyphen_word.split("-") for hyphen_word in hyphenated_words
+                )
+
+                if is_part_of_hyphenated:
+                    # Skip this token - it's part of a hyphenated word that
+                    # should be excluded per Gunning (1952)
                     continue
 
                 syllables = count_syllables(token.text)
@@ -442,6 +483,11 @@ def process_text_for_complex_words(
         except OSError:
             # Model not downloaded - fall back to basic mode
             # User needs to run: python -m spacy download en_core_web_sm
+            _logger.warning(
+                f"spaCy model '{model}' not found. Using basic mode with heuristics. "
+                f"For enhanced accuracy with POS tagging and lemmatization, install the model: "
+                f"python -m spacy download {model}"
+            )
             pass
 
     # Fallback to basic heuristics
