@@ -100,7 +100,7 @@ class GunningFogResult:
     """Result from Gunning Fog Index computation."""
 
     fog_index: float
-    grade_level: int
+    grade_level: float
     metadata: dict[str, Any]
 
 

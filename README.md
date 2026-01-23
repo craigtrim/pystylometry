@@ -223,7 +223,6 @@ make format
 - [ ] Tests
 - [ ] v0.1.0 release
 
-See [pystylometry-plan.md](.claude/context/pystylometry-plan.md) for the full roadmap.
 
 ## Why pystylometry?
 
@@ -234,9 +233,6 @@ See [pystylometry-plan.md](.claude/context/pystylometry-plan.md) for the full ro
 - **Type-Safe**: Full type hints for IDE support
 - **Tested**: Comprehensive test suite
 
-## References
-
-See [stylometry-metrics.md](.claude/context/stylometry-metrics.md) for the complete metrics reference table with formulas.
 
 ## License
 

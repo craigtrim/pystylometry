@@ -9,9 +9,13 @@ from .tokenizer import Tokenizer
 # ===== Convenience Functions =====
 
 # Default tokenizer instance for backward compatibility
+# Preserves emails and URLs to allow readability metrics (like Coleman-Liau)
+# to count their alphabetic characters
 _default_tokenizer = Tokenizer(
     lowercase=False,
     strip_punctuation=False,
+    preserve_urls=True,
+    preserve_emails=True,
 )
 
 

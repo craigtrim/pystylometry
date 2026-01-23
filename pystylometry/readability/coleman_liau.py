@@ -70,7 +70,13 @@ def compute_coleman_liau(text: str) -> ColemanLiauResult:
         False
     """
     sentences = split_sentences(text)
-    tokens = tokenize(text)
+    all_tokens = tokenize(text)
+
+    # Filter to only tokens that contain at least one alphabetic character
+    # This excludes pure punctuation (. ! ?) but keeps words with mixed content
+    # (Hello123, Test@example.com) to count their letters per Coleman-Liau spec.
+    # This is different from Gunning Fog which uses stricter normalization.
+    tokens = [token for token in all_tokens if any(char.isalpha() for char in token)]
 
     # CRITICAL: Count letters from tokenized words, NOT from raw text
     # ===============================================================
@@ -89,10 +95,9 @@ def compute_coleman_liau(text: str) -> ColemanLiauResult:
     #   - URLs, special tokens, etc. → similar inconsistencies
     #
     # Fixed implementation:
-    #   Count only alphabetic characters that appear in tokens, ensuring both
-    #   measurements use identical tokenization logic and preventing edge case divergence.
-    #
-    # This maintains the mathematical integrity of the L term in the Coleman-Liau formula.
+    #   Count only alphabetic characters that appear in valid word tokens (after normalization).
+    #   This ensures both letter count and word count use identical tokenization logic,
+    #   maintaining the mathematical integrity of the L term in the Coleman-Liau formula.
     letter_count = sum(1 for token in tokens for char in token if char.isalpha())
 
     if len(sentences) == 0 or len(tokens) == 0:

@@ -217,64 +217,48 @@ def is_complex_word(
 
 def _is_hyphenated_complex(word: str) -> bool:
     """
-    Check if hyphenated word is complex by analyzing components.
+    Check if hyphenated word is complex according to Gunning (1952).
 
-    Addresses PR #4 Issue #3: Hyphenated Words Blanket Exclusion
-    https://github.com/craigtrim/pystylometry/pull/4
+    Gunning's Original Rule (Gunning, 1952, p. 39):
+    ------------------------------------------------
+    "Do not count compound words"
 
-    Old Behavior:
-    -------------
-    ALL hyphenated words were excluded regardless of complexity:
-        - "well-known" (1+1 syllables) → excluded (correct)
-        - "re-establishment" (1+4 syllables) → excluded (INCORRECT)
-        - "twenty-first-century" (2+1+3 syllables) → excluded (INCORRECT)
+    This means ALL hyphenated words should be excluded from the complex
+    word count, regardless of syllable count in individual components.
 
-    New Behavior:
-    -------------
-    Split on hyphens and analyze each component individually.
-    A hyphenated word is complex if ANY component has 3+ syllables.
+    Rationale:
+    ----------
+    Gunning's rule was simple and unqualified: compound words (hyphenated)
+    are not counted as complex, even if they contain 3+ syllables.
 
-    Rationale from Gunning (1952):
-        "Do not count compound words" (p. 39)
+    Examples:
+        - "well-known" (2 syllables) → not complex (excluded)
+        - "twenty-first-century" (6 syllables) → not complex (excluded)
+        - "re-establishment" (5 syllables) → not complex (excluded)
+        - "mother-in-law" (4 syllables) → not complex (excluded)
 
-        Gunning's intent was to exclude simple compounds like "twenty-one",
-        "mother-in-law", "up-to-date" where each component is simple.
-
-        However, compounds with complex components like "re-establishment"
-        should still be counted as complex because "establishment" (4 syllables)
-        is a complex word on its own.
+    Reference:
+        Gunning, R. (1952). The Technique of Clear Writing. McGraw-Hill.
+        Page 39: "Do not count compound words"
 
     Args:
         word: Hyphenated word (e.g., "well-known", "self-education")
 
     Returns:
-        True if any component is complex (3+ syllables), False otherwise
+        Always False (hyphenated words are never complex per Gunning 1952)
 
     Example:
-        >>> _is_hyphenated_complex("well-known")  # well=1, known=1
-        False  # All components simple
+        >>> _is_hyphenated_complex("well-known")
+        False  # Excluded per Gunning rule
 
-        >>> _is_hyphenated_complex("self-education")  # self=1, education=4
-        True  # "education" component is complex
+        >>> _is_hyphenated_complex("self-education")
+        False  # Excluded per Gunning rule
 
-        >>> _is_hyphenated_complex("twenty-first-century")  # 2+1+3
-        True  # "century" component is complex
-
-        >>> _is_hyphenated_complex("mother-in-law")  # 2+1+1
-        False  # All components simple
+        >>> _is_hyphenated_complex("twenty-first-century")
+        False  # Excluded per Gunning rule
     """
-    components = word.split("-")
-
-    # Check each component individually
-    # PR #4: This replaces the blanket "if '-' in word: return False"
-    for component in components:
-        if component:  # Skip empty strings from splitting
-            comp_syllables = count_syllables(component)
-            # If ANY component has 3+ syllables, the compound is complex
-            if comp_syllables >= 3:
-                return True
-
-    # All components are simple (< 3 syllables)
+    # Gunning (1952): "Do not count compound words" - blanket exclusion
+    # This matches test expectations and the original specification
     return False
 
 

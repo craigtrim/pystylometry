@@ -105,13 +105,14 @@ def compute_gunning_fog(text: str, spacy_model: str = "en_core_web_sm") -> Gunni
     Returns:
         GunningFogResult with:
             - fog_index: Float, the calculated Gunning Fog Index
-            - grade_level: Int, rounded U.S. grade level (0-20)
+            - grade_level: Float, rounded U.S. grade level (0-20), or NaN if empty
             - metadata: Dict with:
                 - sentence_count: Number of sentences
                 - word_count: Number of words (tokens)
                 - complex_word_count: Number of complex words
                 - complex_word_percentage: Percentage of complex words
                 - average_words_per_sentence: Mean sentence length
+                - reliable: Boolean, True if word_count >= 100 and sentence_count >= 3
                 - mode: "enhanced" (spaCy) or "basic" (heuristics)
                 - proper_noun_detection: Detection method used
                 - inflection_handling: Inflection analysis method used
@@ -141,8 +142,8 @@ def compute_gunning_fog(text: str, spacy_model: str = "en_core_web_sm") -> Gunni
         Using spaCy NLP features
 
     Notes:
-        - Empty text returns fog_index=0.0 and grade_level=0
-        - Grade levels are clamped to [0, 20] range
+        - Empty text returns fog_index=NaN and grade_level=NaN (no data)
+        - Grade levels are clamped to [0, 20] range for valid input
         - For short texts (< 100 words), results may be unreliable
         - Gunning (1952) recommends analyzing samples of 100+ words
     """
@@ -157,17 +158,19 @@ def compute_gunning_fog(text: str, spacy_model: str = "en_core_web_sm") -> Gunni
     tokens = normalize_for_readability(all_tokens)
 
     # Edge case: Empty or whitespace-only input
-    # Return zero values rather than raising an error
+    # Return NaN to distinguish "no data" from actual zero scores
+    # This matches SMOG behavior and prevents conflating empty input with simple text
     if len(sentences) == 0 or len(tokens) == 0:
         return GunningFogResult(
-            fog_index=0.0,
-            grade_level=0,
+            fog_index=float("nan"),
+            grade_level=float("nan"),
             metadata={
                 "sentence_count": 0,
                 "word_count": 0,
                 "complex_word_count": 0,
                 "complex_word_percentage": 0.0,
                 "average_words_per_sentence": 0.0,
+                "reliable": False,
                 "mode": "none",
                 "proper_noun_detection": "N/A",
                 "inflection_handling": "N/A",
@@ -203,6 +206,11 @@ def compute_gunning_fog(text: str, spacy_model: str = "en_core_web_sm") -> Gunni
     # Note: Texts with fog_index > 20 are considered "post-graduate" level
     grade_level = max(0, min(20, round(fog_index)))
 
+    # Reliability heuristic: Gunning (1952) recommends 100+ word samples
+    # Also require 3+ sentences to ensure meaningful average sentence length
+    # Very long texts with few sentences can produce unstable FOG estimates
+    reliable = len(tokens) >= 100 and len(sentences) >= 3
+
     # Step 6: Assemble result with comprehensive metadata
     return GunningFogResult(
         fog_index=fog_index,
@@ -215,6 +223,8 @@ def compute_gunning_fog(text: str, spacy_model: str = "en_core_web_sm") -> Gunni
             # Derived metrics
             "complex_word_percentage": complex_word_percentage,
             "average_words_per_sentence": average_words_per_sentence,
+            # Reliability indicator
+            "reliable": reliable,
             # Detection method transparency (from complex_words module)
             # This allows users to verify which mode was used
             **detection_metadata,
