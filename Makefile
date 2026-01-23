@@ -1,8 +1,9 @@
-.PHONY: help install install-dev setup test lint format clean build dist publish-test publish all
+.PHONY: help install install-dev setup setup-spacy test lint format clean build dist publish-test publish all
 
 help:
 	@echo "Available targets:"
-	@echo "  setup         First-time setup (install dev dependencies + build tools)"
+	@echo "  setup         First-time setup (install dev dependencies + spaCy model)"
+	@echo "  setup-spacy   Download spaCy model for enhanced Gunning Fog mode"
 	@echo "  install       Install package with core dependencies"
 	@echo "  install-dev   Install package with dev dependencies"
 	@echo "  test          Run tests with coverage"
@@ -17,9 +18,14 @@ help:
 	@echo ""
 	@echo "Quick start: make setup && make all"
 
+setup-spacy:
+	@echo "Downloading spaCy model for enhanced Gunning Fog Index..."
+	python -m spacy download en_core_web_sm
+
 setup:
 	pip install -e ".[dev,all]"
 	pip install build twine
+	@$(MAKE) setup-spacy
 
 install:
 	pip install -e .
