@@ -40,6 +40,39 @@ class HapaxResult:
     metadata: dict[str, Any]
 
 
+@dataclass
+class LexiconCategories:
+    """Categorization of words by lexicon presence."""
+
+    neologisms: list[str]  # Not in WordNet AND not in BNC
+    rare_words: list[str]  # In one lexicon but not both
+    common_words: list[str]  # In both WordNet AND BNC
+    neologism_ratio: float  # Ratio of neologisms to total hapax
+    rare_word_ratio: float  # Ratio of rare words to total hapax
+    metadata: dict[str, Any]
+
+
+@dataclass
+class HapaxLexiconResult:
+    """Result from Hapax Legomena analysis with lexicon categorization.
+
+    Extends basic hapax analysis by categorizing hapax legomena based on
+    presence in WordNet and British National Corpus (BNC):
+
+    - Neologisms: Words not in WordNet AND not in BNC (true novel words)
+    - Rare words: Words in BNC but not WordNet, or vice versa
+    - Common words: Words in both lexicons (just happen to appear once in text)
+
+    This categorization is valuable for stylometric analysis as it distinguishes
+    between vocabulary innovation (neologisms) and incidental hapax occurrence
+    (common words that appear once).
+    """
+
+    hapax_result: HapaxResult  # Standard hapax metrics
+    lexicon_analysis: LexiconCategories  # Lexicon-based categorization
+    metadata: dict[str, Any]
+
+
 # ===== Readability Results =====
 
 
