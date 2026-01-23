@@ -9,7 +9,7 @@ import re
 from functools import lru_cache
 
 try:
-    import pronouncing
+    import pronouncing  # type: ignore[import-untyped]
 except ImportError:
     raise ImportError(
         "The 'pronouncing' library is required for syllable counting. "
@@ -64,7 +64,7 @@ def count_syllables(word: str) -> int:
         # Use first pronunciation (most common)
         # Count stress markers (0, 1, 2) in phoneme representation
         phones = phones_list[0]
-        return pronouncing.syllable_count(phones)
+        return pronouncing.syllable_count(phones)  # type: ignore[no-any-return]
 
     # Fallback for words not in dictionary: simple vowel counting
     return _fallback_count(word)

@@ -469,25 +469,25 @@ def process_text_for_complex_words(
     sentences = split_sentences(text)
 
     # Build sentence start tokens (lowercase for case-insensitive comparison)
-    sentence_starts = set()
+    sentence_start_words: set[str] = set()
     for sentence in sentences:
         sent_tokens = simple_tokenize(sentence)
         if sent_tokens:
-            sentence_starts.add(sent_tokens[0].lower())
+            sentence_start_words.add(sent_tokens[0].lower())
 
     # Analyze each token with basic heuristics
-    for token in tokens:
+    for word in tokens:
         # Only count words (skip punctuation, numbers)
         # Allow hyphenated words like "self-education"
         # This aligns with Gunning's (1952) focus on lexical complexity
-        if not (token.isalpha() or "-" in token):
+        if not (word.isalpha() or "-" in word):
             continue
 
-        syllables = count_syllables(token)
-        is_start = token.lower() in sentence_starts
+        syllables = count_syllables(word)
+        is_start = word.lower() in sentence_start_words
 
         if is_complex_word(
-            word=token,
+            word=word,
             syllable_count=syllables,
             use_spacy=False,  # Basic mode: no POS or lemma
             is_sentence_start=is_start,

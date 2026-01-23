@@ -148,8 +148,8 @@ def compute_hapax_with_lexicon_analysis(text: str) -> HapaxLexiconResult:
     check_optional_dependency("bnc_lookup", "lexical")
     check_optional_dependency("wordnet_lookup", "lexical")
 
-    from bnc_lookup import is_bnc_term
-    from wordnet_lookup import is_wordnet_term
+    from bnc_lookup import is_bnc_term  # type: ignore[import-not-found]
+    from wordnet_lookup import is_wordnet_term  # type: ignore[import-not-found]
 
     # First compute standard hapax metrics
     hapax_result = compute_hapax_ratios(text)

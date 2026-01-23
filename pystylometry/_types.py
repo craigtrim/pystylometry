@@ -91,7 +91,7 @@ class SMOGResult:
     """Result from SMOG Index computation."""
 
     smog_index: float
-    grade_level: int
+    grade_level: float
     metadata: dict[str, Any]
 
 
