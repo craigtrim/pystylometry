@@ -186,7 +186,23 @@ class TestGunningFogMetadata:
     """Test metadata structure and consistency."""
 
     def test_metadata_keys_consistent(self):
-        """Verify all metadata keys are present regardless of input."""
+        """Verify all metadata keys are present regardless of input.
+
+        API Enhancement (PR #4): Added transparency fields for complex word detection
+        =================================================================================
+        The metadata now includes additional fields to document which detection mode
+        was used and how proper nouns/inflections were handled:
+
+        - mode: "enhanced" (spaCy NLP) or "basic" (heuristics) or "none" (empty input)
+        - proper_noun_detection: Method used (e.g., "POS-based" or "Capitalization-based")
+        - inflection_handling: Method used (e.g., "Lemmatization" or "Suffix-stripping")
+
+        These fields provide transparency into the complex word detection process,
+        allowing users to verify which mode was active and assess result reliability.
+
+        Reference: https://github.com/craigtrim/pystylometry/pull/4
+        See: gunning_fog.py and complex_words.py for implementation details
+        """
         test_cases = [
             "",  # Empty
             "Hello",  # Single word
@@ -194,7 +210,8 @@ class TestGunningFogMetadata:
             " ".join(["word"] * 200) + ".",  # Long text
         ]
 
-        expected_keys = {
+        # Core metrics (always present)
+        core_keys = {
             "sentence_count",
             "word_count",
             "complex_word_count",
@@ -203,9 +220,27 @@ class TestGunningFogMetadata:
             "reliable",
         }
 
+        # Transparency fields added in PR #4 for complex word detection
+        transparency_keys = {
+            "mode",  # Detection mode: "enhanced", "basic", or "none"
+            "proper_noun_detection",  # How proper nouns were detected
+            "inflection_handling",  # How inflections were handled
+        }
+
+        expected_keys = core_keys | transparency_keys  # Union of both sets
+
         for text in test_cases:
             result = compute_gunning_fog(text)
-            assert set(result.metadata.keys()) == expected_keys
+            actual_keys = set(result.metadata.keys())
+
+            # All expected keys must be present
+            assert expected_keys.issubset(actual_keys), (
+                f"Missing keys: {expected_keys - actual_keys}. "
+                f"Text: {text[:50]}..."
+            )
+
+            # Note: May have additional keys like 'spacy_model' in enhanced mode
+            # So we check subset rather than exact equality
 
     def test_metadata_values_sensible(self):
         """Test that metadata values are within sensible ranges."""

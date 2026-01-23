@@ -55,37 +55,76 @@ class FleschResult:
 
 @dataclass
 class SMOGResult:
-    """Result from SMOG Index computation."""
+    """Result from SMOG Index computation.
+
+    API Consistency Note (Empty Input Handling):
+    ============================================
+    Changed grade_level from int to float to support NaN for empty input.
+    This maintains API consistency with FleschResult and prevents conflating
+    "no data" (NaN) with "kindergarten level" (0).
+
+    Reference: PR #3 (Flesch), PR #2 (Coleman-Liau), PR #4 (Gunning Fog)
+    See: https://github.com/craigtrim/pystylometry/pull/3
+    """
 
     smog_index: float
-    grade_level: int
+    grade_level: float  # Changed from int to float for NaN support (API consistency)
     metadata: dict[str, Any]
 
 
 @dataclass
 class GunningFogResult:
-    """Result from Gunning Fog Index computation."""
+    """Result from Gunning Fog Index computation.
+
+    API Consistency Note (Empty Input Handling):
+    ============================================
+    Changed grade_level from int to float to support NaN for empty input.
+    This maintains API consistency with FleschResult and prevents conflating
+    "no data" (NaN) with "kindergarten level" (0).
+
+    Reference: PR #4, aligned with Flesch PR #3, Coleman-Liau PR #2
+    See: https://github.com/craigtrim/pystylometry/pull/4
+    """
 
     fog_index: float
-    grade_level: int
+    grade_level: float  # Changed from int to float for NaN support (API consistency)
     metadata: dict[str, Any]
 
 
 @dataclass
 class ColemanLiauResult:
-    """Result from Coleman-Liau Index computation."""
+    """Result from Coleman-Liau Index computation.
+
+    API Consistency Note (Empty Input Handling):
+    ============================================
+    Changed grade_level from int to float to support NaN for empty input.
+    This maintains API consistency with FleschResult and prevents conflating
+    "no data" (NaN) with "kindergarten level" (0).
+
+    Reference: PR #2, aligned with Flesch PR #3, Gunning Fog PR #4
+    See: https://github.com/craigtrim/pystylometry/pull/2
+    """
 
     cli_index: float
-    grade_level: int
+    grade_level: float  # Changed from int to float for NaN support (API consistency)
     metadata: dict[str, Any]
 
 
 @dataclass
 class ARIResult:
-    """Result from Automated Readability Index computation."""
+    """Result from Automated Readability Index computation.
+
+    API Consistency Note (Empty Input Handling):
+    ============================================
+    Changed grade_level from int to float to support NaN for empty input.
+    This maintains API consistency with FleschResult and prevents conflating
+    "no data" (NaN) with "kindergarten level" (0).
+
+    Related: Flesch PR #3, Coleman-Liau PR #2, Gunning Fog PR #4
+    """
 
     ari_score: float
-    grade_level: int
+    grade_level: float  # Changed from int to float for NaN support (API consistency)
     age_range: str
     metadata: dict[str, Any]
 

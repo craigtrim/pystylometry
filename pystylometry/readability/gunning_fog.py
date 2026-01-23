@@ -161,8 +161,8 @@ def compute_gunning_fog(
         Using spaCy NLP features
 
     Notes:
-        - Empty text returns fog_index=NaN and grade_level=0 (API consistency with other metrics)
-        - Grade levels are clamped to [0, 20] range
+        - Empty text returns fog_index=NaN and grade_level=NaN (API consistency with other metrics)
+        - Grade levels are clamped to [0, 20] range (returned as float for API consistency)
         - For short texts (< 100 words), metadata['reliable'] will be False
         - Gunning (1952) recommends analyzing samples of 100+ words
 
@@ -170,6 +170,8 @@ def compute_gunning_fog(
         >>> import math
         >>> result_empty = compute_gunning_fog("")
         >>> math.isnan(result_empty.fog_index)
+        True
+        >>> math.isnan(result_empty.grade_level)  # Now float (was int), supports NaN
         True
         >>> result_empty.metadata['reliable']
         False
@@ -209,7 +211,7 @@ def compute_gunning_fog(
     if len(sentences) == 0 or len(tokens) == 0:
         return GunningFogResult(
             fog_index=float("nan"),
-            grade_level=0,  # Keep as 0 since grade_level is int (cannot be NaN)
+            grade_level=float("nan"),  # Changed to NaN for API consistency (was int, now float)
             metadata={
                 "sentence_count": 0,
                 "word_count": 0,
@@ -250,7 +252,8 @@ def compute_gunning_fog(
     # Round to nearest integer using standard rounding (round half to even)
     # Clamp to reasonable range [0, 20] to prevent extreme values
     # Note: Texts with fog_index > 20 are considered "post-graduate" level
-    grade_level = max(0, min(20, round(fog_index)))
+    # Returns float (not int) for API consistency with other metrics (supports NaN)
+    grade_level = float(max(0, min(20, round(fog_index))))
 
     # Step 6: Calculate reliability flag
     # Gunning (1952) recommends analyzing samples of 100+ words for reliable results

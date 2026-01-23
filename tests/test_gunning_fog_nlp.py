@@ -80,7 +80,7 @@ class TestGunningFogBasicFunctionality:
 
         # Validate data types
         assert isinstance(result.fog_index, float)
-        assert isinstance(result.grade_level, int)
+        assert isinstance(result.grade_level, float)  # Changed from int for API consistency (NaN support)
         assert isinstance(result.metadata, dict)
 
         # Validate grade level range
@@ -122,23 +122,49 @@ class TestGunningFogBasicFunctionality:
         assert result.metadata["sentence_count"] == 3
         assert result.metadata["complex_word_count"] == 0
 
-    def test_empty_input_returns_zero(self):
-        """Test that empty input returns zero values without error.
+    def test_empty_input_returns_nan(self):
+        """Test that empty input returns NaN, not zero.
 
-        Edge case handling: Empty strings should return fog_index=0.0
-        rather than raising division by zero errors.
+        API Consistency (PR #4, aligned with Flesch PR #3, Coleman-Liau PR #2):
+        ========================================================================
+        Empty strings should return fog_index=NaN and grade_level=NaN rather than 0.0.
+        This prevents conflating "no data" with "kindergarten level" (which legitimately
+        scores ~0-2).
 
-        This is important for robust batch processing of documents
-        where some may be empty or contain only whitespace.
+        Previous behavior (returning 0.0) was semantically incorrect:
+        - Kindergarten text: "Go. Run. Stop." → Fog Index ~1.2 (grade 1)
+        - Empty string: "" → Was returning 0.0, now returns NaN
+        - The empty case means "cannot measure", not "easier than kindergarten"
+
+        This is critical for batch processing where empty documents should be filtered
+        out rather than silently contaminating aggregate statistics:
+            scores = [compute_gunning_fog(text).fog_index for text in docs]
+            valid_scores = [s for s in scores if not math.isnan(s)]  # Filter NaN
+            mean = sum(valid_scores) / len(valid_scores)  # Correct mean
+
+        Academic rationale: Gunning (1952) developed Fog Index for analyzing business
+        writing samples of 100+ words. The formula (Fog = 0.4 × [ASL + PHW]) has no
+        mathematical interpretation for zero-length input—division by zero is undefined.
+
+        References:
+        - Gunning, R. (1952). The Technique of Clear Writing. McGraw-Hill.
+        - https://github.com/craigtrim/pystylometry/pull/4
+        - IEEE 754: Standard for Floating-Point Arithmetic (NaN semantics)
         """
+        import math
+
         result = compute_gunning_fog("")
 
-        assert result.fog_index == 0.0
-        assert result.grade_level == 0
+        # Both indices should be NaN (undefined measurement)
+        assert math.isnan(result.fog_index), "Empty input should return NaN for fog_index"
+        assert math.isnan(result.grade_level), "Empty input should return NaN for grade_level"
+
+        # Metadata should still be populated with zero counts
         assert result.metadata["sentence_count"] == 0
         assert result.metadata["word_count"] == 0
         assert result.metadata["complex_word_count"] == 0
         assert result.metadata["mode"] == "none"
+        assert result.metadata["reliable"] is False  # Empty text is not reliable
 
     def test_metadata_structure_consistent(self):
         """Test that metadata structure is consistent across all inputs.
@@ -456,11 +482,19 @@ class TestGunningFogEdgeCases:
     """Test edge cases and special input scenarios."""
 
     def test_whitespace_only_input(self):
-        """Test that whitespace-only input is handled gracefully."""
+        """Test that whitespace-only input returns NaN (same as empty input).
+
+        API Consistency: Whitespace-only input is semantically equivalent to empty input—
+        both represent "no measurable content". Should return NaN, not 0.0.
+
+        Reference: PR #4, aligned with empty input handling.
+        """
+        import math
+
         result = compute_gunning_fog("   \n\t  ")
 
-        assert result.fog_index == 0.0
-        assert result.grade_level == 0
+        assert math.isnan(result.fog_index), "Whitespace-only should return NaN"
+        assert math.isnan(result.grade_level), "Whitespace-only should return NaN"
         assert result.metadata["word_count"] == 0
 
     def test_single_word_input(self):

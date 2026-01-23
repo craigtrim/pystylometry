@@ -96,8 +96,8 @@ def compute_coleman_liau(text: str) -> ColemanLiauResult:
         >>> result_empty = compute_coleman_liau("")
         >>> math.isnan(result_empty.cli_index)
         True
-        >>> result_empty.grade_level  # Integer, so returns 0 (cannot be NaN)
-        0
+        >>> math.isnan(result_empty.grade_level)  # Now float (was int), supports NaN
+        True
     """
     sentences = split_sentences(text)
     tokens = tokenize(text)
@@ -152,7 +152,7 @@ def compute_coleman_liau(text: str) -> ColemanLiauResult:
     if len(sentences) == 0 or len(tokens) == 0:
         return ColemanLiauResult(
             cli_index=float("nan"),
-            grade_level=0,  # Keep as 0 since grade_level is int (cannot be NaN)
+            grade_level=float("nan"),  # Changed to NaN for API consistency (was int, now float)
             metadata={
                 "sentence_count": len(sentences),
                 "word_count": len(tokens),
@@ -189,7 +189,8 @@ def compute_coleman_liau(text: str) -> ColemanLiauResult:
     #   indistinguishable. The empirical formula should determine the full range.
     #
     # See PR #2 discussion: https://github.com/craigtrim/pystylometry/pull/2
-    grade_level = max(0, math.floor(cli_index + 0.5))
+    # Note: Returns float (not int) for API consistency with other metrics (supports NaN)
+    grade_level = float(max(0, math.floor(cli_index + 0.5)))
 
     # Reliability heuristic: validation study used ~100-word passages
     # Not a hard minimum, but shorter texts may deviate from expected behavior
