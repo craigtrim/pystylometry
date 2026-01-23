@@ -1,7 +1,5 @@
 """Comprehensive tests for syllable counting functionality."""
 
-import pytest
-
 from pystylometry.readability.syllables import (
     count_syllables,
     count_syllables_text,
