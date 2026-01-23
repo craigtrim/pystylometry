@@ -46,9 +46,11 @@ def _calculate_mtld_direction(tokens: list[str], threshold: float, forward: bool
         # If we're still above threshold, add partial factor credit
         # Formula: (1 - current_ttr) / (1 - threshold)
         # This represents how far we've progressed toward completing a factor
-        # Note: If ttr < threshold here, the factor was already counted in the loop
-        # and current_count would have been reset to 0, so this condition is always true
-        factors += (1.0 - ttr) / (1.0 - threshold)
+        # In theory, ttr should always be >= threshold here because drops below
+        # threshold are handled in the loop above (which resets current_count).
+        # Adding defensive check to prevent mathematical errors.
+        if ttr >= threshold:
+            factors += (1.0 - ttr) / (1.0 - threshold)
 
     # MTLD is the mean length of factors
     # Total tokens / number of factors
@@ -73,7 +75,9 @@ def compute_mtld(
 
     Formula:
         MTLD = total_tokens / factor_count
-        where factor_count is the number of completed segments that maintain TTR >= threshold
+        where factor_count includes:
+        - Completed factors (segments where TTR dropped below threshold)
+        - Partial factor for any remaining incomplete segment (weighted by proximity to threshold)
 
     References:
         McCarthy, P. M., & Jarvis, S. (2010). MTLD, vocd-D, and HD-D:
@@ -101,7 +105,9 @@ def compute_mtld(
             "Common values: 0.72 (default), 0.5-0.8"
         )
 
-    tokens = tokenize(text)
+    # Case-insensitive tokenization for consistency with other lexical metrics
+    # (compute_yule, compute_hapax_ratios both use text.lower())
+    tokens = tokenize(text.lower())
 
     if len(tokens) == 0:
         return MTLDResult(
