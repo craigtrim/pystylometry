@@ -1,5 +1,6 @@
 """Flesch Reading Ease and Flesch-Kincaid Grade Level."""
 
+from .._normalize import normalize_for_readability
 from .._types import FleschResult
 from .._utils import split_sentences, tokenize
 from .syllables import count_syllables
@@ -68,7 +69,11 @@ def compute_flesch(text: str) -> FleschResult:
     sentences = split_sentences(text)
     tokens = tokenize(text)
 
-    if len(sentences) == 0 or len(tokens) == 0:
+    # Filter tokens to only valid words for syllable counting
+    # Removes numbers, URLs, emails, etc. that would cause errors
+    word_tokens = normalize_for_readability(tokens)
+
+    if len(sentences) == 0 or len(word_tokens) == 0:
         return FleschResult(
             reading_ease=float("nan"),
             grade_level=float("nan"),
@@ -76,12 +81,12 @@ def compute_flesch(text: str) -> FleschResult:
             metadata={"sentence_count": 0, "word_count": 0, "syllable_count": 0},
         )
 
-    # Count syllables
-    total_syllables = sum(count_syllables(word) for word in tokens)
+    # Count syllables (safe now - only valid words)
+    total_syllables = sum(count_syllables(word) for word in word_tokens)
 
     # Calculate metrics
-    words_per_sentence = len(tokens) / len(sentences)
-    syllables_per_word = total_syllables / len(tokens)
+    words_per_sentence = len(word_tokens) / len(sentences)
+    syllables_per_word = total_syllables / len(word_tokens)
 
     # Flesch Reading Ease: 206.835 - 1.015 × (words/sentences) - 84.6 × (syllables/words)
     reading_ease = 206.835 - (1.015 * words_per_sentence) - (84.6 * syllables_per_word)
@@ -113,7 +118,7 @@ def compute_flesch(text: str) -> FleschResult:
         difficulty=difficulty,
         metadata={
             "sentence_count": len(sentences),
-            "word_count": len(tokens),
+            "word_count": len(word_tokens),
             "syllable_count": total_syllables,
             "words_per_sentence": words_per_sentence,
             "syllables_per_word": syllables_per_word,

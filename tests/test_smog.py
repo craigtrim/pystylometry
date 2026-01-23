@@ -2,8 +2,6 @@
 
 import math
 
-import pytest
-
 from pystylometry.readability import compute_smog
 
 
