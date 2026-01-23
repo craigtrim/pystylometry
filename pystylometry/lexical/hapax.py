@@ -1,5 +1,6 @@
 """Hapax legomena and related vocabulary richness metrics."""
 
+import math
 from collections import Counter
 
 from .._types import HapaxResult
@@ -30,10 +31,18 @@ def compute_hapax_ratios(text: str) -> HapaxResult:
     Returns:
         HapaxResult with counts, ratios, Sichel's S, Honoré's R, and metadata
 
+        Note: When all words are unique (V₁ = V), Honoré's R returns float('inf')
+        to indicate maximal vocabulary richness (division by zero case).
+
     Example:
-        >>> result = compute_hapax_ratios("The quick brown fox jumps over the lazy dog.")
-        >>> print(f"Hapax ratio: {result.hapax_ratio:.3f}")
+        >>> text = "The quick brown fox jumps over the lazy dog"
+        >>> result = compute_hapax_ratios(text)
+        >>> result.hapax_count  # Words appearing once
+        7
+        >>> result.dis_hapax_count  # Words appearing twice
+        1
         >>> print(f"Sichel's S: {result.sichel_s:.3f}")
+        Sichel's S: 0.125
     """
     tokens = tokenize(text.lower())
     N = len(tokens)  # noqa: N806
@@ -57,9 +66,18 @@ def compute_hapax_ratios(text: str) -> HapaxResult:
     V1 = sum(1 for count in freq_counter.values() if count == 1)  # noqa: N806
     V2 = sum(1 for count in freq_counter.values() if count == 2)  # noqa: N806
 
-    # TODO: Implement Sichel's S and Honoré's R
-    sichel_s = 0.0  # Placeholder
-    honore_r = 0.0  # Placeholder
+    # Sichel's S: ratio of dislegomena to vocabulary size
+    # S = V₂ / V
+    sichel_s = V2 / V if V > 0 else 0.0
+
+    # Honoré's R: 100 × log(N) / (1 - V₁/V)
+    # R = 100 × log(N) / (1 - V₁/V)
+    # If V₁ = V (all words appear once), denominator is 0, return infinity
+    # This indicates maximal vocabulary richness (every word unique)
+    if V1 == V:
+        honore_r = float("inf")
+    else:
+        honore_r = 100 * math.log(N) / (1 - V1 / V)
 
     return HapaxResult(
         hapax_count=V1,
