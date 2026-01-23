@@ -52,3 +52,4 @@ dmypy.json
 .ruff_cache/
 .claude
 settings.local.json
+pypi.key
