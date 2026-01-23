@@ -49,6 +49,15 @@ spacy = "^3.8.0"
 [tool.poetry.group.syntactic.dependencies]
 spacy = "^3.8.0"
 
+[tool.poetry.group.lexical.dependencies]
+# Lexical lookup tools for rare word and neologism detection
+# Used in hapax legomena analysis to distinguish:
+# - True neologisms (not in WordNet, not in BNC)
+# - Rare words (in BNC but not WordNet, or vice versa)
+# - Common words (in both lexicons)
+bnc-lookup = "*"
+wordnet-lookup = "*"
+
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0"
 pytest-cov = "^4.0"
