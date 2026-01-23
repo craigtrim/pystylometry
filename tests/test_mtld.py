@@ -157,8 +157,8 @@ class TestMTLDThresholdParameter:
         """Test that different thresholds produce different results."""
         text = "the cat sat on the mat and the dog ran with the ball"
 
-        result_low = compute_mtld(text, threshold=0.5)
-        result_high = compute_mtld(text, threshold=0.8)
+        compute_mtld(text, threshold=0.5)
+        compute_mtld(text, threshold=0.8)
 
         # Lower threshold = factors complete sooner = lower MTLD (more factors)
         # Higher threshold = factors take longer = higher MTLD (fewer factors)
@@ -209,9 +209,6 @@ class TestMTLDForwardBackward:
 
         # They should be reasonably similar (within a factor of 2 or so)
         # for balanced text
-        ratio = max(result.mtld_forward, result.mtld_backward) / min(
-            result.mtld_forward, result.mtld_backward
-        )
         # This is a loose bound - they don't need to be identical
         # but shouldn't be wildly different for typical prose
 
