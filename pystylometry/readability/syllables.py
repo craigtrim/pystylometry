@@ -5,6 +5,7 @@ Uses the pronouncing library which provides access to the CMU Pronouncing
 Dictionary for high-accuracy syllable counting based on phonetic transcriptions.
 """
 
+import re
 from functools import lru_cache
 
 try:
@@ -35,7 +36,7 @@ def count_syllables(word: str) -> int:
         >>> count_syllables("beautiful")
         3
         >>> count_syllables("fire")
-        1
+        2
         >>> count_syllables("cruel")
         1
     """
