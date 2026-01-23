@@ -211,12 +211,15 @@ class TestARIAgeRanges:
     def test_high_school_range(self):
         """Test high school age range (grades 9-12)."""
         # Create text that produces high school level
-        text = """
+        text = (
+            """
         The phenomenological approach to understanding consciousness has been
         extensively debated in philosophical circles for many decades.
         Researchers continue to investigate the fundamental nature of subjective
         experience and its relationship to objective reality.
-        """ * 2  # Repeat to meet word count
+        """
+            * 2
+        )  # Repeat to meet word count
         result = compute_ari(text)
 
         if 9 <= result.grade_level <= 12:
@@ -225,12 +228,15 @@ class TestARIAgeRanges:
     def test_college_range(self):
         """Test college age range (grades 13-14)."""
         # Create text that produces college level
-        text = """
+        text = (
+            """
         The epistemological foundations of contemporary analytical philosophy
         necessitate a comprehensive understanding of formal logical systems.
         Philosophical investigations into the nature of knowledge require
         methodological rigor and systematic examination of foundational assumptions.
-        """ * 3
+        """
+            * 3
+        )
         result = compute_ari(text)
 
         if 13 <= result.grade_level <= 14:
@@ -359,9 +365,10 @@ class TestARIFormula:
         result_long = compute_ari(long_words)
 
         # Longer words should produce higher character count per word
-        assert result_long.metadata["characters_per_word"] > result_short.metadata[
-            "characters_per_word"
-        ]
+        assert (
+            result_long.metadata["characters_per_word"]
+            > result_short.metadata["characters_per_word"]
+        )
 
     def test_longer_sentences_increase_score(self):
         """Test that longer sentences increase ARI score."""
@@ -372,9 +379,9 @@ class TestARIFormula:
         result_long = compute_ari(long_sentence)
 
         # Longer average sentence length should produce higher words per sentence
-        assert result_long.metadata["words_per_sentence"] > result_short.metadata[
-            "words_per_sentence"
-        ]
+        assert (
+            result_long.metadata["words_per_sentence"] > result_short.metadata["words_per_sentence"]
+        )
 
 
 class TestARIGutenbergTexts:

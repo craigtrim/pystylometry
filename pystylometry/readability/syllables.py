@@ -109,7 +109,6 @@ def count_syllables_text(text: str) -> list[tuple[str, int]]:
         >>> count_syllables_text("The quick brown fox")
         [('The', 1), ('quick', 1), ('brown', 1), ('fox', 1)]
     """
-    import re
 
     words = re.findall(r"[a-zA-Z']+", text)
     return [(w, count_syllables(w)) for w in words]
@@ -133,7 +132,7 @@ def total_syllables(text: str) -> int:
 
 
 def validate_accuracy(
-    test_pairs: list[tuple[str, int]]
+    test_pairs: list[tuple[str, int]],
 ) -> tuple[float, list[tuple[str, int, int]]]:
     """
     Test accuracy against known word-syllable pairs.

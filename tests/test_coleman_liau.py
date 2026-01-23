@@ -396,9 +396,10 @@ class TestColemanLiauFormula:
         result_long = compute_coleman_liau(long_words)
 
         # Longer words should produce higher letter count per word
-        assert result_long.metadata["letters_per_100_words"] > result_short.metadata[
-            "letters_per_100_words"
-        ]
+        assert (
+            result_long.metadata["letters_per_100_words"]
+            > result_short.metadata["letters_per_100_words"]
+        )
 
     def test_more_sentences_decrease_score(self):
         """Test that more sentences decrease complexity."""
@@ -409,9 +410,10 @@ class TestColemanLiauFormula:
         result_many = compute_coleman_liau(many_sentences)
 
         # More sentences per word should decrease score
-        assert result_many.metadata["sentences_per_100_words"] > result_few.metadata[
-            "sentences_per_100_words"
-        ]
+        assert (
+            result_many.metadata["sentences_per_100_words"]
+            > result_few.metadata["sentences_per_100_words"]
+        )
 
 
 class TestColemanLiauGutenbergTexts:

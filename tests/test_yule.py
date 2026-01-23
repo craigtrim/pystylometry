@@ -61,15 +61,11 @@ class TestYuleEdgeCases:
 
         # K = 10⁴ × (25 - 5) / 5² = 10000 × 20 / 25 = 8000
         expected_k = 10_000 * (25 - 5) / (5 * 5)
-        assert abs(result.yule_k - expected_k) < 0.001, (
-            f"Yule's K should be {expected_k:.3f}"
-        )
+        assert abs(result.yule_k - expected_k) < 0.001, f"Yule's K should be {expected_k:.3f}"
 
         # I = V² / (Σm²×Vm - N) = 1² / (25 - 5) = 1 / 20 = 0.05
         expected_i = (1 * 1) / (25 - 5)
-        assert abs(result.yule_i - expected_i) < 0.001, (
-            f"Yule's I should be {expected_i:.3f}"
-        )
+        assert abs(result.yule_i - expected_i) < 0.001, f"Yule's I should be {expected_i:.3f}"
 
     def test_all_unique_words(self):
         """Test Yule with all unique words (perfect diversity)."""
@@ -120,9 +116,7 @@ class TestYuleKFormula:
         sum_m2_vm = 3 * 3 * 1 + 1 * 1 * 2  # 9 + 2 = 11
         expected_k = 10_000 * (sum_m2_vm - N) / (N * N)
 
-        assert abs(result.yule_k - expected_k) < 0.001, (
-            f"Yule's K should be {expected_k:.3f}"
-        )
+        assert abs(result.yule_k - expected_k) < 0.001, f"Yule's K should be {expected_k:.3f}"
 
     def test_yule_k_increases_with_repetition(self):
         """Test that Yule's K increases with more repetition."""
@@ -159,9 +153,7 @@ class TestYuleIFormula:
         sum_m2_vm = 11
         expected_i = (V * V) / (sum_m2_vm - N)
 
-        assert abs(result.yule_i - expected_i) < 0.001, (
-            f"Yule's I should be {expected_i:.3f}"
-        )
+        assert abs(result.yule_i - expected_i) < 0.001, f"Yule's I should be {expected_i:.3f}"
 
     def test_yule_i_increases_with_diversity(self):
         """Test that Yule's I increases with more diversity."""
@@ -217,9 +209,7 @@ class TestYuleKIRelationship:
         assert result_diverse.yule_k == 0.0
 
         # I should be NaN for perfect diversity (division by zero)
-        assert math.isnan(result_diverse.yule_i), (
-            "Yule's I should be NaN for perfect diversity"
-        )
+        assert math.isnan(result_diverse.yule_i), "Yule's I should be NaN for perfect diversity"
 
 
 class TestYuleMetadata:

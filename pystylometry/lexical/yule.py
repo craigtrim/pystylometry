@@ -66,7 +66,8 @@ def compute_yule(text: str) -> YuleResult:
     freq_of_freqs = Counter(freq_counter.values())
 
     # Calculate Σm²×Vm (sum of m-squared times Vm for all m)
-    # This is the sum across all frequency levels of: (frequency)² × (count of words at that frequency)
+    # This is the sum across all frequency levels of:
+    # (frequency)² × (count of words at that frequency)
     sum_m2_vm = sum(m * m * vm for m, vm in freq_of_freqs.items())
 
     # Yule's K: 10⁴ × (Σm²×Vm - N) / N²

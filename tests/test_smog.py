@@ -40,7 +40,10 @@ def test_compute_smog_formulas():
     assert result.metadata["word_count"] > 0
 
     # Complex text with many polysyllables should have high SMOG score
-    complex_text = "Notwithstanding comprehensive regulatory frameworks, organizations endeavor to facilitate interdepartmental collaboration. "
+    complex_text = (
+        "Notwithstanding comprehensive regulatory frameworks, "
+        "organizations endeavor to facilitate interdepartmental collaboration. "
+    )
     complex_text = complex_text * 5  # Repeat to get more sentences
     result2 = compute_smog(complex_text)
 
@@ -99,20 +102,26 @@ def test_compute_smog_tokenizer_dependency():
        and can shift SMOG grade level by multiple grades.
     """
     # Test with numbers - tokenizer behavior determines if these count as "words"
-    text_with_numbers = "The year 2026 had 365 days. We counted to 100. Numbers are everywhere in 2024."
+    text_with_numbers = (
+        "The year 2026 had 365 days. We counted to 100. Numbers are everywhere in 2024."
+    )
     result_numbers = compute_smog(text_with_numbers)
     # If tokenizer includes numbers, syllable count becomes unpredictable
     assert result_numbers.metadata["word_count"] > 0  # Sanity check
 
     # Test with abbreviations - sentence splitter must handle these correctly
-    text_with_abbrev = "Dr. Smith works at U.S. Steel. He arrived at 3 p.m. today. The meeting starts soon."
+    text_with_abbrev = (
+        "Dr. Smith works at U.S. Steel. He arrived at 3 p.m. today. The meeting starts soon."
+    )
     result_abbrev = compute_smog(text_with_abbrev)
     # Should be 3 sentences, not 6+ (depends on split_sentences() handling ".")
     # If sentence count is wrong, the √(30/sentences) term explodes
     assert result_abbrev.metadata["sentence_count"] > 0  # Sanity check
 
     # Test with special characters - exposes non-word handling
-    text_with_special = "The company uses C++ and Python. Email: test@example.com. Code reviews matter."
+    text_with_special = (
+        "The company uses C++ and Python. Email: test@example.com. Code reviews matter."
+    )
     result_special = compute_smog(text_with_special)
     # count_syllables("C++") and count_syllables("test@example.com") behavior is undefined
     assert result_special.metadata["word_count"] > 0  # Sanity check
@@ -238,16 +247,18 @@ def test_compute_smog_better_example():
         "Contemporary algorithms demonstrate remarkable capabilities consistently."
     )
     result_complex = compute_smog(complex_text)
-    # computational(5), linguistics(4), significant(4), dedication(4),
-    # investigate(4), sophisticated(5), methodologies(6), systematically(6),
-    # contemporary(5), algorithms(4), demonstrate(3), remarkable(4),
+    # computational(5), linguistics(4), significant(4), dedication(4)
+    # investigate(4), sophisticated(5), methodologies(6), systematically(6)
+    # contemporary(5), algorithms(4), demonstrate(3), remarkable(4)
     # capabilities(5), consistently(4) = 14 polysyllables
     assert result_complex.metadata["polysyllable_count"] > 10
     assert result_complex.smog_index > 10  # Much higher than simple text
 
     # Verify docstring example contains polysyllables (caffeinated, programmers,
     # enthusiastically, incomprehensible = 4 polysyllables)
-    docstring_example = "Caffeinated programmers enthusiastically debugged incomprehensible spaghetti code."
+    docstring_example = (
+        "Caffeinated programmers enthusiastically debugged incomprehensible spaghetti code."
+    )
     result_doc = compute_smog(docstring_example)
     assert result_doc.metadata["polysyllable_count"] >= 4  # Good demonstration of SMOG
 

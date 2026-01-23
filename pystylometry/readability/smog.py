@@ -37,7 +37,7 @@ def compute_smog(text: str) -> SMOGResult:
         still computes but a warning is included in metadata. Results may be less reliable.
 
     Example:
-        >>> text = "Caffeinated programmers enthusiastically debugged incomprehensible spaghetti code."
+        >>> text = "Caffeinated programmers debugged incomprehensible code."
         >>> result = compute_smog(text)
         >>> print(f"SMOG Index: {result.smog_index:.1f}")
         >>> print(f"Grade Level: {result.grade_level}")

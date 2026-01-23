@@ -117,9 +117,7 @@ class TestSichelS:
         assert result.dis_hapax_count == 2
 
         expected_s = 2.0 / 3.0
-        assert abs(result.sichel_s - expected_s) < 0.001, (
-            f"Sichel's S should be {expected_s:.3f}"
-        )
+        assert abs(result.sichel_s - expected_s) < 0.001, f"Sichel's S should be {expected_s:.3f}"
 
     def test_sichel_s_no_dishapax(self):
         """Test Sichel's S when there are no dis-hapax legomena."""
@@ -163,9 +161,7 @@ class TestHonoreR:
 
         # R = 100 × log(5) / (1 - 3/4) = 100 × log(5) / 0.25
         expected_r = 100 * math.log(N) / (1 - V1 / V)
-        assert abs(result.honore_r - expected_r) < 0.001, (
-            f"Honoré's R should be {expected_r:.3f}"
-        )
+        assert abs(result.honore_r - expected_r) < 0.001, f"Honoré's R should be {expected_r:.3f}"
 
     def test_honore_r_edge_case_all_unique(self):
         """Test Honoré's R when V₁ = V (denominator is zero)."""
@@ -341,14 +337,10 @@ class TestHapaxLexiconAnalysis:
 
         # Lists should be sorted
         if result.lexicon_analysis.neologisms:
-            assert result.lexicon_analysis.neologisms == sorted(
-                result.lexicon_analysis.neologisms
-            )
+            assert result.lexicon_analysis.neologisms == sorted(result.lexicon_analysis.neologisms)
 
         if result.lexicon_analysis.rare_words:
-            assert result.lexicon_analysis.rare_words == sorted(
-                result.lexicon_analysis.rare_words
-            )
+            assert result.lexicon_analysis.rare_words == sorted(result.lexicon_analysis.rare_words)
 
         if result.lexicon_analysis.common_words:
             assert result.lexicon_analysis.common_words == sorted(

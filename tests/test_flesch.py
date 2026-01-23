@@ -62,8 +62,13 @@ def test_compute_flesch_difficulty_ratings():
 
     # Verify it returns one of the valid difficulty levels
     valid_difficulties = [
-        "Very Easy", "Easy", "Fairly Easy", "Standard",
-        "Fairly Difficult", "Difficult", "Very Difficult"
+        "Very Easy",
+        "Easy",
+        "Fairly Easy",
+        "Standard",
+        "Fairly Difficult",
+        "Difficult",
+        "Very Difficult",
     ]
     assert result.difficulty in valid_difficulties
 
@@ -147,6 +152,7 @@ def test_compute_flesch_difficulty_label_semantics():
 
     This test documents and validates this conscious design choice.
     """
+
     def expected_difficulty(reading_ease: float) -> str:
         """Helper to map reading_ease to expected difficulty label."""
         if reading_ease >= 90:

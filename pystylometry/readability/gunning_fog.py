@@ -30,7 +30,6 @@ version uses the complex_words module for accurate detection via:
 See complex_words.py for detailed rationale and implementation.
 """
 
-
 from .._normalize import normalize_for_readability
 from .._types import GunningFogResult
 from .._utils import split_sentences, tokenize
@@ -45,9 +44,7 @@ from .complex_words import process_text_for_complex_words
 _FOG_COEFFICIENT = 0.4
 
 
-def compute_gunning_fog(
-    text: str, spacy_model: str = "en_core_web_sm"
-) -> GunningFogResult:
+def compute_gunning_fog(text: str, spacy_model: str = "en_core_web_sm") -> GunningFogResult:
     """
     Compute Gunning Fog Index with NLP-enhanced complex word detection.
 

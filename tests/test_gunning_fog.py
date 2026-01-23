@@ -314,15 +314,18 @@ class TestGunningFogFormula:
     def test_longer_sentences_increase_score(self):
         """Test that longer sentences increase fog index."""
         short_sentences = "The cat sat. The dog ran. The bird flew."
-        long_sentence = "The cat sat on the mat while the dog ran around the yard and the bird flew overhead."
+        long_sentence = (
+            "The cat sat on the mat while the dog ran around the yard and the bird flew overhead."
+        )
 
         result_short = compute_gunning_fog(short_sentences)
         result_long = compute_gunning_fog(long_sentence)
 
         # Longer average sentence length should produce higher score
-        assert result_long.metadata["average_words_per_sentence"] > result_short.metadata[
-            "average_words_per_sentence"
-        ]
+        assert (
+            result_long.metadata["average_words_per_sentence"]
+            > result_short.metadata["average_words_per_sentence"]
+        )
 
     def test_complex_words_increase_score(self):
         """Test that complex words increase fog index."""
@@ -333,9 +336,10 @@ class TestGunningFogFormula:
         result_complex = compute_gunning_fog(complex_text)
 
         # More complex words should produce higher percentage
-        assert result_complex.metadata["complex_word_percentage"] > result_simple.metadata[
-            "complex_word_percentage"
-        ]
+        assert (
+            result_complex.metadata["complex_word_percentage"]
+            > result_simple.metadata["complex_word_percentage"]
+        )
 
 
 class TestGunningFogGutenbergTexts:
@@ -554,9 +558,7 @@ class TestGunningFogEmptyInputConsistency:
         import math
 
         assert math.isnan(result.fog_index), "Empty input should return NaN, not 0.0"
-        assert math.isnan(result.grade_level), (
-            "Empty input grade level should be NaN, not 0"
-        )
+        assert math.isnan(result.grade_level), "Empty input grade level should be NaN, not 0"
 
     def test_whitespace_returns_nan(self):
         """Whitespace-only input should return NaN."""
@@ -643,17 +645,27 @@ class TestGunningFogReliability:
     def test_reliability_threshold_words(self):
         """Test reliability requires 100+ words."""
         # 99 tokens with 3 sentences (96 words + 3 periods = 99 tokens)
-        text_99 = " ".join(["word"] * 32) + ". " + " ".join(["word"] * 32) + ". " + " ".join(
-            ["word"] * 32
-        ) + "."
+        text_99 = (
+            " ".join(["word"] * 32)
+            + ". "
+            + " ".join(["word"] * 32)
+            + ". "
+            + " ".join(["word"] * 32)
+            + "."
+        )
         result = compute_gunning_fog(text_99)
         assert not result.metadata["reliable"]
         assert result.metadata["word_count"] == 99
 
         # 100+ tokens with 3 sentences (97 words + 3 periods = 100 tokens)
-        text_100 = " ".join(["word"] * 33) + ". " + " ".join(["word"] * 32) + ". " + " ".join(
-            ["word"] * 32
-        ) + "."
+        text_100 = (
+            " ".join(["word"] * 33)
+            + ". "
+            + " ".join(["word"] * 32)
+            + ". "
+            + " ".join(["word"] * 32)
+            + "."
+        )
         result = compute_gunning_fog(text_100)
         assert result.metadata["reliable"]
         assert result.metadata["word_count"] == 100
