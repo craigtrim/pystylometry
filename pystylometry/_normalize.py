@@ -87,7 +87,7 @@ def is_word_token(token: str) -> bool:
 
 def normalize_for_readability(tokens: list[str]) -> list[str]:
     """
-    Normalize tokens for readability metrics (Flesch, SMOG, ARI, etc.).
+    Normalize tokens for readability metrics (e.g., Flesch, SMOG).
 
     Filters tokens to only include valid words that can have syllables counted.
     This prevents errors and garbage results from non-word tokens.
@@ -113,9 +113,9 @@ def normalize_for_readability(tokens: list[str]) -> list[str]:
         >>> normalize_for_readability(tokens)
         ['The', 'year', 'had', 'days']
 
-        >>> tokens = ["Dr", "Smith", "works", "at", "U.S.", "Steel"]
+        >>> tokens = ["Dr", "Smith", "works", "at", "U", ".", "S", ".", "Steel"]
         >>> normalize_for_readability(tokens)
-        ['Dr', 'Smith', 'works', 'at', 'Steel']
+        ['Dr', 'Smith', 'works', 'at', 'U', 'S', 'Steel']
 
         >>> tokens = ["Email", "test@example.com", "for", "help"]
         >>> normalize_for_readability(tokens)
@@ -167,16 +167,22 @@ def normalize_for_stylometry(
         if not any(c.isalpha() for c in token):
             continue
 
-        # Handle contractions
-        if "'" in token:
-            if preserve_contractions and is_word_token(token):
-                result.append(token)
-            continue
+        # Handle contractions and hyphenated words (including tokens with both)
+        has_apostrophe = "'" in token
+        has_hyphen = "-" in token
 
-        # Handle hyphens
-        if "-" in token:
-            if preserve_hyphens and is_word_token(token):
-                result.append(token)
+        if has_apostrophe or has_hyphen:
+            # Only consider valid word tokens
+            if not is_word_token(token):
+                continue
+
+            # Respect configuration flags for each stylistic feature present
+            if (has_apostrophe and not preserve_contractions) or (
+                has_hyphen and not preserve_hyphens
+            ):
+                continue
+
+            result.append(token)
             continue
 
         # Default: keep if it's a valid word
@@ -224,10 +230,10 @@ def clean_for_syllable_counting(text: str) -> str:
     text = re.sub(r"www\.\S+", "", text)
 
     # Remove email addresses
-    text = re.sub(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b", "", text)
+    text = re.sub(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b", "", text)
 
-    # Remove currency patterns ($99, £50, €100, etc.)
-    text = re.sub(r"[$£€¥]\d+(?:\.\d+)?", "", text)
+    # Remove currency patterns ($99, £50, €100, $50,000, etc.)
+    text = re.sub(r"[$£€¥]\d+(?:[,.]\d+)*", "", text)
 
     # Remove standalone numbers (with optional decimals, commas)
     text = re.sub(r"\b\d+(?:[,.]\d+)*\b", "", text)
