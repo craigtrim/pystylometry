@@ -1,5 +1,12 @@
 """Readability metrics."""
 
+from .additional_formulas import (
+    compute_dale_chall,
+    compute_forcast,
+    compute_fry,
+    compute_linsear_write,
+    compute_powers_sumner_kearl,
+)
 from .ari import compute_ari
 from .coleman_liau import compute_coleman_liau
 from .flesch import compute_flesch
@@ -12,4 +19,9 @@ __all__ = [
     "compute_gunning_fog",
     "compute_coleman_liau",
     "compute_ari",
+    "compute_dale_chall",
+    "compute_linsear_write",
+    "compute_fry",
+    "compute_forcast",
+    "compute_powers_sumner_kearl",
 ]

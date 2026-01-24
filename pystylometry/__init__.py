@@ -109,8 +109,7 @@ def analyze(
     # Lexical metrics (always available)
     if lexical_metrics:
         result.lexical = {}
-        # TODO: Add when stylometry-ttr is integrated
-        # result.lexical['ttr'] = lexical.compute_ttr(text)
+        result.lexical["ttr"] = lexical.compute_ttr(text)
         result.lexical["mtld"] = lexical.compute_mtld(text)
         result.lexical["yule"] = lexical.compute_yule(text)
         result.lexical["hapax"] = lexical.compute_hapax_ratios(text)
