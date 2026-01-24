@@ -179,54 +179,213 @@ def compute_function_words(text: str) -> FunctionWordResult:
         - Some words appear in multiple categories (e.g., "that" is both
           determiner and pronoun) - each category is counted independently
     """
-    # TODO: Implement function word analysis
-    # GitHub Issue #13: https://github.com/craigtrim/pystylometry/issues/13
-    #
-    # Implementation steps:
-    # 1. Tokenize text into words (lowercase, strip punctuation)
-    # 2. Count total words for ratio calculations
-    # 3. Initialize counters for each function word category
-    # 4. Iterate through tokens and count matches in each category:
-    #    - Count determiners
-    #    - Count prepositions
-    #    - Count conjunctions
-    #    - Count pronouns
-    #    - Count auxiliaries
-    #    - Count particles
-    # 5. Build full distribution of all function words (word -> count)
-    # 6. Calculate ratios (category count / total words)
-    # 7. Calculate total function word ratio
-    # 8. Calculate function word diversity (unique function words / total function word tokens)
-    # 9. Find most frequent function words (sort distribution by count descending)
-    # 10. Find least frequent function words (sort distribution by count ascending)
-    # 11. Calculate metadata (total counts per category, word lists, etc.)
-    # 12. Handle edge cases (empty text, no function words found, etc.)
-    # 13. Return FunctionWordResult
-    #
-    # Metadata should include:
-    #   - total_word_count: Total words in text
-    #   - total_function_word_count: Total function word tokens
-    #   - unique_function_word_count: Unique function words used
-    #   - determiner_count: Total determiner tokens
-    #   - preposition_count: Total preposition tokens
-    #   - conjunction_count: Total conjunction tokens
-    #   - pronoun_count: Total pronoun tokens
-    #   - auxiliary_count: Total auxiliary tokens
-    #   - particle_count: Total particle tokens
-    #   - determiner_list: List of determiners found
-    #   - preposition_list: List of prepositions found
-    #   (etc. for other categories)
-    #
-    # Consider:
-    #   - Should overlapping words (e.g., "that" in multiple categories) be
-    #     counted in all applicable categories, or only once?
-    #     Answer: Count in all applicable categories for category ratios,
-    #     but count only once for total function word ratio.
-    #   - How to handle contractions (e.g., "don't" contains "do")?
-    #     Answer: Expand contractions first, or handle as special cases.
-    #   - Should we weight by relative importance?
-    #     Answer: No, keep raw frequencies for maximum transparency.
-    raise NotImplementedError(
-        "Function word analysis not yet implemented. "
-        "See GitHub Issue #13: https://github.com/craigtrim/pystylometry/issues/13"
+    # Step 1: Create union set of all function words (for total ratio calculation)
+    ALL_FUNCTION_WORDS = (
+        DETERMINERS
+        | PREPOSITIONS
+        | CONJUNCTIONS
+        | PRONOUNS
+        | AUXILIARIES
+        | PARTICLES
+    )
+
+    # Step 2: Tokenize text (lowercase, split on whitespace, strip punctuation)
+    if not text or not text.strip():
+        # Handle empty text edge case
+        return FunctionWordResult(
+            determiner_ratio=0.0,
+            preposition_ratio=0.0,
+            conjunction_ratio=0.0,
+            pronoun_ratio=0.0,
+            auxiliary_ratio=0.0,
+            particle_ratio=0.0,
+            total_function_word_ratio=0.0,
+            function_word_diversity=0.0,
+            most_frequent_function_words=[],
+            least_frequent_function_words=[],
+            function_word_distribution={},
+            metadata={
+                "total_word_count": 0,
+                "total_function_word_count": 0,
+                "unique_function_word_count": 0,
+                "determiner_count": 0,
+                "preposition_count": 0,
+                "conjunction_count": 0,
+                "pronoun_count": 0,
+                "auxiliary_count": 0,
+                "particle_count": 0,
+                "determiner_list": [],
+                "preposition_list": [],
+                "conjunction_list": [],
+                "pronoun_list": [],
+                "auxiliary_list": [],
+                "particle_list": [],
+                "overlapping_words": [],
+                "overlapping_word_categories": {},
+            },
+        )
+
+    # Lowercase entire text
+    text_lower = text.lower()
+
+    # Split on whitespace
+    raw_tokens = text_lower.split()
+
+    # Comprehensive punctuation set for stripping
+    PUNCTUATION = set(
+        ".,!?;:'\"()[]{}/-—–…*&@#$%^~`\\|<>«»„""''‚'"
+    )
+
+    # Strip punctuation from each token
+    tokens = []
+    for token in raw_tokens:
+        # Strip leading and trailing punctuation
+        clean_token = token.strip("".join(PUNCTUATION))
+        if clean_token:  # Only add non-empty tokens
+            tokens.append(clean_token)
+
+    total_words = len(tokens)
+
+    # Step 3: Initialize counters for each category
+    determiner_count = 0
+    preposition_count = 0
+    conjunction_count = 0
+    pronoun_count = 0
+    auxiliary_count = 0
+    particle_count = 0
+
+    # Step 4: Count tokens in each category (overlapping allowed)
+    for token in tokens:
+        if token in DETERMINERS:
+            determiner_count += 1
+        if token in PREPOSITIONS:
+            preposition_count += 1
+        if token in CONJUNCTIONS:
+            conjunction_count += 1
+        if token in PRONOUNS:
+            pronoun_count += 1
+        if token in AUXILIARIES:
+            auxiliary_count += 1
+        if token in PARTICLES:
+            particle_count += 1
+
+    # Step 5: Build distribution (count each function word only once per token)
+    function_word_counts: dict[str, int] = {}
+    for token in tokens:
+        if token in ALL_FUNCTION_WORDS:
+            function_word_counts[token] = function_word_counts.get(token, 0) + 1
+
+    # Step 6: Calculate ratios
+    if total_words > 0:
+        determiner_ratio = determiner_count / total_words
+        preposition_ratio = preposition_count / total_words
+        conjunction_ratio = conjunction_count / total_words
+        pronoun_ratio = pronoun_count / total_words
+        auxiliary_ratio = auxiliary_count / total_words
+        particle_ratio = particle_count / total_words
+
+        total_function_word_count = sum(function_word_counts.values())
+        total_function_word_ratio = total_function_word_count / total_words
+    else:
+        determiner_ratio = 0.0
+        preposition_ratio = 0.0
+        conjunction_ratio = 0.0
+        pronoun_ratio = 0.0
+        auxiliary_ratio = 0.0
+        particle_ratio = 0.0
+        total_function_word_count = 0
+        total_function_word_ratio = 0.0
+
+    # Step 7: Calculate diversity
+    unique_function_word_count = len(function_word_counts)
+    if total_function_word_count > 0:
+        function_word_diversity = unique_function_word_count / total_function_word_count
+    else:
+        function_word_diversity = 0.0
+
+    # Step 8: Find most/least frequent function words
+    if function_word_counts:
+        # Sort by count descending
+        sorted_by_count = sorted(
+            function_word_counts.items(), key=lambda x: x[1], reverse=True
+        )
+
+        # Top 10 most frequent
+        most_frequent = sorted_by_count[:10]
+
+        # Bottom 10 least frequent (reverse to get ascending order)
+        least_frequent = sorted_by_count[-10:]
+        least_frequent.reverse()
+    else:
+        most_frequent = []
+        least_frequent = []
+
+    # Step 9: Build category word lists (sorted)
+    determiner_list = sorted([w for w in function_word_counts if w in DETERMINERS])
+    preposition_list = sorted([w for w in function_word_counts if w in PREPOSITIONS])
+    conjunction_list = sorted([w for w in function_word_counts if w in CONJUNCTIONS])
+    pronoun_list = sorted([w for w in function_word_counts if w in PRONOUNS])
+    auxiliary_list = sorted([w for w in function_word_counts if w in AUXILIARIES])
+    particle_list = sorted([w for w in function_word_counts if w in PARTICLES])
+
+    # Step 10: Find overlapping words (words in multiple categories)
+    overlapping_words = []
+    overlapping_word_categories: dict[str, list[str]] = {}
+
+    for word in function_word_counts:
+        categories = []
+        if word in DETERMINERS:
+            categories.append("determiner")
+        if word in PREPOSITIONS:
+            categories.append("preposition")
+        if word in CONJUNCTIONS:
+            categories.append("conjunction")
+        if word in PRONOUNS:
+            categories.append("pronoun")
+        if word in AUXILIARIES:
+            categories.append("auxiliary")
+        if word in PARTICLES:
+            categories.append("particle")
+
+        if len(categories) > 1:
+            overlapping_words.append(word)
+            overlapping_word_categories[word] = categories
+
+    overlapping_words.sort()
+
+    # Step 11: Build metadata
+    metadata = {
+        "total_word_count": total_words,
+        "total_function_word_count": total_function_word_count,
+        "unique_function_word_count": unique_function_word_count,
+        "determiner_count": determiner_count,
+        "preposition_count": preposition_count,
+        "conjunction_count": conjunction_count,
+        "pronoun_count": pronoun_count,
+        "auxiliary_count": auxiliary_count,
+        "particle_count": particle_count,
+        "determiner_list": determiner_list,
+        "preposition_list": preposition_list,
+        "conjunction_list": conjunction_list,
+        "pronoun_list": pronoun_list,
+        "auxiliary_list": auxiliary_list,
+        "particle_list": particle_list,
+        "overlapping_words": overlapping_words,
+        "overlapping_word_categories": overlapping_word_categories,
+    }
+
+    # Step 12: Return result
+    return FunctionWordResult(
+        determiner_ratio=determiner_ratio,
+        preposition_ratio=preposition_ratio,
+        conjunction_ratio=conjunction_ratio,
+        pronoun_ratio=pronoun_ratio,
+        auxiliary_ratio=auxiliary_ratio,
+        particle_ratio=particle_ratio,
+        total_function_word_ratio=total_function_word_ratio,
+        function_word_diversity=function_word_diversity,
+        most_frequent_function_words=most_frequent,
+        least_frequent_function_words=least_frequent,
+        function_word_distribution=function_word_counts,
+        metadata=metadata,
     )
