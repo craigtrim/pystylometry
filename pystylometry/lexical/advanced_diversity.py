@@ -29,7 +29,49 @@ References:
         Linguistics, 17(2), 94-100.
 """
 
+import random
+from typing import Optional
+
 from .._types import HDDResult, MATTRResult, MSTTRResult, VocdDResult
+
+
+def _tokenize_for_diversity(text: str) -> list[str]:
+    """Tokenize text for lexical diversity analysis.
+
+    This helper function provides consistent tokenization across all
+    diversity metrics. It:
+    - Converts text to lowercase
+    - Splits on whitespace
+    - Strips punctuation from each token
+    - Returns list of clean tokens
+
+    Args:
+        text: Input text to tokenize
+
+    Returns:
+        List of lowercase tokens with punctuation removed
+    """
+    if not text or not text.strip():
+        return []
+
+    # Lowercase entire text
+    text_lower = text.lower()
+
+    # Split on whitespace
+    raw_tokens = text_lower.split()
+
+    # Comprehensive punctuation set for stripping
+    PUNCTUATION = set(".,!?;:'\"()[]{}/-—–…*&@#$%^~`\\|<>«»„\"\"''‚'")
+
+    # Strip punctuation from each token
+    tokens = []
+    for token in raw_tokens:
+        # Strip leading and trailing punctuation
+        clean_token = token.strip("".join(PUNCTUATION))
+        if clean_token:  # Only add non-empty tokens
+            tokens.append(clean_token)
+
+    return tokens
 
 
 def compute_vocd_d(
@@ -37,6 +79,7 @@ def compute_vocd_d(
     sample_size: int = 35,
     num_samples: int = 100,
     min_tokens: int = 100,
+    random_seed: Optional[int] = None,
 ) -> VocdDResult:
     """
     Compute voc-D (vocabulary D) using curve-fitting approach.
@@ -113,34 +156,94 @@ def compute_vocd_d(
         - Curve fitting uses least-squares optimization
         - Poor curve fits (low R²) indicate unreliable D estimates
     """
-    # TODO: Implement voc-D calculation
-    # GitHub Issue #14: https://github.com/craigtrim/pystylometry/issues/14
-    #
-    # Implementation steps:
-    # 1. Tokenize text and count total tokens
-    # 2. Check if text length >= min_tokens, return NaN if too short
-    # 3. Determine range of sample sizes to test (e.g., 10 to 50 tokens)
-    # 4. For each sample size:
-    #    a. Draw num_samples random samples of that size
-    #    b. Calculate TTR for each sample
-    #    c. Compute mean TTR for this sample size
-    # 5. Fit curve to (sample_size, mean_TTR) data points
-    #    - Use mathematical model: TTR = D / sqrt(N) or similar
-    #    - Use least-squares curve fitting (scipy.optimize.curve_fit)
-    # 6. Extract D parameter from fitted curve
-    # 7. Calculate R² goodness of fit
-    # 8. Return VocdDResult with D, R², and metadata
-    #
-    # Metadata should include:
-    #   - random_seed: Seed used for reproducibility
-    #   - token_count: Total tokens in text
-    #   - sample_sizes_tested: List of sample sizes used
-    #   - mean_ttrs: Mean TTR for each sample size
-    #   - curve_equation: String representation of fitted curve
-    #   - convergence_status: Whether curve fitting converged
-    raise NotImplementedError(
-        "voc-D not yet implemented. "
-        "See GitHub Issue #14: https://github.com/craigtrim/pystylometry/issues/14"
+    # Set random seed for reproducibility
+    if random_seed is not None:
+        random.seed(random_seed)
+
+    # Step 1: Tokenize text
+    tokens = _tokenize_for_diversity(text)
+    total_tokens = len(tokens)
+    total_types = len(set(tokens))
+
+    # Step 2: Validate minimum length
+    if total_tokens < min_tokens:
+        raise ValueError(
+            f"Text has {total_tokens} tokens, minimum {min_tokens} required for voc-D"
+        )
+
+    # Step 3: Determine sample sizes to test
+    # Test from 10 tokens up to min(100, total_tokens - 10)
+    min_sample_size = 10
+    max_sample_size = min(100, total_tokens - 10)
+
+    # Create list of sample sizes (every 5 tokens)
+    sample_sizes = list(range(min_sample_size, max_sample_size + 1, 5))
+
+    # Ensure we have at least a few sample sizes
+    if len(sample_sizes) < 3:
+        # If text is very short, just use what we can
+        sample_sizes = list(range(min_sample_size, max_sample_size + 1))
+
+    # Step 4: For each sample size, take random samples and calculate mean TTR
+    sample_size_to_mean_ttr: dict[int, float] = {}
+
+    for size in sample_sizes:
+        ttrs = []
+        for _ in range(num_samples):
+            # Random sample of 'size' tokens
+            sample = random.sample(tokens, size)
+            sample_types = len(set(sample))
+            ttr = sample_types / size
+            ttrs.append(ttr)
+
+        # Mean TTR for this sample size
+        mean_ttr = sum(ttrs) / len(ttrs)
+        sample_size_to_mean_ttr[size] = mean_ttr
+
+    # Step 5: Fit curve using model: TTR = D / sqrt(sample_size)
+    # Using least-squares fitting for y = a/sqrt(x)
+    # Minimize: sum((y_i - a/sqrt(x_i))^2)
+    # Solution: a = sum(y_i/sqrt(x_i)) / sum(1/x_i)
+
+    numerator = 0.0
+    denominator = 0.0
+
+    for size, ttr in sample_size_to_mean_ttr.items():
+        numerator += ttr / (size**0.5)
+        denominator += 1.0 / size
+
+    D = numerator / denominator if denominator > 0 else 0.0
+
+    # Step 6: Calculate R² (goodness of fit)
+    # Predicted TTR = D / sqrt(sample_size)
+    y_actual = list(sample_size_to_mean_ttr.values())
+    y_predicted = [D / (size**0.5) for size in sample_sizes]
+
+    # R² calculation
+    mean_y = sum(y_actual) / len(y_actual)
+    ss_tot = sum((y - mean_y) ** 2 for y in y_actual)
+    ss_res = sum((y_actual[i] - y_predicted[i]) ** 2 for i in range(len(y_actual)))
+
+    r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0.0
+
+    # Step 7: Build metadata
+    metadata = {
+        "total_token_count": total_tokens,
+        "total_type_count": total_types,
+        "simple_ttr": total_types / total_tokens if total_tokens > 0 else 0.0,
+        "sample_sizes_used": sample_sizes,
+        "mean_ttrs_per_sample_size": list(sample_size_to_mean_ttr.values()),
+        "num_samples_per_size": num_samples,
+        "random_seed": random_seed,
+    }
+
+    # Step 8: Return result
+    return VocdDResult(
+        d_parameter=D,
+        curve_fit_r_squared=r_squared,
+        sample_count=len(sample_sizes),
+        optimal_sample_size=sample_size,  # Input parameter
+        metadata=metadata,
     )
 
 
@@ -213,32 +316,59 @@ def compute_mattr(text: str, window_size: int = 50) -> MATTRResult:
         - High TTR std dev suggests uneven lexical distribution
         - MATTR values range from 0 (no diversity) to 1 (perfect diversity)
     """
-    # TODO: Implement MATTR calculation
-    # GitHub Issue #14: https://github.com/craigtrim/pystylometry/issues/14
-    #
-    # Implementation steps:
-    # 1. Tokenize text into word list
-    # 2. Check if len(tokens) >= window_size, return NaN if too short
-    # 3. Initialize list to store TTR for each window
-    # 4. Slide window across text:
-    #    - Start at position 0
-    #    - Extract window (tokens[i:i+window_size])
-    #    - Calculate TTR for window (unique/total in window)
-    #    - Store TTR
-    #    - Move to position i+1
-    #    - Continue until window reaches end of text
-    # 5. Calculate MATTR (mean of all window TTRs)
-    # 6. Calculate TTR statistics (std dev, min, max)
-    # 7. Return MATTRResult
-    #
-    # Metadata should include:
-    #   - token_count: Total tokens in text
-    #   - window_ttrs: List of TTR for each window (for analysis/debugging)
-    #   - first_window_ttr: TTR of first window
-    #   - last_window_ttr: TTR of last window
-    raise NotImplementedError(
-        "MATTR not yet implemented. "
-        "See GitHub Issue #14: https://github.com/craigtrim/pystylometry/issues/14"
+    # Step 1: Tokenize text
+    tokens = _tokenize_for_diversity(text)
+    total_tokens = len(tokens)
+    total_types = len(set(tokens))
+
+    # Step 2: Validate minimum length
+    if total_tokens < window_size:
+        raise ValueError(
+            f"Text has {total_tokens} tokens, minimum {window_size} required for MATTR"
+        )
+
+    # Step 3: Slide window across text and calculate TTR for each position
+    window_ttrs = []
+
+    for i in range(total_tokens - window_size + 1):
+        # Extract window
+        window = tokens[i : i + window_size]
+
+        # Calculate TTR for this window
+        window_types = len(set(window))
+        ttr = window_types / window_size
+        window_ttrs.append(ttr)
+
+    # Step 4: Calculate MATTR (mean of all window TTRs)
+    mattr_score = sum(window_ttrs) / len(window_ttrs)
+
+    # Step 5: Calculate statistics
+    # Standard deviation
+    variance = sum((ttr - mattr_score) ** 2 for ttr in window_ttrs) / len(window_ttrs)
+    ttr_std_dev = variance**0.5
+
+    # Min and max
+    min_ttr = min(window_ttrs)
+    max_ttr = max(window_ttrs)
+
+    # Step 6: Build metadata
+    metadata = {
+        "total_token_count": total_tokens,
+        "total_type_count": total_types,
+        "simple_ttr": total_types / total_tokens if total_tokens > 0 else 0.0,
+        "first_window_ttr": window_ttrs[0],
+        "last_window_ttr": window_ttrs[-1],
+    }
+
+    # Step 7: Return result
+    return MATTRResult(
+        mattr_score=mattr_score,
+        window_size=window_size,
+        window_count=len(window_ttrs),
+        ttr_std_dev=ttr_std_dev,
+        min_ttr=min_ttr,
+        max_ttr=max_ttr,
+        metadata=metadata,
     )
 
 
@@ -315,33 +445,53 @@ def compute_hdd(text: str, sample_size: int = 42) -> HDDResult:
         - Very short texts may produce unreliable HD-D values
         - HD-D correlates highly with other diversity measures but is more stable
     """
-    # TODO: Implement HD-D calculation
-    # GitHub Issue #14: https://github.com/craigtrim/pystylometry/issues/14
+    # Step 1: Tokenize text
+    tokens = _tokenize_for_diversity(text)
+    total_tokens = len(tokens)
+
+    # Step 2: Validate minimum length
+    if total_tokens < sample_size:
+        raise ValueError(
+            f"Text has {total_tokens} tokens, minimum {sample_size} required for HD-D"
+        )
+
+    # Step 3: Build frequency distribution
+    type_counts: dict[str, int] = {}
+    for token in tokens:
+        type_counts[token] = type_counts.get(token, 0) + 1
+
+    total_types = len(type_counts)
+
+    # Step 4: Calculate HD-D using hypergeometric distribution
+    # HD-D = sum over all types of P(X = 0)
+    # where P(X = 0) is probability that type does NOT appear in random sample
     #
-    # Implementation steps:
-    # 1. Tokenize text and count token/type statistics
-    # 2. Build frequency distribution (word -> count)
-    # 3. For each word type with frequency f:
-    #    - Calculate P(X=0) using hypergeometric distribution
-    #      P(X=0) = C(T-f, N) / C(T, N)
-    #      where T = total tokens, f = word frequency, N = sample_size
-    #    - Use scipy.stats.hypergeom for calculation
-    # 4. Sum probabilities across all types
-    # 5. Calculate HD-D from summed probabilities
-    #    HD-D = sum(P(X=0)) / sample_size
-    # 6. Return HDDResult
-    #
-    # Metadata should include:
-    #   - total_tokens: T
-    #   - total_types: Number of unique words
-    #   - sample_size: N
-    #   - probability_sum: Sum of P(X=0) across all types
-    #   - top_contributors: Words contributing most to HD-D
-    #
-    # Note: Requires scipy.stats.hypergeom or manual combination calculation
-    raise NotImplementedError(
-        "HD-D not yet implemented. "
-        "See GitHub Issue #14: https://github.com/craigtrim/pystylometry/issues/14"
+    # Using simplified formula (stable and no scipy required):
+    # P(X=0) = ((total_tokens - count) / total_tokens)^sample_size
+
+    hdd_sum = 0.0
+
+    for word_type, count in type_counts.items():
+        # Probability this type does NOT appear in sample of size sample_size
+        prob_not_appear = ((total_tokens - count) / total_tokens) ** sample_size
+        hdd_sum += prob_not_appear
+
+    # Step 5: Build metadata
+    metadata = {
+        "total_token_count": total_tokens,
+        "total_type_count": total_types,
+        "simple_ttr": total_types / total_tokens if total_tokens > 0 else 0.0,
+        "hypergeometric_sum": hdd_sum,
+        "calculation_method": "simplified",
+    }
+
+    # Step 6: Return result
+    return HDDResult(
+        hdd_score=hdd_sum,
+        sample_size=sample_size,
+        type_count=total_types,
+        token_count=total_tokens,
+        metadata=metadata,
     )
 
 
@@ -421,30 +571,71 @@ def compute_msttr(text: str, segment_size: int = 100) -> MSTTRResult:
         - High TTR std dev suggests inconsistent lexical diversity across text
         - MSTTR values range from 0 (no diversity) to 1 (perfect diversity)
     """
-    # TODO: Implement MSTTR calculation
-    # GitHub Issue #14: https://github.com/craigtrim/pystylometry/issues/14
-    #
-    # Implementation steps:
-    # 1. Tokenize text into word list
-    # 2. Calculate number of complete segments (len(tokens) // segment_size)
-    # 3. If num_segments == 0, return NaN (text too short)
-    # 4. Initialize list to store segment TTRs
-    # 5. For each segment (i in range(num_segments)):
-    #    - Extract segment tokens (tokens[i*segment_size : (i+1)*segment_size])
-    #    - Count unique words in segment
-    #    - Calculate TTR (unique / segment_size)
-    #    - Store TTR
-    # 6. Calculate MSTTR (mean of segment TTRs)
-    # 7. Calculate TTR statistics (std dev, min, max)
-    # 8. Calculate tokens used vs. discarded
-    # 9. Return MSTTRResult
-    #
-    # Metadata should include:
-    #   - token_count: Total tokens in text
-    #   - tokens_used: Number of tokens in complete segments
-    #   - tokens_discarded: Tokens not included in any segment
-    #   - segment_ttrs: TTR for each segment (useful for analysis)
-    raise NotImplementedError(
-        "MSTTR not yet implemented. "
-        "See GitHub Issue #14: https://github.com/craigtrim/pystylometry/issues/14"
+    # Step 1: Tokenize text
+    tokens = _tokenize_for_diversity(text)
+    total_tokens = len(tokens)
+    total_types = len(set(tokens))
+
+    # Step 2: Validate minimum length
+    if total_tokens < segment_size:
+        raise ValueError(
+            f"Text has {total_tokens} tokens, minimum {segment_size} required for MSTTR"
+        )
+
+    # Step 3: Calculate number of complete segments
+    segment_count = total_tokens // segment_size
+
+    # Step 4: Calculate TTR for each segment
+    segment_ttrs = []
+
+    for i in range(segment_count):
+        # Extract segment
+        start = i * segment_size
+        end = start + segment_size
+        segment = tokens[start:end]
+
+        # Calculate TTR for this segment
+        segment_types = len(set(segment))
+        ttr = segment_types / segment_size
+        segment_ttrs.append(ttr)
+
+    # Step 5: Calculate MSTTR (mean of segment TTRs)
+    msttr_score = sum(segment_ttrs) / len(segment_ttrs)
+
+    # Step 6: Calculate statistics
+    # Standard deviation
+    variance = sum((ttr - msttr_score) ** 2 for ttr in segment_ttrs) / len(
+        segment_ttrs
+    )
+    ttr_std_dev = variance**0.5
+
+    # Min and max
+    min_ttr = min(segment_ttrs)
+    max_ttr = max(segment_ttrs)
+
+    # Step 7: Calculate tokens used/discarded
+    tokens_used = segment_count * segment_size
+    tokens_discarded = total_tokens - tokens_used
+
+    # Step 8: Build metadata
+    metadata = {
+        "total_token_count": total_tokens,
+        "total_type_count": total_types,
+        "simple_ttr": total_types / total_tokens if total_tokens > 0 else 0.0,
+        "tokens_used": tokens_used,
+        "tokens_discarded": tokens_discarded,
+        "first_segment_ttr": segment_ttrs[0],
+        "last_segment_ttr": segment_ttrs[-1],
+    }
+
+    # Step 9: Return result
+    return MSTTRResult(
+        msttr_score=msttr_score,
+        segment_size=segment_size,
+        segment_count=segment_count,
+        ttr_std_dev=ttr_std_dev,
+        min_ttr=min_ttr,
+        max_ttr=max_ttr,
+        segment_ttrs=segment_ttrs,
+        metadata=metadata,
     )
