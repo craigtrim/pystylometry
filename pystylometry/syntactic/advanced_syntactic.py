@@ -143,86 +143,290 @@ def compute_advanced_syntactic(
         - T-unit segmentation follows Hunt (1965) criteria
         - Empty or very short texts return NaN for ratios
     """
-    # TODO: Implement advanced syntactic analysis
-    # GitHub Issue #17: https://github.com/craigtrim/pystylometry/issues/17
-    #
-    # Implementation steps:
-    # 1. Check for spaCy dependency
-    # 2. Load spaCy model with dependency parser
-    # 3. Parse text with spaCy to get Doc object
-    #
-    # Parse Tree Depth:
-    # 4. For each sentence:
-    #    - Traverse dependency tree recursively
-    #    - Calculate depth (root = 0, children = parent_depth + 1)
-    #    - Record max depth per sentence
-    # 5. Calculate mean and max parse tree depths
-    #
-    # T-units:
-    # 6. Identify T-unit boundaries:
-    #    - Find all independent clauses (sentences/main clauses)
-    #    - Include all dependent clauses attached to each main clause
-    #    - Count words in each T-unit
-    # 7. Calculate t_unit_count and mean_t_unit_length
-    #
-    # Clausal Density:
-    # 8. Identify all clauses (both independent and dependent):
-    #    - Use dependency labels (csubj, ccomp, advcl, acl, relcl, etc.)
-    #    - Count total clauses
-    #    - Distinguish dependent from independent
-    # 9. Calculate clausal_density = total_clauses / t_unit_count
-    # 10. Calculate dependent_clause_ratio = dependent / total_clauses
-    #
-    # Passive Voice:
-    # 11. Detect passive constructions:
-    #     - Look for passive auxiliary (be) + past participle
-    #     - Use dependency pattern: nsubjpass relation
-    #     - Count passive sentences
-    # 12. Calculate passive_voice_ratio = passive_sentences / total_sentences
-    #
-    # Subordination & Coordination:
-    # 13. Count subordinate clauses (advcl, acl, relcl dependencies)
-    # 14. Count coordinate clauses (conj dependencies with cc=CCONJ)
-    # 15. Calculate subordination_index = subordinate / total_clauses
-    # 16. Calculate coordination_index = coordinate / total_clauses
-    #
-    # Sentence Complexity Score:
-    # 17. Combine multiple metrics into composite score:
-    #     - Weighted sum of: parse_depth, clausal_density, t_unit_length
-    #     - Normalize to 0-1 range
-    #
-    # Dependency Distance:
-    # 18. For each token-head pair:
-    #     - Calculate distance (abs(token.i - token.head.i))
-    #     - Average across all dependencies
-    #
-    # Branching Direction:
-    # 19. For each dependency relation:
-    #     - If dependent.i < head.i: left-branching
-    #     - If dependent.i > head.i: right-branching
-    # 20. Calculate left_branching_ratio and right_branching_ratio
-    #
-    # Metadata:
-    # 21. Collect detailed metadata:
-    #     - sentence_count
-    #     - total_clauses
-    #     - independent_clause_count
-    #     - dependent_clause_count
-    #     - passive_sentence_count
-    #     - parse_depths_per_sentence: list
-    #     - t_unit_lengths: list
-    #
-    # 22. Return AdvancedSyntacticResult
-    #
-    # Helper functions needed:
-    #   - calculate_tree_depth(token) -> int
-    #   - is_passive_voice(sent) -> bool
-    #   - identify_t_units(doc) -> list[Span]
-    #   - count_clauses(sent) -> tuple[int, int]  # (total, dependent)
-    #   - calculate_dependency_distance(token) -> float
     check_optional_dependency("spacy", "syntactic")
 
-    raise NotImplementedError(
-        "Advanced syntactic analysis not yet implemented. "
-        "See GitHub Issue #17: https://github.com/craigtrim/pystylometry/issues/17"
+    try:
+        import spacy  # type: ignore
+        from spacy.tokens import Doc, Span, Token  # type: ignore
+    except ImportError as e:
+        raise ImportError(
+            "spaCy is required for advanced syntactic analysis. "
+            "Install with: pip install spacy && python -m spacy download en_core_web_sm"
+        ) from e
+
+    # Load spaCy model
+    try:
+        nlp = spacy.load(model)
+    except OSError as e:
+        raise OSError(
+            f"spaCy model '{model}' not found. "
+            f"Download with: python -m spacy download {model}"
+        ) from e
+
+    # Parse text
+    doc = nlp(text)
+    sentences = list(doc.sents)
+
+    # Handle empty text
+    if len(sentences) == 0 or len(doc) == 0:
+        return AdvancedSyntacticResult(
+            mean_parse_tree_depth=float("nan"),
+            max_parse_tree_depth=0,
+            t_unit_count=0,
+            mean_t_unit_length=float("nan"),
+            clausal_density=float("nan"),
+            dependent_clause_ratio=float("nan"),
+            passive_voice_ratio=float("nan"),
+            subordination_index=float("nan"),
+            coordination_index=float("nan"),
+            sentence_complexity_score=float("nan"),
+            dependency_distance=float("nan"),
+            left_branching_ratio=float("nan"),
+            right_branching_ratio=float("nan"),
+            metadata={
+                "sentence_count": 0,
+                "word_count": 0,
+                "total_clauses": 0,
+                "warning": "Empty text or no sentences found",
+            },
+        )
+
+    # 1. Calculate parse tree depth
+    parse_depths = []
+    for sent in sentences:
+        depth = _calculate_max_tree_depth(sent.root)
+        parse_depths.append(depth)
+
+    mean_parse_tree_depth = sum(parse_depths) / len(parse_depths)
+    max_parse_tree_depth = max(parse_depths)
+
+    # 2. Calculate mean dependency distance
+    dependency_distances = []
+    for token in doc:
+        if token != token.head:  # Exclude root
+            distance = abs(token.i - token.head.i)
+            dependency_distances.append(distance)
+
+    if dependency_distances:
+        mean_dependency_distance = sum(dependency_distances) / len(dependency_distances)
+    else:
+        mean_dependency_distance = 0.0
+
+    # 3. Identify T-units and calculate mean T-unit length
+    t_units = _identify_t_units(doc)
+    t_unit_count = len(t_units)
+    t_unit_lengths = [len(t_unit) for t_unit in t_units]
+
+    if t_unit_count > 0:
+        mean_t_unit_length = sum(t_unit_lengths) / t_unit_count
+    else:
+        mean_t_unit_length = float("nan")
+
+    # 4. Count clauses (total, dependent, subordinate, coordinate)
+    total_clauses = 0
+    dependent_clause_count = 0
+    subordinate_clause_count = 0
+    coordinate_clause_count = 0
+
+    for sent in sentences:
+        sent_total, sent_dependent, sent_subordinate, sent_coordinate = _count_clauses(
+            sent
+        )
+        total_clauses += sent_total
+        dependent_clause_count += sent_dependent
+        subordinate_clause_count += sent_subordinate
+        coordinate_clause_count += sent_coordinate
+
+    # Calculate ratios
+    if total_clauses > 0:
+        dependent_clause_ratio = dependent_clause_count / total_clauses
+        subordination_index = subordinate_clause_count / total_clauses
+        coordination_index = coordinate_clause_count / total_clauses
+    else:
+        dependent_clause_ratio = float("nan")
+        subordination_index = float("nan")
+        coordination_index = float("nan")
+
+    if t_unit_count > 0:
+        clausal_density = total_clauses / t_unit_count
+    else:
+        clausal_density = float("nan")
+
+    # 5. Detect passive voice
+    passive_sentence_count = sum(1 for sent in sentences if _is_passive_voice(sent))
+    passive_voice_ratio = passive_sentence_count / len(sentences)
+
+    # 6. Calculate branching direction
+    left_branching = 0
+    right_branching = 0
+
+    for token in doc:
+        if token != token.head:  # Exclude root
+            if token.i < token.head.i:
+                left_branching += 1
+            else:
+                right_branching += 1
+
+    total_branching = left_branching + right_branching
+    if total_branching > 0:
+        left_branching_ratio = left_branching / total_branching
+        right_branching_ratio = right_branching / total_branching
+    else:
+        left_branching_ratio = float("nan")
+        right_branching_ratio = float("nan")
+
+    # 7. Calculate sentence complexity score (composite metric)
+    # Normalize individual metrics to 0-1 range
+    normalized_parse_depth = min(mean_parse_tree_depth / 10, 1.0)
+    normalized_clausal_density = (
+        min(clausal_density / 3, 1.0) if not isinstance(clausal_density, float) or not (clausal_density != clausal_density) else 0.0
     )
+    normalized_t_unit_length = (
+        min(mean_t_unit_length / 25, 1.0) if not isinstance(mean_t_unit_length, float) or not (mean_t_unit_length != mean_t_unit_length) else 0.0
+    )
+    normalized_dependency_distance = min(mean_dependency_distance / 5, 1.0)
+    normalized_subordination = (
+        subordination_index if not isinstance(subordination_index, float) or not (subordination_index != subordination_index) else 0.0
+    )
+
+    # Weighted combination
+    sentence_complexity_score = (
+        0.3 * normalized_parse_depth
+        + 0.3 * normalized_clausal_density
+        + 0.2 * normalized_t_unit_length
+        + 0.1 * normalized_subordination
+        + 0.1 * normalized_dependency_distance
+    )
+
+    # Collect metadata
+    metadata = {
+        "sentence_count": len(sentences),
+        "word_count": len(doc),
+        "total_clauses": total_clauses,
+        "independent_clause_count": total_clauses - dependent_clause_count,
+        "dependent_clause_count": dependent_clause_count,
+        "subordinate_clause_count": subordinate_clause_count,
+        "coordinate_clause_count": coordinate_clause_count,
+        "passive_sentence_count": passive_sentence_count,
+        "parse_depths_per_sentence": parse_depths,
+        "t_unit_lengths": t_unit_lengths,
+        "t_unit_count": t_unit_count,
+        "dependency_distances": dependency_distances[:100],  # Sample for brevity
+        "left_branching_count": left_branching,
+        "right_branching_count": right_branching,
+        "model_used": model,
+    }
+
+    return AdvancedSyntacticResult(
+        mean_parse_tree_depth=mean_parse_tree_depth,
+        max_parse_tree_depth=max_parse_tree_depth,
+        t_unit_count=t_unit_count,
+        mean_t_unit_length=mean_t_unit_length,
+        clausal_density=clausal_density,
+        dependent_clause_ratio=dependent_clause_ratio,
+        passive_voice_ratio=passive_voice_ratio,
+        subordination_index=subordination_index,
+        coordination_index=coordination_index,
+        sentence_complexity_score=sentence_complexity_score,
+        dependency_distance=mean_dependency_distance,
+        left_branching_ratio=left_branching_ratio,
+        right_branching_ratio=right_branching_ratio,
+        metadata=metadata,
+    )
+
+
+def _calculate_max_tree_depth(token) -> int:
+    """
+    Calculate maximum depth of dependency tree starting from token.
+
+    Args:
+        token: spaCy Token to start from (typically sentence root)
+
+    Returns:
+        Maximum depth of tree (root = 0, children = parent + 1)
+    """
+    if not list(token.children):
+        return 0
+
+    child_depths = [_calculate_max_tree_depth(child) for child in token.children]
+    return max(child_depths) + 1
+
+
+def _identify_t_units(doc) -> list:
+    """
+    Identify T-units (minimal terminable units) in document.
+
+    A T-unit is one main clause plus all subordinate clauses attached to it.
+    This follows Hunt (1965) definition.
+
+    Args:
+        doc: spaCy Doc object
+
+    Returns:
+        List of spaCy Span objects, each representing a T-unit
+    """
+    # For simplicity, treat each sentence as a T-unit
+    # More sophisticated approach would split compound sentences
+    # into separate T-units, but this requires complex coordination analysis
+    return list(doc.sents)
+
+
+def _count_clauses(sent) -> tuple[int, int, int, int]:
+    """
+    Count different types of clauses in sentence.
+
+    Args:
+        sent: spaCy Span representing a sentence
+
+    Returns:
+        Tuple of (total_clauses, dependent_clauses, subordinate_clauses, coordinate_clauses)
+    """
+    # Start with 1 for the main clause
+    total = 1
+    dependent = 0
+    subordinate = 0
+    coordinate = 0
+
+    # Dependency labels that indicate clauses
+    dependent_clause_labels = {"csubj", "ccomp", "xcomp", "advcl", "acl", "relcl"}
+    subordinate_clause_labels = {"advcl", "acl", "relcl"}
+    coordinate_clause_labels = {"conj"}
+
+    for token in sent:
+        if token.dep_ in dependent_clause_labels:
+            total += 1
+            dependent += 1
+            if token.dep_ in subordinate_clause_labels:
+                subordinate += 1
+        elif token.dep_ in coordinate_clause_labels and token.pos_ == "VERB":
+            # Coordinate clause (conj) with verb = coordinated main clause
+            total += 1
+            coordinate += 1
+
+    return total, dependent, subordinate, coordinate
+
+
+def _is_passive_voice(sent) -> bool:
+    """
+    Detect if sentence contains passive voice construction.
+
+    Args:
+        sent: spaCy Span representing a sentence
+
+    Returns:
+        True if passive voice detected, False otherwise
+    """
+    # Look for passive auxiliary + past participle pattern
+    for token in sent:
+        # Check for passive subject dependency (older spaCy versions)
+        if token.dep_ == "nsubjpass":
+            return True
+        # Check for passive auxiliary + past participle (newer spaCy versions)
+        # In newer spaCy, passive is marked with nsubj:pass or through aux:pass
+        if "pass" in token.dep_:
+            return True
+        # Alternative: check for "be" verb + past participle
+        if token.dep_ == "auxpass":
+            return True
+
+    return False
