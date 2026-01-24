@@ -178,79 +178,293 @@ def compute_sentence_types(
         - Imperative detection uses missing subject + base verb pattern
         - Empty text returns NaN for ratios, 0 for counts
     """
-    # TODO: Implement sentence type classification
-    # GitHub Issue #18: https://github.com/craigtrim/pystylometry/issues/18
-    #
-    # Implementation steps:
-    # 1. Check for spaCy dependency
-    # 2. Load spaCy model with dependency parser
-    # 3. Parse text to get Doc object
-    #
-    # Clause Detection:
-    # 4. For each sentence:
-    #    a. Count independent clauses:
-    #       - Look for root verbs (token.dep_ == "ROOT")
-    #       - Look for coordinated clauses (conj with cc=CCONJ)
-    #       - Each coordination adds an independent clause
-    #    b. Count dependent clauses:
-    #       - Look for subordinate clause markers:
-    #         * ccomp: clausal complement
-    #         * advcl: adverbial clause
-    #         * acl: adnominal clause
-    #         * relcl: relative clause
-    #         * xcomp: open clausal complement
-    #
-    # Structural Classification:
-    # 5. For each sentence, classify based on clause counts:
-    #    - If independent == 1 and dependent == 0: SIMPLE
-    #    - If independent >= 2 and dependent == 0: COMPOUND
-    #    - If independent == 1 and dependent >= 1: COMPLEX
-    #    - If independent >= 2 and dependent >= 1: COMPOUND-COMPLEX
-    #
-    # Functional Classification:
-    # 6. For each sentence, classify based on punctuation and structure:
-    #    - If ends with "?": INTERROGATIVE
-    #    - If ends with "!": EXCLAMATORY
-    #    - If subject is missing and verb is base form: IMPERATIVE
-    #    - Otherwise: DECLARATIVE
-    # 7. Additional checks for imperative:
-    #    - Look for sentences starting with base verb
-    #    - Check for implicit "you" subject
-    #
-    # Calculate Ratios:
-    # 8. Count sentences in each structural category
-    # 9. Calculate structural ratios (count / total_sentences)
-    # 10. Count sentences in each functional category
-    # 11. Calculate functional ratios (count / total_sentences)
-    #
-    # Diversity Metrics:
-    # 12. Calculate Shannon entropy for structural distribution:
-    #     H = -sum(p_i * log2(p_i)) for each structural type
-    #     where p_i is the ratio for type i
-    # 13. Calculate Shannon entropy for functional distribution
-    #
-    # Metadata:
-    # 14. Store sentence-by-sentence classifications:
-    #     - List of (sentence_text, structural_type, functional_type)
-    # 15. Store clause counts per sentence:
-    #     - List of (independent_count, dependent_count)
-    #
-    # Handle Edge Cases:
-    # 16. Empty text: Return all ratios as NaN, counts as 0
-    # 17. Single sentence: Ratios will be 1.0 for one type, 0.0 for others
-    # 18. Parsing errors: Log warning, classify as SIMPLE DECLARATIVE
-    #
-    # 19. Return SentenceTypeResult
-    #
-    # Helper functions needed:
-    #   - count_independent_clauses(sent) -> int
-    #   - count_dependent_clauses(sent) -> int
-    #   - classify_structural(indep, dep) -> str
-    #   - classify_functional(sent) -> str
-    #   - calculate_shannon_entropy(ratios) -> float
     check_optional_dependency("spacy", "syntactic")
 
-    raise NotImplementedError(
-        "Sentence type classification not yet implemented. "
-        "See GitHub Issue #18: https://github.com/craigtrim/pystylometry/issues/18"
+    try:
+        import spacy  # type: ignore
+    except ImportError as e:
+        raise ImportError(
+            "spaCy is required for sentence type classification. "
+            "Install with: pip install spacy && python -m spacy download en_core_web_sm"
+        ) from e
+
+    # Load spaCy model
+    try:
+        nlp = spacy.load(model)
+    except OSError as e:
+        raise OSError(
+            f"spaCy model '{model}' not found. "
+            f"Download with: python -m spacy download {model}"
+        ) from e
+
+    # Parse text
+    doc = nlp(text)
+    sentences = list(doc.sents)
+
+    # Handle empty text
+    if len(sentences) == 0:
+        return SentenceTypeResult(
+            simple_ratio=float("nan"),
+            compound_ratio=float("nan"),
+            complex_ratio=float("nan"),
+            compound_complex_ratio=float("nan"),
+            declarative_ratio=float("nan"),
+            interrogative_ratio=float("nan"),
+            imperative_ratio=float("nan"),
+            exclamatory_ratio=float("nan"),
+            simple_count=0,
+            compound_count=0,
+            complex_count=0,
+            compound_complex_count=0,
+            declarative_count=0,
+            interrogative_count=0,
+            imperative_count=0,
+            exclamatory_count=0,
+            total_sentences=0,
+            structural_diversity=float("nan"),
+            functional_diversity=float("nan"),
+            metadata={
+                "warning": "Empty text or no sentences found",
+            },
+        )
+
+    # Classify each sentence
+    structural_counts = {"simple": 0, "compound": 0, "complex": 0, "compound_complex": 0}
+    functional_counts = {"declarative": 0, "interrogative": 0, "imperative": 0, "exclamatory": 0}
+    sentence_classifications = []
+    clause_counts_per_sentence = []
+
+    for sent in sentences:
+        # Count clauses
+        independent_count = _count_independent_clauses(sent)
+        dependent_count = _count_dependent_clauses(sent)
+        clause_counts_per_sentence.append((independent_count, dependent_count))
+
+        # Structural classification
+        structural_type = _classify_structural(independent_count, dependent_count)
+        structural_counts[structural_type] += 1
+
+        # Functional classification
+        functional_type = _classify_functional(sent)
+        functional_counts[functional_type] += 1
+
+        # Store classification
+        sentence_classifications.append({
+            "text": sent.text,
+            "structural_type": structural_type,
+            "functional_type": functional_type,
+            "independent_clauses": independent_count,
+            "dependent_clauses": dependent_count,
+        })
+
+    # Calculate ratios
+    total_sentences = len(sentences)
+    simple_ratio = structural_counts["simple"] / total_sentences
+    compound_ratio = structural_counts["compound"] / total_sentences
+    complex_ratio = structural_counts["complex"] / total_sentences
+    compound_complex_ratio = structural_counts["compound_complex"] / total_sentences
+
+    declarative_ratio = functional_counts["declarative"] / total_sentences
+    interrogative_ratio = functional_counts["interrogative"] / total_sentences
+    imperative_ratio = functional_counts["imperative"] / total_sentences
+    exclamatory_ratio = functional_counts["exclamatory"] / total_sentences
+
+    # Calculate diversity metrics
+    structural_ratios = [simple_ratio, compound_ratio, complex_ratio, compound_complex_ratio]
+    functional_ratios = [declarative_ratio, interrogative_ratio, imperative_ratio, exclamatory_ratio]
+
+    structural_diversity = _calculate_shannon_entropy(structural_ratios)
+    functional_diversity = _calculate_shannon_entropy(functional_ratios)
+
+    # Collect metadata
+    metadata = {
+        "sentence_count": total_sentences,
+        "sentence_classifications": sentence_classifications,
+        "clause_counts_per_sentence": clause_counts_per_sentence,
+        "structural_counts": structural_counts,
+        "functional_counts": functional_counts,
+        "model_used": model,
+    }
+
+    return SentenceTypeResult(
+        simple_ratio=simple_ratio,
+        compound_ratio=compound_ratio,
+        complex_ratio=complex_ratio,
+        compound_complex_ratio=compound_complex_ratio,
+        declarative_ratio=declarative_ratio,
+        interrogative_ratio=interrogative_ratio,
+        imperative_ratio=imperative_ratio,
+        exclamatory_ratio=exclamatory_ratio,
+        simple_count=structural_counts["simple"],
+        compound_count=structural_counts["compound"],
+        complex_count=structural_counts["complex"],
+        compound_complex_count=structural_counts["compound_complex"],
+        declarative_count=functional_counts["declarative"],
+        interrogative_count=functional_counts["interrogative"],
+        imperative_count=functional_counts["imperative"],
+        exclamatory_count=functional_counts["exclamatory"],
+        total_sentences=total_sentences,
+        structural_diversity=structural_diversity,
+        functional_diversity=functional_diversity,
+        metadata=metadata,
     )
+
+
+def _count_independent_clauses(sent) -> int:
+    """
+    Count independent clauses in a sentence.
+
+    Independent clauses are:
+    1. The root clause (always 1)
+    2. Coordinated clauses (conj with VERB POS and cc child)
+
+    Args:
+        sent: spaCy Span representing a sentence
+
+    Returns:
+        Number of independent clauses
+    """
+    count = 1  # Always start with root clause
+
+    for token in sent:
+        # Coordinated independent clause
+        if token.dep_ == "conj" and token.pos_ == "VERB":
+            # Check if coordinating conjunction present
+            if any(child.dep_ == "cc" for child in token.head.children):
+                count += 1
+
+    return count
+
+
+def _count_dependent_clauses(sent) -> int:
+    """
+    Count dependent clauses in a sentence.
+
+    Dependent clauses are identified by dependency labels:
+    - ccomp: clausal complement
+    - advcl: adverbial clause
+    - acl: adnominal clause
+    - relcl: relative clause
+    - xcomp: open clausal complement (sometimes)
+
+    Args:
+        sent: spaCy Span representing a sentence
+
+    Returns:
+        Number of dependent clauses
+    """
+    dependent_labels = {"ccomp", "advcl", "acl", "relcl", "xcomp"}
+    count = sum(1 for token in sent if token.dep_ in dependent_labels)
+    return count
+
+
+def _classify_structural(independent: int, dependent: int) -> str:
+    """
+    Classify sentence structure based on clause counts.
+
+    Args:
+        independent: Number of independent clauses
+        dependent: Number of dependent clauses
+
+    Returns:
+        One of: "simple", "compound", "complex", "compound_complex"
+    """
+    if independent == 1 and dependent == 0:
+        return "simple"
+    elif independent >= 2 and dependent == 0:
+        return "compound"
+    elif independent == 1 and dependent >= 1:
+        return "complex"
+    elif independent >= 2 and dependent >= 1:
+        return "compound_complex"
+    else:
+        # Fallback (shouldn't happen with valid counts)
+        return "simple"
+
+
+def _classify_functional(sent) -> str:
+    """
+    Classify sentence function based on punctuation and structure.
+
+    Args:
+        sent: spaCy Span representing a sentence
+
+    Returns:
+        One of: "declarative", "interrogative", "imperative", "exclamatory"
+    """
+    # Get last token for punctuation
+    last_token = sent[-1]
+
+    # Check for question mark (interrogative)
+    if last_token.text == "?":
+        return "interrogative"
+
+    # Check for exclamation mark
+    if last_token.text == "!":
+        # Could be imperative or exclamatory
+        # Check if imperative structure
+        if _is_imperative_structure(sent):
+            return "imperative"
+        return "exclamatory"
+
+    # Check for imperative structure (missing subject + base verb)
+    if _is_imperative_structure(sent):
+        return "imperative"
+
+    # Default: declarative
+    return "declarative"
+
+
+def _is_imperative_structure(sent) -> bool:
+    """
+    Check if sentence has imperative structure.
+
+    Imperatives typically:
+    - Missing nominal subject (nsubj)
+    - Root verb is base form (VB) or imperative
+
+    Args:
+        sent: spaCy Span representing a sentence
+
+    Returns:
+        True if imperative structure detected
+    """
+    # Check for nominal subject
+    has_nominal_subject = any(token.dep_ == "nsubj" for token in sent)
+
+    # Get root verb
+    root_verb = sent.root
+
+    # If no nominal subject and root is a verb
+    if not has_nominal_subject and root_verb.pos_ == "VERB":
+        # Check if root is base form (VB) or present tense without subject
+        if root_verb.tag_ in {"VB", "VBP"}:
+            return True
+
+    return False
+
+
+def _calculate_shannon_entropy(probabilities: list[float]) -> float:
+    """
+    Calculate Shannon entropy for a probability distribution.
+
+    H = -sum(p * log2(p)) for p > 0
+
+    Args:
+        probabilities: List of probabilities (should sum to 1.0)
+
+    Returns:
+        Shannon entropy in bits (0.0 to log2(n) where n is number of categories)
+    """
+    import math
+
+    # Filter out zero probabilities (log(0) undefined)
+    non_zero_probs = [p for p in probabilities if p > 0]
+
+    if not non_zero_probs:
+        return 0.0
+
+    # Calculate entropy
+    entropy = -sum(p * math.log2(p) for p in non_zero_probs)
+
+    return entropy
