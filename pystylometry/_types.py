@@ -22,9 +22,8 @@ References:
 from __future__ import annotations
 
 import statistics
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
-
 
 # ===== Distribution and Chunking =====
 # Related to GitHub Issue #27: Native chunked analysis with Distribution dataclass
@@ -1289,7 +1288,8 @@ class SentenceTypeResult:
         - Simple: One independent clause (e.g., "The cat sat.")
         - Compound: Multiple independent clauses (e.g., "I came, I saw, I conquered.")
         - Complex: One independent + dependent clause(s) (e.g., "When I arrived, I saw her.")
-        - Compound-Complex: Multiple independent + dependent (e.g., "I came when called, and I stayed.")
+        - Compound-Complex: Multiple independent + dependent
+          (e.g., "I came when called, and I stayed.")
 
     Functional types:
         - Declarative: Statement (e.g., "The sky is blue.")
@@ -1761,6 +1761,87 @@ class KilgarriffResult:
 
 
 @dataclass
+class KilgarriffDriftResult:
+    """Result from Kilgarriff chi-squared drift detection within a single document.
+
+    This result captures stylistic drift patterns by comparing sequential chunks
+    of text using Kilgarriff's chi-squared method. It enables detection of
+    inconsistent authorship, heavy editing, pasted content, and AI-generated
+    text signatures.
+
+    Related GitHub Issues:
+        #36 - Kilgarriff Chi-Squared drift detection for intra-document analysis
+        https://github.com/craigtrim/pystylometry/issues/36
+        #31 - Classical Stylometric Methods from Programming Historian
+        https://github.com/craigtrim/pystylometry/issues/31
+
+    Pattern Signatures:
+        - consistent: Low, stable χ² across pairs (natural human writing)
+        - gradual_drift: Slowly increasing trend (author fatigue, topic shift)
+        - sudden_spike: One pair has high χ² (pasted content, different author)
+        - suspiciously_uniform: Near-zero variance (possible AI generation)
+        - unknown: Insufficient data for classification
+
+    Marketing Name: "Style Drift Detector" / "Consistency Fingerprint"
+
+    References:
+        Kilgarriff, A. (2001). Comparing corpora. International Journal of Corpus
+            Linguistics, 6(1), 97-133.
+
+    Example:
+        >>> result = compute_kilgarriff_drift(text, window_size=1000, stride=500)
+        >>> result.pattern  # "consistent", "gradual_drift", "sudden_spike", etc.
+        'consistent'
+        >>> result.mean_chi_squared  # Average χ² across chunk pairs
+        45.2
+        >>> result.status  # "success", "marginal_data", "insufficient_data"
+        'success'
+    """
+
+    # Status (graceful handling of edge cases)
+    status: str  # "success", "marginal_data", "insufficient_data"
+    status_message: str  # Human-readable explanation
+
+    # Pattern classification
+    pattern: str  # "consistent", "gradual_drift", "sudden_spike", "suspiciously_uniform", "unknown"
+    pattern_confidence: float  # 0.0-1.0 confidence in classification
+
+    # Holistic metrics (may be NaN if insufficient data)
+    mean_chi_squared: float  # Average χ² across all chunk pairs
+    std_chi_squared: float  # Standard deviation of χ² values
+    max_chi_squared: float  # Highest χ² between any two chunks
+    min_chi_squared: float  # Lowest χ² between any two chunks
+    max_location: int  # Index of chunk boundary with max χ² (0-indexed)
+    trend: float  # Linear regression slope of χ² over chunk pairs
+
+    # Pairwise comparison data
+    pairwise_scores: list[dict]  # [{"chunk_pair": (0, 1), "chi_squared": 45.2, "top_words": [...]}]
+
+    # Window configuration (for reproducibility)
+    window_size: int
+    stride: int
+    overlap_ratio: float  # Computed: max(0, 1 - stride/window_size)
+    comparison_mode: str  # "sequential", "all_pairs", "fixed_lag"
+    window_count: int
+
+    # For all_pairs mode only
+    distance_matrix: list[list[float]] | None  # None for sequential/fixed_lag
+
+    # Thresholds used for pattern classification (for transparency)
+    thresholds: dict[str, float]
+
+    metadata: dict[str, Any]
+
+
+# ===== Consistency Module Thresholds =====
+# Related to GitHub Issue #36
+# These are calibration constants for pattern classification
+
+MIN_WINDOWS = 3  # Bare minimum for variance calculation
+RECOMMENDED_WINDOWS = 5  # For reliable pattern classification
+
+
+@dataclass
 class MinMaxResult:
     """Result from Min-Max distance method (Burrows' original method).
 
@@ -1888,6 +1969,118 @@ class RhythmProsodyResult:
     anapestic_ratio: float  # Anapestic patterns / total
 
     metadata: dict[str, Any]  # Syllable counts, stress patterns, phoneme data, etc.
+
+
+# ===== Dialect Detection Results =====
+# Related to GitHub Issue #35: Dialect detection with extensible JSON markers
+# https://github.com/craigtrim/pystylometry/issues/35
+# Related to GitHub Issue #30: Whonix stylometry features
+# https://github.com/craigtrim/pystylometry/issues/30
+
+
+@dataclass
+class DialectResult:
+    """Result from dialect detection analysis.
+
+    Dialect detection identifies regional linguistic preferences (British vs.
+    American English) and measures text markedness - how far the text deviates
+    from "unmarked" standard English. This analysis uses an extensible JSON-based
+    marker database covering vocabulary, spelling patterns, grammar patterns,
+    punctuation conventions, and idiomatic expressions.
+
+    The analysis follows the chunking pattern from Issue #27, computing metrics
+    per chunk and providing distributions for stylometric fingerprinting. Dialect
+    markers are sparse, so variance across chunks can reveal mixed authorship
+    (e.g., a UK speaker using ChatGPT-generated American English content).
+
+    Related GitHub Issues:
+        #35 - Dialect detection with extensible JSON markers
+        https://github.com/craigtrim/pystylometry/issues/35
+        #30 - Whonix stylometry features (regional linguistic preferences)
+        https://github.com/craigtrim/pystylometry/issues/30
+        #27 - Native chunked analysis with Distribution dataclass
+        https://github.com/craigtrim/pystylometry/issues/27
+
+    Theoretical Background:
+        Markedness theory (Battistella, 1990) informs the markedness_score:
+        marked forms stand out against "standard" written English. High
+        markedness suggests intentional stylistic choice or strong dialect
+        identity. Dialectometry (Goebl, 1982; Nerbonne, 2009) provides the
+        quantitative framework for holistic dialect measurement.
+
+    Feature Levels:
+        Markers are categorized by linguistic level for fine-grained analysis:
+        - Phonological: Spelling reflecting pronunciation (colour/color)
+        - Morphological: Word formation (-ise/-ize, -our/-or, doubled L)
+        - Lexical: Different words for same concept (flat/apartment)
+        - Syntactic: Grammar differences (have got/have, collective nouns)
+
+    Eye Dialect vs. True Dialect:
+        Following Encyclopedia.com's distinction, "eye dialect" (gonna, wanna)
+        indicates informal register, not regional dialect. True dialect markers
+        (colour, flat, lorry) indicate actual regional preference.
+
+    References:
+        Battistella, Edwin L. "Markedness: The Evaluative Superstructure of
+            Language." State University of New York Press, 1990.
+        Goebl, Hans. "Dialektometrie: Prinzipien und Methoden des Einsatzes der
+            numerischen Taxonomie im Bereich der Dialektgeographie." Verlag der
+            Österreichischen Akademie der Wissenschaften, 1982.
+        Nerbonne, John. "Data-Driven Dialectology." Language and Linguistics
+            Compass, vol. 3, no. 1, 2009, pp. 175-198.
+        Labov, William. "The Social Stratification of English in New York City."
+            Cambridge University Press, 2006.
+        Whonix Project. "Stylometry: Deanonymization Techniques." Whonix Wiki,
+            https://www.whonix.org/wiki/Stylometry
+
+    Example:
+        >>> result = compute_dialect(text, chunk_size=1000)
+        >>> result.dialect  # "british", "american", "mixed", or "neutral"
+        'british'
+        >>> result.british_score  # Mean across chunks
+        0.72
+        >>> result.british_score_dist.std  # Variance reveals fingerprint
+        0.05
+        >>> result.markedness_score  # Deviation from standard English
+        0.35
+    """
+
+    # Classification result
+    dialect: str  # "british", "american", "mixed", "neutral"
+    confidence: float  # 0.0-1.0, how confident the classification is
+
+    # Convenient access (mean values across chunks)
+    british_score: float  # Mean British marker density (0.0-1.0)
+    american_score: float  # Mean American marker density (0.0-1.0)
+    markedness_score: float  # Mean deviation from unmarked standard (0.0-1.0)
+
+    # Full distributions for stylometric fingerprinting
+    british_score_dist: Distribution
+    american_score_dist: Distribution
+    markedness_score_dist: Distribution
+
+    # Marker breakdown by linguistic level (aggregated across chunks)
+    # Keys: "phonological", "morphological", "lexical", "syntactic"
+    markers_by_level: dict[str, dict[str, int]]
+
+    # Detailed marker counts (aggregated across chunks)
+    spelling_markers: dict[str, int]  # {"colour": 2, "color": 1}
+    vocabulary_markers: dict[str, int]  # {"flat": 1, "apartment": 0}
+    grammar_markers: dict[str, int]  # {"have got": 1}
+
+    # Eye dialect (informal register indicators, not true dialect)
+    eye_dialect_count: int  # Total eye dialect markers (gonna, wanna, etc.)
+    eye_dialect_ratio: float  # Eye dialect per 1000 words
+
+    # Register analysis hints
+    register_hints: dict[str, Any]  # {"formality": 0.7, "hedging_density": 0.05}
+
+    # Chunking context
+    chunk_size: int
+    chunk_count: int
+
+    # Extensible metadata
+    metadata: dict[str, Any]
 
 
 # ===== Unified Analysis Result =====

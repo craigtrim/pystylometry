@@ -2,7 +2,7 @@
 pystylometry - Comprehensive Python package for stylometric analysis.
 
 A modular package for text analysis with lexical, readability, syntactic,
-authorship, and n-gram metrics.
+authorship, n-gram, dialect detection, and consistency analysis metrics.
 
 Installation:
     pip install pystylometry                    # Core (lexical only)
@@ -16,7 +16,9 @@ Usage:
     from pystylometry.lexical import compute_mtld, compute_yule
     from pystylometry.readability import compute_flesch
     from pystylometry.syntactic import compute_pos_ratios
-    from pystylometry.authorship import compute_burrows_delta
+    from pystylometry.authorship import compute_burrows_delta, compute_kilgarriff
+    from pystylometry.consistency import compute_kilgarriff_drift
+    from pystylometry.dialect import compute_dialect
 
     # Or use the unified analyze() function
     from pystylometry import analyze
@@ -24,6 +26,18 @@ Usage:
     results = analyze(text, lexical=True, readability=True)
     print(results.lexical['mtld'].mtld_average)
     print(results.readability['flesch'].reading_ease)
+
+    # Dialect detection
+    result = compute_dialect("The colour of the programme was brilliant.")
+    print(result.dialect)  # 'british'
+    print(result.british_score)  # 0.85
+
+    # Consistency analysis (Style Drift Detector - Issue #36)
+    from pystylometry.consistency import compute_kilgarriff_drift
+
+    result = compute_kilgarriff_drift(long_document)
+    print(result.pattern)  # 'consistent', 'sudden_spike', 'suspiciously_uniform', etc.
+    print(result.pattern_confidence)
 """
 
 from ._types import AnalysisResult
@@ -49,14 +63,18 @@ try:
 except ImportError:
     _SYNTACTIC_AVAILABLE = False
 
-# Authorship and ngrams use only stdlib (no external dependencies)
+# Authorship, ngrams, dialect, and consistency use only stdlib (no external dependencies)
 from . import (
     authorship,  # noqa: F401
+    consistency,  # noqa: F401 - Style drift detection (Issue #36)
+    dialect,  # noqa: F401
     ngrams,  # noqa: F401
 )
 
 _AUTHORSHIP_AVAILABLE = True
 _NGRAMS_AVAILABLE = True
+_DIALECT_AVAILABLE = True
+_CONSISTENCY_AVAILABLE = True
 
 
 def analyze(
@@ -177,6 +195,8 @@ def get_available_modules() -> dict[str, bool]:
         >>> available = get_available_modules()
         >>> if available['readability']:
         ...     from pystylometry.readability import compute_flesch
+        >>> if available['consistency']:
+        ...     from pystylometry.consistency import compute_kilgarriff_drift
     """
     return {
         "lexical": True,  # Always available
@@ -184,6 +204,8 @@ def get_available_modules() -> dict[str, bool]:
         "syntactic": _SYNTACTIC_AVAILABLE,
         "authorship": _AUTHORSHIP_AVAILABLE,
         "ngrams": _NGRAMS_AVAILABLE,
+        "dialect": _DIALECT_AVAILABLE,
+        "consistency": _CONSISTENCY_AVAILABLE,  # Style drift detection (Issue #36)
     }
 
 
@@ -203,3 +225,7 @@ if _AUTHORSHIP_AVAILABLE:
     __all__.append("authorship")
 if _NGRAMS_AVAILABLE:
     __all__.append("ngrams")
+if _DIALECT_AVAILABLE:
+    __all__.append("dialect")
+if _CONSISTENCY_AVAILABLE:
+    __all__.append("consistency")
