@@ -8,9 +8,9 @@ Related GitHub Issue:
     https://github.com/craigtrim/pystylometry/issues/24
 
 Methods implemented:
-    - Kilgarriff's Chi-squared
-    - Min-Max (Burrows' original method)
-    - John Burrows' Delta variations
+    - Kilgarriff's Chi-squared → See kilgarriff.py (Issue #31)
+    - Min-Max (Burrows' original method) → Not yet implemented
+    - John Burrows' Delta variations → Not yet implemented
 
 References:
     Kilgarriff, A. (2001). Comparing corpora. International Journal of Corpus Linguistics.
@@ -18,32 +18,7 @@ References:
     Burrows, J. (2005). Who wrote Shamela? Literary and Linguistic Computing.
 """
 
-from .._types import JohnsBurrowsResult, KilgarriffResult, MinMaxResult
-
-
-def compute_kilgarriff(text1: str, text2: str, mfw: int = 100) -> KilgarriffResult:
-    """
-    Compute Kilgarriff's Chi-squared distance between two texts.
-
-    Related GitHub Issue:
-        #24 - Additional Authorship Attribution Methods
-        https://github.com/craigtrim/pystylometry/issues/24
-
-    Args:
-        text1: First text for comparison
-        text2: Second text for comparison
-        mfw: Number of most frequent words to analyze
-
-    Returns:
-        KilgarriffResult with chi-squared statistic, p-value, and
-        most distinctive features.
-    """
-    # TODO: Implement Kilgarriff's chi-squared
-    # GitHub Issue #24: https://github.com/craigtrim/pystylometry/issues/24
-    raise NotImplementedError(
-        "Kilgarriff's chi-squared not yet implemented. "
-        "See GitHub Issue #24: https://github.com/craigtrim/pystylometry/issues/24"
-    )
+from .._types import JohnsBurrowsResult, MinMaxResult
 
 
 def compute_minmax(text1: str, text2: str, mfw: int = 100) -> MinMaxResult:
