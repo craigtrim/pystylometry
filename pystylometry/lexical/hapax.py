@@ -1,62 +1,35 @@
-"""Hapax legomena and related vocabulary richness metrics."""
+"""Hapax legomena and related vocabulary richness metrics.
+
+This module implements hapax metrics with native chunked analysis for
+stylometric fingerprinting.
+
+Related GitHub Issue:
+    #27 - Native chunked analysis with Distribution dataclass
+    https://github.com/craigtrim/pystylometry/issues/27
+"""
 
 import math
 from collections import Counter
 
-from .._types import HapaxLexiconResult, HapaxResult, LexiconCategories
+from .._types import Distribution, HapaxLexiconResult, HapaxResult, LexiconCategories
+from .._types import chunk_text, make_distribution
 from .._utils import check_optional_dependency, tokenize
 
 
-def compute_hapax_ratios(text: str) -> HapaxResult:
-    """
-    Compute hapax legomena, hapax dislegomena, and related richness metrics.
-
-    Hapax legomena = words appearing exactly once
-    Hapax dislegomena = words appearing exactly twice
-
-    Also computes:
-    - Sichel's S: V₂ / V (ratio of dislegomena to total vocabulary)
-    - Honoré's R: 100 × log(N) / (1 - V₁/V)
-
-    References:
-        Sichel, H. S. (1975). On a distribution law for word frequencies.
-        Journal of the American Statistical Association, 70(351a), 542-547.
-
-        Honoré, A. (1979). Some simple measures of richness of vocabulary.
-        Association for Literary and Linguistic Computing Bulletin, 7, 172-177.
-
-    Args:
-        text: Input text to analyze
+def _compute_hapax_single(text: str) -> tuple[int, float, int, float, float, float, dict]:
+    """Compute hapax metrics for a single chunk of text.
 
     Returns:
-        HapaxResult with counts, ratios, Sichel's S, Honoré's R, and metadata
-
-        Note: When all words are unique (V₁ = V), Honoré's R returns float('inf')
-        to indicate maximal vocabulary richness (division by zero case).
-
-    Example:
-        >>> text = "The quick brown fox jumps over the lazy dog"
-        >>> result = compute_hapax_ratios(text)
-        >>> result.hapax_count  # Words appearing once
-        7
-        >>> result.dis_hapax_count  # Words appearing twice
-        1
-        >>> print(f"Sichel's S: {result.sichel_s:.3f}")
-        Sichel's S: 0.125
+        Tuple of (hapax_count, hapax_ratio, dis_hapax_count, dis_hapax_ratio,
+                  sichel_s, honore_r, metadata_dict).
+        Returns nans for ratios on empty input.
     """
     tokens = tokenize(text.lower())
     N = len(tokens)  # noqa: N806
 
     if N == 0:
-        return HapaxResult(
-            hapax_count=0,
-            hapax_ratio=0.0,
-            dis_hapax_count=0,
-            dis_hapax_ratio=0.0,
-            sichel_s=0.0,
-            honore_r=0.0,
-            metadata={"token_count": 0, "vocabulary_size": 0},
-        )
+        return (0, float("nan"), 0, float("nan"), float("nan"), float("nan"),
+                {"token_count": 0, "vocabulary_size": 0})
 
     # Count frequency of each token
     freq_counter = Counter(tokens)
@@ -67,28 +40,163 @@ def compute_hapax_ratios(text: str) -> HapaxResult:
     V2 = sum(1 for count in freq_counter.values() if count == 2)  # noqa: N806
 
     # Sichel's S: ratio of dislegomena to vocabulary size
-    # S = V₂ / V
     sichel_s = V2 / V if V > 0 else 0.0
 
     # Honoré's R: 100 × log(N) / (1 - V₁/V)
-    # R = 100 × log(N) / (1 - V₁/V)
-    # If V₁ = V (all words appear once), denominator is 0, return infinity
-    # This indicates maximal vocabulary richness (every word unique)
     if V1 == V:
         honore_r = float("inf")
     else:
         honore_r = 100 * math.log(N) / (1 - V1 / V)
 
+    hapax_ratio = V1 / N if N > 0 else 0.0
+    dis_hapax_ratio = V2 / N if N > 0 else 0.0
+
+    return (
+        V1, hapax_ratio, V2, dis_hapax_ratio, sichel_s, honore_r,
+        {"token_count": N, "vocabulary_size": V}
+    )
+
+
+def compute_hapax_ratios(text: str, chunk_size: int = 1000) -> HapaxResult:
+    """
+    Compute hapax legomena, hapax dislegomena, and related richness metrics.
+
+    This function uses native chunked analysis to capture variance and patterns
+    across the text, which is essential for stylometric fingerprinting.
+
+    Hapax legomena = words appearing exactly once
+    Hapax dislegomena = words appearing exactly twice
+
+    Also computes:
+    - Sichel's S: V₂ / V (ratio of dislegomena to total vocabulary)
+    - Honoré's R: 100 × log(N) / (1 - V₁/V)
+
+    Related GitHub Issue:
+        #27 - Native chunked analysis with Distribution dataclass
+        https://github.com/craigtrim/pystylometry/issues/27
+
+    References:
+        Sichel, H. S. (1975). On a distribution law for word frequencies.
+        Journal of the American Statistical Association, 70(351a), 542-547.
+
+        Honoré, A. (1979). Some simple measures of richness of vocabulary.
+        Association for Literary and Linguistic Computing Bulletin, 7, 172-177.
+
+    Args:
+        text: Input text to analyze
+        chunk_size: Number of words per chunk (default: 1000)
+
+    Returns:
+        HapaxResult with counts, ratios, distributions, and metadata
+
+    Example:
+        >>> result = compute_hapax_ratios("Long text here...", chunk_size=1000)
+        >>> result.hapax_ratio  # Mean across chunks
+        0.45
+        >>> result.hapax_ratio_dist.std  # Variance reveals fingerprint
+        0.08
+    """
+    # Chunk the text
+    chunks = chunk_text(text, chunk_size)
+
+    # Compute metrics per chunk
+    hapax_ratio_values = []
+    dis_hapax_ratio_values = []
+    sichel_s_values = []
+    honore_r_values = []
+    honore_r_inf_count = 0  # Track chunks where all words are unique (V₁ = V)
+    total_hapax_count = 0
+    total_dis_hapax_count = 0
+    total_tokens = 0
+    total_vocab = 0
+    valid_chunk_count = 0
+
+    for chunk in chunks:
+        h_cnt, h_rat, dh_cnt, dh_rat, sichel, honore, meta = _compute_hapax_single(chunk)
+        total_hapax_count += h_cnt
+        total_dis_hapax_count += dh_cnt
+        total_tokens += meta.get("token_count", 0)
+        total_vocab += meta.get("vocabulary_size", 0)
+
+        if not math.isnan(h_rat):
+            hapax_ratio_values.append(h_rat)
+            valid_chunk_count += 1
+        if not math.isnan(dh_rat):
+            dis_hapax_ratio_values.append(dh_rat)
+        if not math.isnan(sichel):
+            sichel_s_values.append(sichel)
+        if math.isinf(honore):
+            # Track infinite values (when V₁ = V, maximal vocabulary richness)
+            honore_r_inf_count += 1
+        elif not math.isnan(honore):
+            honore_r_values.append(honore)
+
+    # Handle empty or all-invalid chunks
+    if not hapax_ratio_values:
+        empty_dist = Distribution(
+            values=[],
+            mean=float("nan"),
+            median=float("nan"),
+            std=0.0,
+            range=0.0,
+            iqr=0.0,
+        )
+        return HapaxResult(
+            hapax_count=0,
+            hapax_ratio=float("nan"),
+            dis_hapax_count=0,
+            dis_hapax_ratio=float("nan"),
+            sichel_s=float("nan"),
+            honore_r=float("nan"),
+            hapax_ratio_dist=empty_dist,
+            dis_hapax_ratio_dist=empty_dist,
+            sichel_s_dist=empty_dist,
+            honore_r_dist=empty_dist,
+            chunk_size=chunk_size,
+            chunk_count=len(chunks),
+            metadata={"total_token_count": 0, "total_vocabulary_size": 0},
+        )
+
+    # Build distributions
+    hapax_ratio_dist = make_distribution(hapax_ratio_values)
+    dis_hapax_ratio_dist = make_distribution(dis_hapax_ratio_values)
+    sichel_s_dist = make_distribution(sichel_s_values) if sichel_s_values else Distribution(
+        values=[], mean=float("nan"), median=float("nan"), std=0.0, range=0.0, iqr=0.0
+    )
+
+    # Handle honore_r specially: if all valid chunks had V₁ = V (all unique words),
+    # return infinity to indicate maximal vocabulary richness
+    if honore_r_values:
+        honore_r_dist = make_distribution(honore_r_values)
+        honore_r_final = honore_r_dist.mean
+    elif honore_r_inf_count > 0 and honore_r_inf_count == valid_chunk_count:
+        # All valid chunks had infinite honore_r (all words unique)
+        honore_r_dist = Distribution(
+            values=[], mean=float("inf"), median=float("inf"), std=0.0, range=0.0, iqr=0.0
+        )
+        honore_r_final = float("inf")
+    else:
+        honore_r_dist = Distribution(
+            values=[], mean=float("nan"), median=float("nan"), std=0.0, range=0.0, iqr=0.0
+        )
+        honore_r_final = float("nan")
+
     return HapaxResult(
-        hapax_count=V1,
-        hapax_ratio=V1 / N if N > 0 else 0.0,
-        dis_hapax_count=V2,
-        dis_hapax_ratio=V2 / N if N > 0 else 0.0,
-        sichel_s=sichel_s,
-        honore_r=honore_r,
+        hapax_count=total_hapax_count,
+        hapax_ratio=hapax_ratio_dist.mean,
+        dis_hapax_count=total_dis_hapax_count,
+        dis_hapax_ratio=dis_hapax_ratio_dist.mean,
+        sichel_s=sichel_s_dist.mean,
+        honore_r=honore_r_final,
+        hapax_ratio_dist=hapax_ratio_dist,
+        dis_hapax_ratio_dist=dis_hapax_ratio_dist,
+        sichel_s_dist=sichel_s_dist,
+        honore_r_dist=honore_r_dist,
+        chunk_size=chunk_size,
+        chunk_count=len(chunks),
         metadata={
-            "token_count": N,
-            "vocabulary_size": V,
+            "total_token_count": total_tokens,
+            "total_vocabulary_size": total_vocab,
         },
     )
 
@@ -148,7 +256,7 @@ def compute_hapax_with_lexicon_analysis(text: str) -> HapaxLexiconResult:
     check_optional_dependency("bnc_lookup", "lexical")
     check_optional_dependency("wordnet_lookup", "lexical")
 
-    from bnc_lookup import is_bnc_term  # type: ignore[import-not-found]
+    from bnc_lookup import exists as is_bnc_term  # type: ignore[import-not-found]
     from wordnet_lookup import is_wordnet_term  # type: ignore[import-not-found]
 
     # First compute standard hapax metrics

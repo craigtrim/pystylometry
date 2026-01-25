@@ -1,5 +1,6 @@
 """Comprehensive tests for Automated Readability Index (ARI) computation."""
 
+import math
 from pathlib import Path
 
 import pytest
@@ -16,7 +17,7 @@ class TestARIBasic:
         result = compute_ari(text)
 
         assert isinstance(result.ari_score, float)
-        assert isinstance(result.grade_level, int)
+        assert isinstance(result.grade_level, (int, float))  # Float for chunked mean
         assert isinstance(result.age_range, str)
         assert result.grade_level >= 0
         assert result.grade_level <= 20
@@ -52,9 +53,9 @@ class TestARIEdgeCases:
         """Test empty string input."""
         result = compute_ari("")
 
-        assert result.ari_score == 0.0
-        assert result.grade_level == 0
-        assert "Kindergarten" in result.age_range
+        assert math.isnan(result.ari_score)
+        assert math.isnan(result.grade_level)
+        assert result.age_range == "Unknown"
         assert result.metadata["sentence_count"] == 0
         assert result.metadata["word_count"] == 0
         assert result.metadata["character_count"] == 0
@@ -66,8 +67,8 @@ class TestARIEdgeCases:
         """Test string with only whitespace."""
         result = compute_ari("   \n\t  ")
 
-        assert result.ari_score == 0.0
-        assert result.grade_level == 0
+        assert math.isnan(result.ari_score)
+        assert math.isnan(result.grade_level)
         assert not result.metadata["reliable"]
 
     def test_very_simple_text(self):
@@ -90,8 +91,8 @@ class TestARIEdgeCases:
 class TestARIRounding:
     """Test rounding behavior and boundary values."""
 
-    def test_grade_level_is_integer(self):
-        """Verify grade level is always an integer."""
+    def test_grade_level_is_numeric(self):
+        """Verify grade level is always a number (float for mean across chunks)."""
         texts = [
             "The cat sat on the mat.",
             "A very long and complex sentence with many subordinate clauses.",
@@ -100,7 +101,7 @@ class TestARIRounding:
 
         for text in texts:
             result = compute_ari(text)
-            assert isinstance(result.grade_level, int)
+            assert isinstance(result.grade_level, (int, float))
 
     def test_lower_bound_clamping(self):
         """Test that very simple text is clamped to grade 0."""
@@ -128,7 +129,7 @@ class TestARIMetadata:
     """Test metadata structure and consistency."""
 
     def test_metadata_keys_consistent(self):
-        """Verify all metadata keys are present regardless of input."""
+        """Verify all required metadata keys are present regardless of input."""
         test_cases = [
             "",  # Empty
             "Hello",  # Single word
@@ -136,7 +137,7 @@ class TestARIMetadata:
             " ".join(["word"] * 200) + ".",  # Long text
         ]
 
-        expected_keys = {
+        required_keys = {
             "sentence_count",
             "word_count",
             "character_count",
@@ -147,7 +148,8 @@ class TestARIMetadata:
 
         for text in test_cases:
             result = compute_ari(text)
-            assert set(result.metadata.keys()) == expected_keys
+            # Check that all required keys are present (may have additional keys)
+            assert required_keys.issubset(set(result.metadata.keys()))
 
     def test_metadata_values_sensible(self):
         """Test that metadata values are within sensible ranges."""

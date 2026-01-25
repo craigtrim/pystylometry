@@ -1,10 +1,15 @@
-"""Part-of-Speech ratio analysis using spaCy."""
+"""Part-of-Speech ratio analysis using spaCy.
 
-from .._types import POSResult
+Related GitHub Issue:
+    #27 - Native chunked analysis with Distribution dataclass
+    https://github.com/craigtrim/pystylometry/issues/27
+"""
+
+from .._types import Distribution, POSResult, make_distribution
 from .._utils import check_optional_dependency
 
 
-def compute_pos_ratios(text: str, model: str = "en_core_web_sm") -> POSResult:
+def compute_pos_ratios(text: str, model: str = "en_core_web_sm", chunk_size: int = 1000) -> POSResult:
     """
     Compute Part-of-Speech ratios and lexical density using spaCy.
 
@@ -18,6 +23,10 @@ def compute_pos_ratios(text: str, model: str = "en_core_web_sm") -> POSResult:
     - Lexical density: (nouns + verbs + adjectives + adverbs) / total words
     - Function word ratio: (determiners + prepositions + conjunctions) / total words
 
+    Related GitHub Issue:
+        #27 - Native chunked analysis with Distribution dataclass
+        https://github.com/craigtrim/pystylometry/issues/27
+
     References:
         Biber, D. (1988). Variation across speech and writing.
         Cambridge University Press.
@@ -25,9 +34,13 @@ def compute_pos_ratios(text: str, model: str = "en_core_web_sm") -> POSResult:
     Args:
         text: Input text to analyze
         model: spaCy model name (default: "en_core_web_sm")
+        chunk_size: Number of words per chunk (default: 1000).
+            Note: POS analysis is performed on the full text for accuracy,
+            so this parameter is included for API consistency but actual
+            results are from a single pass.
 
     Returns:
-        POSResult with all POS ratios and metadata
+        POSResult with all POS ratios, distributions, and metadata
 
     Raises:
         ImportError: If spaCy is not installed
@@ -89,6 +102,14 @@ def compute_pos_ratios(text: str, model: str = "en_core_web_sm") -> POSResult:
 
     # Handle empty text
     if total_tokens == 0:
+        empty_dist = Distribution(
+            values=[],
+            mean=float("nan"),
+            median=float("nan"),
+            std=0.0,
+            range=0.0,
+            iqr=0.0,
+        )
         return POSResult(
             noun_ratio=float("nan"),
             verb_ratio=float("nan"),
@@ -98,6 +119,16 @@ def compute_pos_ratios(text: str, model: str = "en_core_web_sm") -> POSResult:
             adjective_noun_ratio=float("nan"),
             lexical_density=float("nan"),
             function_word_ratio=float("nan"),
+            noun_ratio_dist=empty_dist,
+            verb_ratio_dist=empty_dist,
+            adjective_ratio_dist=empty_dist,
+            adverb_ratio_dist=empty_dist,
+            noun_verb_ratio_dist=empty_dist,
+            adjective_noun_ratio_dist=empty_dist,
+            lexical_density_dist=empty_dist,
+            function_word_ratio_dist=empty_dist,
+            chunk_size=chunk_size,
+            chunk_count=0,
             metadata={
                 "model": model,
                 "token_count": 0,
@@ -129,6 +160,20 @@ def compute_pos_ratios(text: str, model: str = "en_core_web_sm") -> POSResult:
     function_words = det_count + adp_count + conj_count
     function_word_ratio = function_words / total_tokens
 
+    # Create single-value distributions (POS analysis is done on full text)
+    noun_ratio_dist = make_distribution([noun_ratio])
+    verb_ratio_dist = make_distribution([verb_ratio])
+    adj_ratio_dist = make_distribution([adj_ratio])
+    adv_ratio_dist = make_distribution([adv_ratio])
+    noun_verb_dist = make_distribution([noun_verb_ratio]) if not (noun_verb_ratio != noun_verb_ratio) else Distribution(
+        values=[], mean=float("nan"), median=float("nan"), std=0.0, range=0.0, iqr=0.0
+    )
+    adj_noun_dist = make_distribution([adj_noun_ratio]) if not (adj_noun_ratio != adj_noun_ratio) else Distribution(
+        values=[], mean=float("nan"), median=float("nan"), std=0.0, range=0.0, iqr=0.0
+    )
+    lexical_density_dist = make_distribution([lexical_density])
+    function_word_dist = make_distribution([function_word_ratio])
+
     return POSResult(
         noun_ratio=noun_ratio,
         verb_ratio=verb_ratio,
@@ -138,6 +183,16 @@ def compute_pos_ratios(text: str, model: str = "en_core_web_sm") -> POSResult:
         adjective_noun_ratio=adj_noun_ratio,
         lexical_density=lexical_density,
         function_word_ratio=function_word_ratio,
+        noun_ratio_dist=noun_ratio_dist,
+        verb_ratio_dist=verb_ratio_dist,
+        adjective_ratio_dist=adj_ratio_dist,
+        adverb_ratio_dist=adv_ratio_dist,
+        noun_verb_ratio_dist=noun_verb_dist,
+        adjective_noun_ratio_dist=adj_noun_dist,
+        lexical_density_dist=lexical_density_dist,
+        function_word_ratio_dist=function_word_dist,
+        chunk_size=chunk_size,
+        chunk_count=1,  # Single pass analysis
         metadata={
             "model": model,
             "token_count": total_tokens,

@@ -2,12 +2,16 @@
 
 This module provides a facade wrapper around the stylometry-ttr package,
 maintaining consistent API patterns with other pystylometry metrics.
+
+Related GitHub Issue:
+    #27 - Native chunked analysis with Distribution dataclass
+    https://github.com/craigtrim/pystylometry/issues/27
 """
 
-from .._types import TTRResult
+from .._types import Distribution, TTRResult, make_distribution
 
 
-def compute_ttr(text: str, text_id: str | None = None) -> TTRResult:
+def compute_ttr(text: str, text_id: str | None = None, chunk_size: int = 1000) -> TTRResult:
     """
     Compute Type-Token Ratio (TTR) metrics for vocabulary richness.
 
@@ -22,6 +26,10 @@ def compute_ttr(text: str, text_id: str | None = None) -> TTRResult:
     - STTR: Standardized TTR across fixed-size chunks (reduces length bias)
     - Delta Std: Standard deviation of TTR across chunks (vocabulary consistency)
 
+    Related GitHub Issue:
+        #27 - Native chunked analysis with Distribution dataclass
+        https://github.com/craigtrim/pystylometry/issues/27
+
     References:
         Guiraud, P. (1960). Problèmes et méthodes de la statistique linguistique.
         Herdan, G. (1960). Type-token Mathematics: A Textbook of Mathematical
@@ -32,9 +40,14 @@ def compute_ttr(text: str, text_id: str | None = None) -> TTRResult:
     Args:
         text: Input text to analyze
         text_id: Optional identifier for the text (for tracking purposes)
+        chunk_size: Number of words per chunk (default: 1000).
+            Note: The stylometry-ttr package handles its own internal chunking,
+            so this parameter is included for API consistency but actual chunking
+            behavior is delegated to stylometry-ttr.
 
     Returns:
-        TTRResult with all TTR variants and metadata
+        TTRResult with all TTR variants and metadata, including Distribution
+        objects for stylometric fingerprinting.
 
     Example:
         >>> result = compute_ttr("The quick brown fox jumps over the lazy dog.")
@@ -63,17 +76,48 @@ def compute_ttr(text: str, text_id: str | None = None) -> TTRResult:
     # Note: stylometry-ttr requires text_id to be a string, not None
     ttr_result = _compute_ttr(text, text_id=text_id or "")
 
+    # Extract values, handling None for short texts
+    ttr_val = ttr_result.ttr
+    root_ttr_val = ttr_result.root_ttr
+    log_ttr_val = ttr_result.log_ttr
+    sttr_val = ttr_result.sttr if ttr_result.sttr is not None else 0.0
+    delta_std_val = ttr_result.delta_std if ttr_result.delta_std is not None else 0.0
+
+    # Create single-value distributions from stylometry-ttr results
+    # The stylometry-ttr package handles its own internal chunking for STTR
+    # so we wrap the aggregate results in Distribution objects
+    ttr_dist = make_distribution([ttr_val]) if ttr_val is not None else Distribution(
+        values=[], mean=float("nan"), median=float("nan"), std=0.0, range=0.0, iqr=0.0
+    )
+    root_ttr_dist = make_distribution([root_ttr_val]) if root_ttr_val is not None else Distribution(
+        values=[], mean=float("nan"), median=float("nan"), std=0.0, range=0.0, iqr=0.0
+    )
+    log_ttr_dist = make_distribution([log_ttr_val]) if log_ttr_val is not None else Distribution(
+        values=[], mean=float("nan"), median=float("nan"), std=0.0, range=0.0, iqr=0.0
+    )
+    sttr_dist = make_distribution([sttr_val]) if ttr_result.sttr is not None else Distribution(
+        values=[], mean=float("nan"), median=float("nan"), std=0.0, range=0.0, iqr=0.0
+    )
+    delta_std_dist = make_distribution([delta_std_val]) if ttr_result.delta_std is not None else Distribution(
+        values=[], mean=float("nan"), median=float("nan"), std=0.0, range=0.0, iqr=0.0
+    )
+
     # Convert to our TTRResult dataclass
-    # The stylometry-ttr result has attributes we can access
-    # Some fields (sttr, delta_std) may be None for short texts
     return TTRResult(
         total_words=ttr_result.total_words,
         unique_words=ttr_result.unique_words,
-        ttr=ttr_result.ttr,
-        root_ttr=ttr_result.root_ttr,
-        log_ttr=ttr_result.log_ttr,
-        sttr=ttr_result.sttr if ttr_result.sttr is not None else 0.0,
-        delta_std=ttr_result.delta_std if ttr_result.delta_std is not None else 0.0,
+        ttr=ttr_val if ttr_val is not None else float("nan"),
+        root_ttr=root_ttr_val if root_ttr_val is not None else float("nan"),
+        log_ttr=log_ttr_val if log_ttr_val is not None else float("nan"),
+        sttr=sttr_val,
+        delta_std=delta_std_val,
+        ttr_dist=ttr_dist,
+        root_ttr_dist=root_ttr_dist,
+        log_ttr_dist=log_ttr_dist,
+        sttr_dist=sttr_dist,
+        delta_std_dist=delta_std_dist,
+        chunk_size=chunk_size,
+        chunk_count=1,  # stylometry-ttr returns aggregate results
         metadata={
             "text_id": text_id or "",
             "source": "stylometry-ttr",

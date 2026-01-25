@@ -5,9 +5,9 @@ This module provides additional readability metrics beyond the core formulas
 approaches to measuring text difficulty and are valuable for cross-validation
 and comprehensive readability assessment.
 
-Related GitHub Issue:
+Related GitHub Issues:
     #16 - Additional Readability Formulas
-    https://github.com/craigtrim/pystylometry/issues/16
+    #27 - Native chunked analysis with Distribution dataclass
 
 Formulas implemented:
     - Dale-Chall: Based on list of 3000 familiar words
@@ -28,13 +28,18 @@ References:
         adult readability formulas. Journal of Educational Psychology.
 """
 
+import math
+
 from .._normalize import normalize_for_readability
 from .._types import (
     DaleChallResult,
+    Distribution,
     FORCASTResult,
     FryResult,
     LinsearWriteResult,
     PowersSumnerKearlResult,
+    chunk_text,
+    make_distribution,
 )
 from .._utils import split_sentences, tokenize
 from .syllables import count_syllables
@@ -241,17 +246,59 @@ DALE_CHALL_FAMILIAR_WORDS = {
 }
 
 
-def compute_dale_chall(text: str) -> DaleChallResult:
+def _compute_dale_chall_single(text: str) -> tuple[float, int, float, float, dict]:
+    """Compute Dale-Chall for a single chunk. Returns (score, diff_count, diff_ratio, avg_sent_len, meta)."""
+    sentences = split_sentences(text)
+    tokens = tokenize(text)
+    word_tokens = normalize_for_readability(tokens)
+
+    if len(sentences) == 0 or len(word_tokens) == 0:
+        return (float("nan"), 0, float("nan"), float("nan"), {"sentence_count": 0, "word_count": 0})
+
+    difficult_words = [w for w in word_tokens if w.lower() not in DALE_CHALL_FAMILIAR_WORDS]
+    difficult_word_count = len(difficult_words)
+    difficult_word_ratio = difficult_word_count / len(word_tokens)
+    difficult_word_pct = difficult_word_ratio * 100
+    avg_sentence_length = len(word_tokens) / len(sentences)
+    raw_score = 0.1579 * difficult_word_pct + 0.0496 * avg_sentence_length
+    adjusted = difficult_word_pct > 5.0
+    dale_chall_score = raw_score + 3.6365 if adjusted else raw_score
+
+    return (dale_chall_score, difficult_word_count, difficult_word_ratio, avg_sentence_length,
+            {"sentence_count": len(sentences), "word_count": len(word_tokens), "adjusted": adjusted,
+             "raw_score": raw_score, "difficult_word_pct": difficult_word_pct})
+
+
+def _get_dale_chall_grade_level(score: float) -> str:
+    """Map Dale-Chall score to grade level."""
+    if math.isnan(score):
+        return "Unknown"
+    if score < 5.0:
+        return "4 and below"
+    elif score < 6.0:
+        return "5-6"
+    elif score < 7.0:
+        return "7-8"
+    elif score < 8.0:
+        return "9-10"
+    elif score < 9.0:
+        return "11-12"
+    elif score < 10.0:
+        return "College"
+    else:
+        return "College Graduate"
+
+
+def compute_dale_chall(text: str, chunk_size: int = 1000) -> DaleChallResult:
     """
     Compute Dale-Chall Readability Formula.
 
-    The Dale-Chall formula estimates reading difficulty based on the percentage
-    of words that are NOT on a list of 3000 familiar words (words understood
-    by 80% of 4th graders). It also considers average sentence length.
+    This function uses native chunked analysis to capture variance and patterns
+    across the text, which is essential for stylometric fingerprinting.
 
-    Related GitHub Issue:
+    Related GitHub Issues:
         #16 - Additional Readability Formulas
-        https://github.com/craigtrim/pystylometry/issues/16
+        #27 - Native chunked analysis with Distribution dataclass
 
     Formula:
         Raw Score = 0.1579 * (difficult_words_pct) + 0.0496 * (avg_sentence_length)
@@ -259,727 +306,496 @@ def compute_dale_chall(text: str) -> DaleChallResult:
         If difficult_words_pct > 5%:
             Adjusted Score = Raw Score + 3.6365
 
-    Grade Level Correspondence:
-        4.9 or lower: Grade 4 and below
-        5.0-5.9: Grades 5-6
-        6.0-6.9: Grades 7-8
-        7.0-7.9: Grades 9-10
-        8.0-8.9: Grades 11-12
-        9.0-9.9: Grades 13-15 (College)
-        10.0+: Grade 16+ (College Graduate)
-
-    Advantages:
-        - Based on empirical word familiarity data
-        - Works well for educational materials
-        - Well-validated across grade levels
-        - Considers both vocabulary and syntax
-
-    Disadvantages:
-        - Requires maintaining 3000-word familiar list
-        - List is dated (1948, updated 1995)
-        - May not reflect modern vocabulary
-        - Doesn't account for concept difficulty
-
     Args:
-        text: Input text to analyze. Should contain at least one complete
-              sentence. Empty text returns NaN values.
+        text: Input text to analyze
+        chunk_size: Number of words per chunk (default: 1000)
 
     Returns:
-        DaleChallResult containing:
-            - dale_chall_score: The Dale-Chall readability score
-            - grade_level: Grade range (e.g., "7-8", "College")
-            - difficult_word_count: Words not on familiar list
-            - difficult_word_ratio: Difficult words / total words
-            - avg_sentence_length: Average words per sentence
-            - total_words: Total word count
-            - metadata: List of difficult words, adjusted score flag, etc.
+        DaleChallResult with dale_chall_score, grade_level, distributions, and metadata
 
     Example:
-        >>> result = compute_dale_chall("Sample educational text...")
-        >>> print(f"Dale-Chall score: {result.dale_chall_score:.2f}")
-        Dale-Chall score: 7.3
-        >>> print(f"Grade level: {result.grade_level}")
-        Grade level: 7-8
-        >>> print(f"Difficult words: {result.difficult_word_ratio * 100:.1f}%")
-        Difficult words: 12.4%
-
-    Note:
-        - Case-insensitive word matching
-        - Punctuation stripped before word lookup
-        - Proper nouns may be flagged as difficult even if well-known
-        - Technical/specialized texts score higher than general texts
+        >>> result = compute_dale_chall("Long text here...", chunk_size=1000)
+        >>> result.dale_chall_score  # Mean across chunks
+        7.3
+        >>> result.dale_chall_score_dist.std  # Variance reveals fingerprint
+        0.5
     """
-    # Tokenize and segment
+    chunks = chunk_text(text, chunk_size)
+    score_values = []
+    ratio_values = []
+    sent_len_values = []
+    total_difficult = 0
+    total_words = 0
+    total_sentences = 0
+
+    for chunk in chunks:
+        sc, diff_cnt, diff_rat, sent_len, meta = _compute_dale_chall_single(chunk)
+        if not math.isnan(sc):
+            score_values.append(sc)
+            ratio_values.append(diff_rat)
+            sent_len_values.append(sent_len)
+        total_difficult += diff_cnt
+        total_words += meta.get("word_count", 0)
+        total_sentences += meta.get("sentence_count", 0)
+
+    if not score_values:
+        empty_dist = Distribution(values=[], mean=float("nan"), median=float("nan"), std=0.0, range=0.0, iqr=0.0)
+        return DaleChallResult(
+            dale_chall_score=float("nan"), grade_level="Unknown", difficult_word_count=0,
+            difficult_word_ratio=float("nan"), avg_sentence_length=float("nan"), total_words=0,
+            dale_chall_score_dist=empty_dist, difficult_word_ratio_dist=empty_dist,
+            avg_sentence_length_dist=empty_dist, chunk_size=chunk_size, chunk_count=len(chunks),
+            metadata={"sentence_count": 0, "raw_score": float("nan"), "adjusted": False,
+                      "difficult_word_pct": float("nan"), "reliable": False})
+
+    score_dist = make_distribution(score_values)
+    ratio_dist = make_distribution(ratio_values)
+    sent_len_dist = make_distribution(sent_len_values)
+
+    # Calculate overall raw score and adjusted status for metadata
+    overall_difficult_pct = (total_difficult / total_words * 100) if total_words > 0 else 0.0
+    overall_raw_score = 0.1579 * overall_difficult_pct + 0.0496 * sent_len_dist.mean
+    overall_adjusted = overall_difficult_pct > 5.0
+
+    return DaleChallResult(
+        dale_chall_score=score_dist.mean,
+        grade_level=_get_dale_chall_grade_level(score_dist.mean),
+        difficult_word_count=total_difficult,
+        difficult_word_ratio=ratio_dist.mean,
+        avg_sentence_length=sent_len_dist.mean,
+        total_words=total_words,
+        dale_chall_score_dist=score_dist,
+        difficult_word_ratio_dist=ratio_dist,
+        avg_sentence_length_dist=sent_len_dist,
+        chunk_size=chunk_size,
+        chunk_count=len(chunks),
+        metadata={"sentence_count": total_sentences, "raw_score": overall_raw_score,
+                  "adjusted": overall_adjusted, "difficult_word_pct": overall_difficult_pct,
+                  "total_sentence_count": total_sentences, "total_word_count": total_words,
+                  "total_difficult_word_count": total_difficult, "reliable": total_words >= 100})
+
+
+def _compute_linsear_single(text: str) -> tuple[float, float, int, int, float, dict]:
+    """Compute Linsear Write for a single chunk. Returns (score, grade, easy, hard, sent_len, meta)."""
     sentences = split_sentences(text)
     tokens = tokenize(text)
     word_tokens = normalize_for_readability(tokens)
 
     if len(sentences) == 0 or len(word_tokens) == 0:
-        return DaleChallResult(
-            dale_chall_score=float("nan"),
-            grade_level="Unknown",
-            difficult_word_count=0,
-            difficult_word_ratio=float("nan"),
-            avg_sentence_length=float("nan"),
-            total_words=0,
-            metadata={
-                "sentence_count": 0,
-                "raw_score": float("nan"),
-                "adjusted": False,
-                "difficult_words_sample": [],
-            },
-        )
+        return (float("nan"), float("nan"), 0, 0, float("nan"), {"sentence_count": 0, "word_count": 0})
 
-    # Count difficult words (not in familiar list)
-    difficult_words = []
-    for word in word_tokens:
-        word_lower = word.lower()
-        if word_lower not in DALE_CHALL_FAMILIAR_WORDS:
-            difficult_words.append(word)
-
-    difficult_word_count = len(difficult_words)
-    difficult_word_ratio = difficult_word_count / len(word_tokens)
-    difficult_word_pct = difficult_word_ratio * 100
-
-    # Calculate average sentence length
+    easy_word_count = sum(1 for w in word_tokens if count_syllables(w) <= 2)
+    hard_word_count = len(word_tokens) - easy_word_count
+    weighted_sum = easy_word_count + hard_word_count * 3
+    raw_score = weighted_sum / len(sentences)
+    grade_level = round(raw_score / 2) if raw_score > 20 else round((raw_score - 2) / 2)
+    grade_level = max(0.0, float(grade_level))
     avg_sentence_length = len(word_tokens) / len(sentences)
 
-    # Calculate raw score
-    raw_score = 0.1579 * difficult_word_pct + 0.0496 * avg_sentence_length
-
-    # Apply adjustment if difficult word % > 5.0
-    adjusted = difficult_word_pct > 5.0
-    if adjusted:
-        dale_chall_score = raw_score + 3.6365
-    else:
-        dale_chall_score = raw_score
-
-    # Map score to grade level
-    if dale_chall_score < 5.0:
-        grade_level = "4 and below"
-    elif dale_chall_score < 6.0:
-        grade_level = "5-6"
-    elif dale_chall_score < 7.0:
-        grade_level = "7-8"
-    elif dale_chall_score < 8.0:
-        grade_level = "9-10"
-    elif dale_chall_score < 9.0:
-        grade_level = "11-12"
-    elif dale_chall_score < 10.0:
-        grade_level = "College"
-    else:
-        grade_level = "College Graduate"
-
-    # Build metadata
-    # Sample up to 20 difficult words for metadata (avoid huge lists)
-    difficult_words_sample = list(set(difficult_words))[:20]
-
-    metadata = {
-        "sentence_count": len(sentences),
-        "raw_score": raw_score,
-        "adjusted": adjusted,
-        "difficult_word_pct": difficult_word_pct,
-        "difficult_words_sample": difficult_words_sample,
-        "familiar_word_list_size": len(DALE_CHALL_FAMILIAR_WORDS),
-    }
-
-    return DaleChallResult(
-        dale_chall_score=dale_chall_score,
-        grade_level=grade_level,
-        difficult_word_count=difficult_word_count,
-        difficult_word_ratio=difficult_word_ratio,
-        avg_sentence_length=avg_sentence_length,
-        total_words=len(word_tokens),
-        metadata=metadata,
-    )
+    return (raw_score, grade_level, easy_word_count, hard_word_count, avg_sentence_length,
+            {"sentence_count": len(sentences), "word_count": len(word_tokens)})
 
 
-def compute_linsear_write(text: str) -> LinsearWriteResult:
+def compute_linsear_write(text: str, chunk_size: int = 1000) -> LinsearWriteResult:
     """
     Compute Linsear Write Readability Formula.
 
-    Developed for the U.S. Air Force to assess technical writing, the Linsear
-    Write formula classifies words as "easy" (1-2 syllables) or "hard" (3+
-    syllables) and uses sentence length to estimate grade level.
+    This function uses native chunked analysis to capture variance and patterns
+    across the text, which is essential for stylometric fingerprinting.
 
-    Related GitHub Issue:
+    Related GitHub Issues:
         #16 - Additional Readability Formulas
-        https://github.com/craigtrim/pystylometry/issues/16
-
-    Formula:
-        1. Count "easy" words (1-2 syllables): multiply count by 1
-        2. Count "hard" words (3+ syllables): multiply count by 3
-        3. Divide sum by number of sentences
-        4. If result > 20, divide by 2 to get grade level
-        5. If result <= 20, subtract 2, then divide by 2
-
-    The formula is optimized for technical writing and works best with
-    passages of about 100 words.
-
-    Advantages:
-        - Simple binary classification (easy/hard)
-        - Effective for technical documents
-        - Fast computation
-        - Developed specifically for instructional materials
-
-    Disadvantages:
-        - Less well-known than other formulas
-        - Binary word classification is crude
-        - May overestimate difficulty of technical terms
-        - Limited validation compared to Flesch or Dale-Chall
+        #27 - Native chunked analysis with Distribution dataclass
 
     Args:
-        text: Input text to analyze. Works best with 100-word samples.
-              Empty text returns NaN values.
+        text: Input text to analyze
+        chunk_size: Number of words per chunk (default: 1000)
 
     Returns:
-        LinsearWriteResult containing:
-            - linsear_score: The Linsear Write score
-            - grade_level: Corresponding U.S. grade level (integer)
-            - easy_word_count: Words with 1-2 syllables
-            - hard_word_count: Words with 3+ syllables
-            - avg_sentence_length: Average words per sentence
-            - metadata: Calculation details, sentence count, etc.
+        LinsearWriteResult with score, grade_level, distributions, and metadata
 
     Example:
-        >>> result = compute_linsear_write("Technical manual text...")
-        >>> print(f"Linsear Write score: {result.linsear_score:.2f}")
-        Linsear Write score: 11.3
-        >>> print(f"Grade level: {result.grade_level}")
-        Grade level: 11
-        >>> print(f"Easy words: {result.easy_word_count}")
-        Easy words: 78
-        >>> print(f"Hard words: {result.hard_word_count}")
-        Hard words: 22
-
-    Note:
-        - Syllable counting required (use existing syllable module)
-        - Punctuation and numbers typically excluded
-        - Most accurate with 100-word samples
-        - Grade level is rounded to nearest integer
+        >>> result = compute_linsear_write("Long text here...", chunk_size=1000)
+        >>> result.linsear_score  # Mean across chunks
+        11.3
     """
-    # Tokenize and segment
-    sentences = split_sentences(text)
-    tokens = tokenize(text)
-    word_tokens = normalize_for_readability(tokens)
+    chunks = chunk_text(text, chunk_size)
+    score_values = []
+    grade_values = []
+    sent_len_values = []
+    total_easy = 0
+    total_hard = 0
+    total_words = 0
 
-    if len(sentences) == 0 or len(word_tokens) == 0:
+    for chunk in chunks:
+        sc, gr, easy, hard, sent_len, meta = _compute_linsear_single(chunk)
+        if not math.isnan(sc):
+            score_values.append(sc)
+            grade_values.append(gr)
+            sent_len_values.append(sent_len)
+        total_easy += easy
+        total_hard += hard
+        total_words += meta.get("word_count", 0)
+
+    if not score_values:
+        empty_dist = Distribution(values=[], mean=float("nan"), median=float("nan"), std=0.0, range=0.0, iqr=0.0)
         return LinsearWriteResult(
-            linsear_score=float("nan"),
-            grade_level=0,
-            easy_word_count=0,
-            hard_word_count=0,
-            avg_sentence_length=float("nan"),
-            metadata={"sentence_count": 0, "total_words": 0, "raw_score": float("nan")},
-        )
+            linsear_score=float("nan"), grade_level=float("nan"), easy_word_count=0, hard_word_count=0,
+            avg_sentence_length=float("nan"), linsear_score_dist=empty_dist, grade_level_dist=empty_dist,
+            avg_sentence_length_dist=empty_dist, chunk_size=chunk_size, chunk_count=len(chunks),
+            metadata={"total_words": 0, "reliable": False})
 
-    # Classify words as easy (1-2 syllables) or hard (3+ syllables)
-    easy_word_count = 0
-    hard_word_count = 0
-
-    for word in word_tokens:
-        syllable_count = count_syllables(word)
-        if syllable_count <= 2:
-            easy_word_count += 1
-        else:
-            hard_word_count += 1
-
-    # Calculate weighted sum
-    weighted_sum = (easy_word_count * 1) + (hard_word_count * 3)
-
-    # Calculate score
-    raw_score = weighted_sum / len(sentences)
-
-    # Convert to grade level
-    if raw_score > 20:
-        grade_level = round(raw_score / 2)
-    else:
-        grade_level = round((raw_score - 2) / 2)
-
-    # Ensure grade level is non-negative
-    grade_level = max(0, grade_level)
-
-    # Calculate average sentence length
-    avg_sentence_length = len(word_tokens) / len(sentences)
-
-    # Build metadata
-    metadata = {
-        "total_words": len(word_tokens),
-        "sentence_count": len(sentences),
-        "raw_score": raw_score,
-        "weighted_sum": weighted_sum,
-    }
+    score_dist = make_distribution(score_values)
+    grade_dist = make_distribution(grade_values)
+    sent_len_dist = make_distribution(sent_len_values)
 
     return LinsearWriteResult(
-        linsear_score=raw_score,
-        grade_level=grade_level,
-        easy_word_count=easy_word_count,
-        hard_word_count=hard_word_count,
-        avg_sentence_length=avg_sentence_length,
-        metadata=metadata,
-    )
+        linsear_score=score_dist.mean, grade_level=grade_dist.mean, easy_word_count=total_easy,
+        hard_word_count=total_hard, avg_sentence_length=sent_len_dist.mean, linsear_score_dist=score_dist,
+        grade_level_dist=grade_dist, avg_sentence_length_dist=sent_len_dist, chunk_size=chunk_size,
+        chunk_count=len(chunks), metadata={"total_words": total_words, "reliable": total_words >= 100})
 
 
-def compute_fry(text: str) -> FryResult:
-    """
-    Compute Fry Readability Graph metrics.
+def _get_fry_grade_level(avg_sent_len: float, avg_syl_100: float) -> tuple[str, str]:
+    """Get Fry grade level and zone from coordinates."""
+    if math.isnan(avg_sent_len) or math.isnan(avg_syl_100):
+        return ("Unknown", "invalid")
 
-    The Fry Readability Graph plots average sentence length against average
-    syllables per 100 words to determine reading difficulty. This implementation
-    provides the numerical coordinates and estimated grade level.
+    if avg_syl_100 < 125:
+        if avg_sent_len < 7:
+            grade, zone = "1", "valid"
+        elif avg_sent_len < 11:
+            grade, zone = "2", "valid"
+        else:
+            grade, zone = "3", "valid"
+    elif avg_syl_100 < 135:
+        if avg_sent_len < 8:
+            grade, zone = "2", "valid"
+        elif avg_sent_len < 12:
+            grade, zone = "3", "valid"
+        else:
+            grade, zone = "4", "valid"
+    elif avg_syl_100 < 145:
+        if avg_sent_len < 9:
+            grade, zone = "3", "valid"
+        elif avg_sent_len < 13:
+            grade, zone = "5", "valid"
+        else:
+            grade, zone = "6", "valid"
+    elif avg_syl_100 < 155:
+        if avg_sent_len < 10:
+            grade, zone = "4", "valid"
+        elif avg_sent_len < 14:
+            grade, zone = "7", "valid"
+        else:
+            grade, zone = "8", "valid"
+    elif avg_syl_100 < 165:
+        if avg_sent_len < 12:
+            grade, zone = "6", "valid"
+        elif avg_sent_len < 16:
+            grade, zone = "9", "valid"
+        else:
+            grade, zone = "10", "valid"
+    elif avg_syl_100 < 175:
+        if avg_sent_len < 14:
+            grade, zone = "8", "valid"
+        elif avg_sent_len < 18:
+            grade, zone = "11", "valid"
+        else:
+            grade, zone = "12", "valid"
+    else:
+        if avg_sent_len < 16:
+            grade, zone = "10", "valid"
+        elif avg_sent_len < 20:
+            grade, zone = "College", "valid"
+        else:
+            grade, zone = "College+", "valid"
 
-    Related GitHub Issue:
-        #16 - Additional Readability Formulas
-        https://github.com/craigtrim/pystylometry/issues/16
+    if avg_syl_100 > 185 or avg_sent_len > 25:
+        zone = "above_graph"
+    elif avg_syl_100 < 110:
+        zone = "below_graph"
 
-    Method:
-        1. Select three 100-word samples from text
-        2. Count average sentence length across samples
-        3. Count average syllables per 100 words across samples
-        4. Plot coordinates on Fry graph (or use numerical approximation)
-        5. Determine grade level from graph zone
+    return (grade, zone)
 
-    The original Fry graph has zones corresponding to grade levels 1-17+.
-    This implementation uses numerical approximation to estimate grade level.
 
-    Advantages:
-        - Visual/graphical approach (intuitive)
-        - Uses two independent dimensions (length & syllables)
-        - Well-validated for educational materials
-        - Covers wide range of grade levels (1-17+)
-
-    Disadvantages:
-        - Requires exactly 100-word samples (padding/truncation needed)
-        - Graph reading can be subjective
-        - Less precise than formula-based methods
-        - Multiple samples needed for reliability
-
-    Args:
-        text: Input text to analyze. Should contain at least 100 words.
-              Shorter texts are padded or return limited results.
-
-    Returns:
-        FryResult containing:
-            - avg_sentence_length: Average words per sentence
-            - avg_syllables_per_100: Average syllables per 100 words
-            - grade_level: Estimated grade level (e.g., "5", "7", "College")
-            - graph_zone: Which zone of Fry graph (for validity checking)
-            - metadata: Sample details, total sentences, syllables, etc.
-
-    Example:
-        >>> result = compute_fry("Educational text for grade assessment...")
-        >>> print(f"Avg sentence length: {result.avg_sentence_length:.1f}")
-        Avg sentence length: 14.3
-        >>> print(f"Syllables/100 words: {result.avg_syllables_per_100:.1f}")
-        Syllables/100 words: 142.7
-        >>> print(f"Grade level: {result.grade_level}")
-        Grade level: 6
-
-    Note:
-        - Original method uses three 100-word samples
-        - Implementation may use single sample or whole text
-        - Syllable counting required
-        - Grade level estimation uses zone boundaries
-        - Some texts fall outside graph zones (marked as invalid)
-    """
-    # Tokenize and segment
+def _compute_fry_single(text: str) -> tuple[float, float, dict]:
+    """Compute Fry for a single chunk. Returns (avg_sent_len, avg_syl_100, meta)."""
     sentences = split_sentences(text)
     tokens = tokenize(text)
     word_tokens = normalize_for_readability(tokens)
 
     if len(sentences) == 0 or len(word_tokens) == 0:
-        return FryResult(
-            avg_sentence_length=float("nan"),
-            avg_syllables_per_100=float("nan"),
-            grade_level="Unknown",
-            graph_zone="invalid",
-            metadata={
-                "total_sentences": 0,
-                "total_syllables": 0,
-                "total_words": 0,
-                "sample_size": 0,
-            },
-        )
+        return (float("nan"), float("nan"), {"sentence_count": 0, "word_count": 0, "syllable_count": 0, "sample_size": 0})
 
-    # Use first 100 words for sample (or entire text if < 100 words)
     sample_size = min(100, len(word_tokens))
     sample_tokens = word_tokens[:sample_size]
+    total_syllables = sum(count_syllables(w) for w in sample_tokens)
 
-    # Count syllables in sample
-    total_syllables = sum(count_syllables(word) for word in sample_tokens)
-
-    # Count sentences within the sample
-    # We need to determine how many sentences are in the first sample_size words
     word_count_so_far = 0
     sentences_in_sample = 0
     for sent in sentences:
-        sent_tokens = tokenize(sent)
-        sent_word_tokens = normalize_for_readability(sent_tokens)
-        if word_count_so_far + len(sent_word_tokens) <= sample_size:
+        sent_tokens = normalize_for_readability(tokenize(sent))
+        if word_count_so_far + len(sent_tokens) <= sample_size:
             sentences_in_sample += 1
-            word_count_so_far += len(sent_word_tokens)
+            word_count_so_far += len(sent_tokens)
         else:
-            # Partial sentence in sample
             if word_count_so_far < sample_size:
                 sentences_in_sample += 1
             break
 
-    # Ensure at least 1 sentence for division
     sentences_in_sample = max(1, sentences_in_sample)
-
-    # Calculate avg_sentence_length (for the sample)
     avg_sentence_length = sample_size / sentences_in_sample
-
-    # Calculate avg_syllables_per_100 (scale if sample < 100)
     avg_syllables_per_100 = (total_syllables / sample_size) * 100
 
-    # Map to grade level using Fry graph approximation
-    # Fry graph zones (simplified numerical approximation):
-    # These are rough boundaries based on Fry graph zones
-    # X-axis: avg sentences per 100 words (inverse of avg_sentence_length)
-    # Y-axis: avg syllables per 100 words
-
-    # Determine grade level based on avg_sentence_length and avg_syllables_per_100
-    # Higher syllables per 100 = higher grade
-    # Longer sentences = higher grade
-    # Simplified zone mapping:
-    if avg_syllables_per_100 < 125:
-        if avg_sentence_length < 7:
-            grade_level = "1"
-            graph_zone = "valid"
-        elif avg_sentence_length < 11:
-            grade_level = "2"
-            graph_zone = "valid"
-        else:
-            grade_level = "3"
-            graph_zone = "valid"
-    elif avg_syllables_per_100 < 135:
-        if avg_sentence_length < 8:
-            grade_level = "2"
-            graph_zone = "valid"
-        elif avg_sentence_length < 12:
-            grade_level = "3"
-            graph_zone = "valid"
-        else:
-            grade_level = "4"
-            graph_zone = "valid"
-    elif avg_syllables_per_100 < 145:
-        if avg_sentence_length < 9:
-            grade_level = "3"
-            graph_zone = "valid"
-        elif avg_sentence_length < 13:
-            grade_level = "5"
-            graph_zone = "valid"
-        else:
-            grade_level = "6"
-            graph_zone = "valid"
-    elif avg_syllables_per_100 < 155:
-        if avg_sentence_length < 10:
-            grade_level = "4"
-            graph_zone = "valid"
-        elif avg_sentence_length < 14:
-            grade_level = "7"
-            graph_zone = "valid"
-        else:
-            grade_level = "8"
-            graph_zone = "valid"
-    elif avg_syllables_per_100 < 165:
-        if avg_sentence_length < 12:
-            grade_level = "6"
-            graph_zone = "valid"
-        elif avg_sentence_length < 16:
-            grade_level = "9"
-            graph_zone = "valid"
-        else:
-            grade_level = "10"
-            graph_zone = "valid"
-    elif avg_syllables_per_100 < 175:
-        if avg_sentence_length < 14:
-            grade_level = "8"
-            graph_zone = "valid"
-        elif avg_sentence_length < 18:
-            grade_level = "11"
-            graph_zone = "valid"
-        else:
-            grade_level = "12"
-            graph_zone = "valid"
-    else:  # avg_syllables_per_100 >= 175
-        if avg_sentence_length < 16:
-            grade_level = "10"
-            graph_zone = "valid"
-        elif avg_sentence_length < 20:
-            grade_level = "College"
-            graph_zone = "valid"
-        else:
-            grade_level = "College+"
-            graph_zone = "valid"
-
-    # Check if outside typical graph bounds
-    if avg_syllables_per_100 > 185 or avg_sentence_length > 25:
-        graph_zone = "above_graph"
-    elif avg_syllables_per_100 < 110:
-        graph_zone = "below_graph"
-
-    # Build metadata
-    metadata = {
-        "total_sentences": len(sentences),
-        "total_syllables": sum(count_syllables(w) for w in word_tokens),
-        "total_words": len(word_tokens),
-        "sample_size": sample_size,
-        "sentences_in_sample": sentences_in_sample,
-        "syllables_in_sample": total_syllables,
-    }
-
-    return FryResult(
-        avg_sentence_length=avg_sentence_length,
-        avg_syllables_per_100=avg_syllables_per_100,
-        grade_level=grade_level,
-        graph_zone=graph_zone,
-        metadata=metadata,
-    )
+    return (avg_sentence_length, avg_syllables_per_100,
+            {"sentence_count": len(sentences), "word_count": len(word_tokens), "syllable_count": total_syllables,
+             "sample_size": sample_size})
 
 
-def compute_forcast(text: str) -> FORCASTResult:
+def compute_fry(text: str, chunk_size: int = 1000) -> FryResult:
     """
-    Compute FORCAST Readability Formula.
+    Compute Fry Readability Graph metrics.
 
-    FORCAST (FORmula for CASTing readability) was developed by the U.S. military
-    to assess readability without counting syllables. It uses only the count of
-    single-syllable words as its metric, making it fast and simple.
+    This function uses native chunked analysis to capture variance and patterns
+    across the text, which is essential for stylometric fingerprinting.
 
-    Related GitHub Issue:
+    Related GitHub Issues:
         #16 - Additional Readability Formulas
-        https://github.com/craigtrim/pystylometry/issues/16
-
-    Formula:
-        Grade Level = 20 - (N / 10)
-
-        Where N is the number of single-syllable words in a 150-word sample.
-
-    The formula is optimized for technical and military documents and works
-    best with standardized 150-word samples.
-
-    Advantages:
-        - Extremely simple (only counts single-syllable words)
-        - No sentence segmentation required
-        - Fast computation
-        - Developed specifically for military/technical texts
-
-    Disadvantages:
-        - Less well-known and validated than other formulas
-        - Requires exactly 150-word samples
-        - Single dimension (doesn't consider sentence length)
-        - May not generalize well beyond military context
+        #27 - Native chunked analysis with Distribution dataclass
 
     Args:
-        text: Input text to analyze. Works best with 150-word samples.
-              Shorter texts are padded or scored proportionally.
-              Longer texts use first 150 words or multiple samples.
+        text: Input text to analyze
+        chunk_size: Number of words per chunk (default: 1000)
 
     Returns:
-        FORCASTResult containing:
-            - forcast_score: The FORCAST readability score
-            - grade_level: Corresponding U.S. grade level (integer)
-            - single_syllable_ratio: Single-syllable words / total words
-            - single_syllable_count: Count of single-syllable words
-            - total_words: Total word count analyzed
-            - metadata: Sample details, calculation specifics, etc.
+        FryResult with avg_sentence_length, avg_syllables_per_100, distributions, and metadata
 
     Example:
-        >>> result = compute_forcast("Military technical document...")
-        >>> print(f"FORCAST score: {result.forcast_score:.2f}")
-        FORCAST score: 9.7
-        >>> print(f"Grade level: {result.grade_level}")
-        Grade level: 10
-        >>> print(f"Single-syllable ratio: {result.single_syllable_ratio:.3f}")
-        Single-syllable ratio: 0.687
-
-    Note:
-        - Syllable counting required (but only to identify 1-syllable words)
-        - Recommended sample size is 150 words
-        - Multiple samples can be averaged for longer texts
-        - Simpler than most readability formulas
-        - Grade levels typically range from 5-12
+        >>> result = compute_fry("Long text here...", chunk_size=1000)
+        >>> result.avg_sentence_length  # Mean across chunks
+        14.3
     """
-    # Tokenize
+    chunks = chunk_text(text, chunk_size)
+    sent_len_values = []
+    syl_100_values = []
+    total_words = 0
+    total_sentences = 0
+    total_syllables = 0
+
+    for chunk in chunks:
+        sent_len, syl_100, meta = _compute_fry_single(chunk)
+        if not math.isnan(sent_len):
+            sent_len_values.append(sent_len)
+            syl_100_values.append(syl_100)
+        total_words += meta.get("word_count", 0)
+        total_sentences += meta.get("sentence_count", 0)
+        total_syllables += meta.get("syllable_count", 0)
+
+    if not sent_len_values:
+        empty_dist = Distribution(values=[], mean=float("nan"), median=float("nan"), std=0.0, range=0.0, iqr=0.0)
+        return FryResult(
+            avg_sentence_length=float("nan"), avg_syllables_per_100=float("nan"), grade_level="Unknown",
+            graph_zone="invalid", avg_sentence_length_dist=empty_dist, avg_syllables_per_100_dist=empty_dist,
+            chunk_size=chunk_size, chunk_count=len(chunks),
+            metadata={"total_sentences": 0, "total_words": 0, "sample_size": 0, "reliable": False})
+
+    sent_len_dist = make_distribution(sent_len_values)
+    syl_100_dist = make_distribution(syl_100_values)
+    grade_level, graph_zone = _get_fry_grade_level(sent_len_dist.mean, syl_100_dist.mean)
+
+    # Calculate sample size (min of 100 or total_words for overall)
+    sample_size = min(100, total_words)
+
+    return FryResult(
+        avg_sentence_length=sent_len_dist.mean, avg_syllables_per_100=syl_100_dist.mean,
+        grade_level=grade_level, graph_zone=graph_zone,
+        avg_sentence_length_dist=sent_len_dist, avg_syllables_per_100_dist=syl_100_dist,
+        chunk_size=chunk_size, chunk_count=len(chunks),
+        metadata={"total_sentences": total_sentences, "total_words": total_words,
+                  "total_syllables": total_syllables, "sample_size": sample_size, "reliable": total_words >= 100})
+
+
+def _compute_forcast_single(text: str) -> tuple[float, float, int, float, dict]:
+    """Compute FORCAST for a single chunk. Returns (score, grade, single_count, single_ratio, meta)."""
     tokens = tokenize(text)
     word_tokens = normalize_for_readability(tokens)
 
     if len(word_tokens) == 0:
-        return FORCASTResult(
-            forcast_score=float("nan"),
-            grade_level=0,
-            single_syllable_ratio=float("nan"),
-            single_syllable_count=0,
-            total_words=0,
-            metadata={"sample_size": 0, "scaled_n": float("nan")},
-        )
+        return (float("nan"), float("nan"), 0, float("nan"), {"word_count": 0, "sample_size": 0, "scaled_n": 0.0})
 
-    # Use first 150 words for sample (or entire text if < 150 words)
     sample_size = min(150, len(word_tokens))
     sample_tokens = word_tokens[:sample_size]
-
-    # Count single-syllable words in sample
-    single_syllable_count = 0
-    for word in sample_tokens:
-        if count_syllables(word) == 1:
-            single_syllable_count += 1
-
-    # Scale N to 150-word basis if sample < 150
-    if sample_size < 150:
-        scaled_n = single_syllable_count * (150 / sample_size)
-    else:
-        scaled_n = single_syllable_count
-
-    # Calculate grade level: 20 - (N / 10)
+    single_syllable_count = sum(1 for w in sample_tokens if count_syllables(w) == 1)
+    scaled_n = single_syllable_count * (150 / sample_size) if sample_size < 150 else single_syllable_count
     forcast_score = 20 - (scaled_n / 10)
-    grade_level = round(forcast_score)
-
-    # Ensure grade level is in reasonable range (0-20)
-    grade_level = max(0, min(20, grade_level))
-
-    # Calculate single syllable ratio (for the sample)
+    grade_level = float(max(0, min(20, round(forcast_score))))
     single_syllable_ratio = single_syllable_count / sample_size
 
-    # Build metadata
-    metadata = {
-        "sample_size": sample_size,
-        "scaled_n": scaled_n,
-        "total_words_in_text": len(word_tokens),
-    }
-
-    return FORCASTResult(
-        forcast_score=forcast_score,
-        grade_level=grade_level,
-        single_syllable_ratio=single_syllable_ratio,
-        single_syllable_count=single_syllable_count,
-        total_words=sample_size,
-        metadata=metadata,
-    )
+    return (forcast_score, grade_level, single_syllable_count, single_syllable_ratio,
+            {"word_count": len(word_tokens), "sample_size": sample_size, "scaled_n": scaled_n})
 
 
-def compute_powers_sumner_kearl(text: str) -> PowersSumnerKearlResult:
+def compute_forcast(text: str, chunk_size: int = 1000) -> FORCASTResult:
     """
-    Compute Powers-Sumner-Kearl Readability Formula.
+    Compute FORCAST Readability Formula.
 
-    The Powers-Sumner-Kearl (PSK) formula is a recalibration of the Flesch
-    Reading Ease formula, optimized for primary grade levels (grades 1-4).
-    It uses the same inputs (sentence length, syllables per word) but with
-    different coefficients.
+    This function uses native chunked analysis to capture variance and patterns
+    across the text, which is essential for stylometric fingerprinting.
 
-    Related GitHub Issue:
+    Related GitHub Issues:
         #16 - Additional Readability Formulas
-        https://github.com/craigtrim/pystylometry/issues/16
+        #27 - Native chunked analysis with Distribution dataclass
 
     Formula:
-        Grade Level = 0.0778 * avg_sentence_length + 0.0455 * avg_syllables_per_word - 2.2029
-
-    The formula was derived from analysis of primary-grade texts and provides
-    more accurate grade-level estimates for beginning readers than the original
-    Flesch formula.
-
-    Advantages:
-        - Optimized for primary grades (1-4)
-        - More accurate than Flesch for young readers
-        - Uses same inputs as Flesch (easy to compare)
-        - Well-validated on educational materials
-
-    Disadvantages:
-        - Less accurate for higher grade levels
-        - Less well-known than Flesch
-        - Limited range (not suitable for college-level texts)
-        - Requires syllable counting
+        Grade Level = 20 - (N / 10)
+        Where N is the number of single-syllable words in a 150-word sample.
 
     Args:
-        text: Input text to analyze. Optimized for children's literature
-              and primary-grade educational materials. Empty text returns
-              NaN values.
+        text: Input text to analyze
+        chunk_size: Number of words per chunk (default: 1000)
 
     Returns:
-        PowersSumnerKearlResult containing:
-            - psk_score: The Powers-Sumner-Kearl score
-            - grade_level: Corresponding grade (decimal, e.g., 2.5 = mid-2nd grade)
-            - avg_sentence_length: Average words per sentence
-            - avg_syllables_per_word: Average syllables per word
-            - total_sentences: Total sentence count
-            - total_words: Total word count
-            - total_syllables: Total syllable count
-            - metadata: Comparison to Flesch, calculation details, etc.
+        FORCASTResult with score, grade_level, distributions, and metadata
 
     Example:
-        >>> result = compute_powers_sumner_kearl("Children's book text...")
-        >>> print(f"PSK score: {result.psk_score:.2f}")
-        PSK score: 2.3
-        >>> print(f"Grade level: {result.grade_level:.1f}")
-        Grade level: 2.3
-        >>> print(f"Avg sentence length: {result.avg_sentence_length:.1f}")
-        Avg sentence length: 8.5
-
-    Note:
-        - Most accurate for grades 1-4
-        - Can produce negative scores for very simple texts
-        - Grade level is continuous (can be decimal)
-        - Syllable counting required (same as Flesch)
-        - Compare to Flesch results for validation
+        >>> result = compute_forcast("Long text here...", chunk_size=1000)
+        >>> result.forcast_score  # Mean across chunks
+        9.7
     """
-    # Tokenize and segment
+    chunks = chunk_text(text, chunk_size)
+    score_values = []
+    grade_values = []
+    ratio_values = []
+    total_single = 0
+    total_words = 0
+
+    for chunk in chunks:
+        sc, gr, single_cnt, single_rat, meta = _compute_forcast_single(chunk)
+        if not math.isnan(sc):
+            score_values.append(sc)
+            grade_values.append(gr)
+            ratio_values.append(single_rat)
+        total_single += single_cnt
+        total_words += meta.get("word_count", 0)
+
+    if not score_values:
+        empty_dist = Distribution(values=[], mean=float("nan"), median=float("nan"), std=0.0, range=0.0, iqr=0.0)
+        return FORCASTResult(
+            forcast_score=float("nan"), grade_level=float("nan"), single_syllable_ratio=float("nan"),
+            single_syllable_count=0, total_words=0, forcast_score_dist=empty_dist, grade_level_dist=empty_dist,
+            single_syllable_ratio_dist=empty_dist, chunk_size=chunk_size, chunk_count=len(chunks),
+            metadata={"sample_size": 0, "scaled_n": 0.0, "reliable": False})
+
+    score_dist = make_distribution(score_values)
+    grade_dist = make_distribution(grade_values)
+    ratio_dist = make_distribution(ratio_values)
+
+    # Calculate overall sample_size and scaled_n for metadata
+    overall_sample_size = min(150, total_words)
+    overall_scaled_n = total_single * (150 / overall_sample_size) if overall_sample_size < 150 else float(total_single)
+
+    return FORCASTResult(
+        forcast_score=score_dist.mean, grade_level=grade_dist.mean, single_syllable_ratio=ratio_dist.mean,
+        single_syllable_count=total_single, total_words=total_words, forcast_score_dist=score_dist,
+        grade_level_dist=grade_dist, single_syllable_ratio_dist=ratio_dist, chunk_size=chunk_size,
+        chunk_count=len(chunks), metadata={"sample_size": overall_sample_size, "scaled_n": overall_scaled_n,
+                                            "reliable": total_words >= 100})
+
+
+def _compute_psk_single(text: str) -> tuple[float, float, float, float, int, dict]:
+    """Compute PSK for a single chunk. Returns (score, grade, sent_len, syl_per_word, syllables, meta)."""
     sentences = split_sentences(text)
     tokens = tokenize(text)
     word_tokens = normalize_for_readability(tokens)
 
     if len(sentences) == 0 or len(word_tokens) == 0:
-        return PowersSumnerKearlResult(
-            psk_score=float("nan"),
-            grade_level=float("nan"),
-            avg_sentence_length=float("nan"),
-            avg_syllables_per_word=float("nan"),
-            total_sentences=0,
-            total_words=0,
-            total_syllables=0,
-            metadata={
-                "flesch_reading_ease": float("nan"),
-                "flesch_kincaid_grade": float("nan"),
-            },
-        )
+        return (float("nan"), float("nan"), float("nan"), float("nan"), 0,
+                {"sentence_count": 0, "word_count": 0})
 
-    # Count syllables
-    total_syllables = sum(count_syllables(word) for word in word_tokens)
-
-    # Calculate metrics
+    total_syllables = sum(count_syllables(w) for w in word_tokens)
     avg_sentence_length = len(word_tokens) / len(sentences)
     avg_syllables_per_word = total_syllables / len(word_tokens)
+    psk_score = 0.0778 * avg_sentence_length + 0.0455 * avg_syllables_per_word - 2.2029
+    grade_level = round(psk_score, 1)
 
-    # Apply Powers-Sumner-Kearl formula
-    # Grade = 0.0778 * avg_sentence_length + 0.0455 * avg_syllables_per_word - 2.2029
-    psk_score = (
-        0.0778 * avg_sentence_length + 0.0455 * avg_syllables_per_word - 2.2029
-    )
-    grade_level = round(psk_score, 1)  # Round to 1 decimal place
+    return (psk_score, grade_level, avg_sentence_length, avg_syllables_per_word, total_syllables,
+            {"sentence_count": len(sentences), "word_count": len(word_tokens)})
 
-    # Optional: Calculate Flesch scores for comparison
-    flesch_reading_ease = (
-        206.835 - 1.015 * avg_sentence_length - 84.6 * avg_syllables_per_word
-    )
-    flesch_kincaid_grade = (
-        0.39 * avg_sentence_length + 11.8 * avg_syllables_per_word - 15.59
-    )
 
-    # Build metadata
-    metadata = {
-        "flesch_reading_ease": flesch_reading_ease,
-        "flesch_kincaid_grade": flesch_kincaid_grade,
-        "difference_from_flesch": psk_score - flesch_kincaid_grade,
-        "words_per_sentence": avg_sentence_length,
-        "syllables_per_word": avg_syllables_per_word,
-    }
+def compute_powers_sumner_kearl(text: str, chunk_size: int = 1000) -> PowersSumnerKearlResult:
+    """
+    Compute Powers-Sumner-Kearl Readability Formula.
+
+    This function uses native chunked analysis to capture variance and patterns
+    across the text, which is essential for stylometric fingerprinting.
+
+    Related GitHub Issues:
+        #16 - Additional Readability Formulas
+        #27 - Native chunked analysis with Distribution dataclass
+
+    Formula:
+        Grade Level = 0.0778 * avg_sentence_length + 0.0455 * avg_syllables_per_word - 2.2029
+
+    Args:
+        text: Input text to analyze
+        chunk_size: Number of words per chunk (default: 1000)
+
+    Returns:
+        PowersSumnerKearlResult with score, grade_level, distributions, and metadata
+
+    Example:
+        >>> result = compute_powers_sumner_kearl("Long text here...", chunk_size=1000)
+        >>> result.psk_score  # Mean across chunks
+        2.3
+    """
+    chunks = chunk_text(text, chunk_size)
+    score_values = []
+    grade_values = []
+    sent_len_values = []
+    syl_per_word_values = []
+    total_sentences = 0
+    total_words = 0
+    total_syllables = 0
+
+    for chunk in chunks:
+        sc, gr, sent_len, syl_word, syls, meta = _compute_psk_single(chunk)
+        if not math.isnan(sc):
+            score_values.append(sc)
+            grade_values.append(gr)
+            sent_len_values.append(sent_len)
+            syl_per_word_values.append(syl_word)
+        total_sentences += meta.get("sentence_count", 0)
+        total_words += meta.get("word_count", 0)
+        total_syllables += syls
+
+    if not score_values:
+        empty_dist = Distribution(values=[], mean=float("nan"), median=float("nan"), std=0.0, range=0.0, iqr=0.0)
+        return PowersSumnerKearlResult(
+            psk_score=float("nan"), grade_level=float("nan"), avg_sentence_length=float("nan"),
+            avg_syllables_per_word=float("nan"), total_sentences=0, total_words=0, total_syllables=0,
+            psk_score_dist=empty_dist, grade_level_dist=empty_dist, avg_sentence_length_dist=empty_dist,
+            avg_syllables_per_word_dist=empty_dist, chunk_size=chunk_size, chunk_count=len(chunks),
+            metadata={"flesch_reading_ease": float("nan"), "flesch_kincaid_grade": float("nan"),
+                      "difference_from_flesch": float("nan"), "reliable": False})
+
+    score_dist = make_distribution(score_values)
+    grade_dist = make_distribution(grade_values)
+    sent_len_dist = make_distribution(sent_len_values)
+    syl_word_dist = make_distribution(syl_per_word_values)
+
+    # Compute Flesch metrics for comparison (using the same avg values)
+    # Flesch Reading Ease: 206.835 - 1.015 * ASL - 84.6 * ASW
+    # Flesch-Kincaid Grade: 0.39 * ASL + 11.8 * ASW - 15.59
+    flesch_reading_ease = 206.835 - 1.015 * sent_len_dist.mean - 84.6 * syl_word_dist.mean
+    flesch_kincaid_grade = 0.39 * sent_len_dist.mean + 11.8 * syl_word_dist.mean - 15.59
+    difference_from_flesch = grade_dist.mean - flesch_kincaid_grade
 
     return PowersSumnerKearlResult(
-        psk_score=psk_score,
-        grade_level=grade_level,
-        avg_sentence_length=avg_sentence_length,
-        avg_syllables_per_word=avg_syllables_per_word,
-        total_sentences=len(sentences),
-        total_words=len(word_tokens),
-        total_syllables=total_syllables,
-        metadata=metadata,
-    )
+        psk_score=score_dist.mean, grade_level=grade_dist.mean, avg_sentence_length=sent_len_dist.mean,
+        avg_syllables_per_word=syl_word_dist.mean, total_sentences=total_sentences, total_words=total_words,
+        total_syllables=total_syllables, psk_score_dist=score_dist, grade_level_dist=grade_dist,
+        avg_sentence_length_dist=sent_len_dist, avg_syllables_per_word_dist=syl_word_dist,
+        chunk_size=chunk_size, chunk_count=len(chunks),
+        metadata={"flesch_reading_ease": flesch_reading_ease, "flesch_kincaid_grade": flesch_kincaid_grade,
+                  "difference_from_flesch": difference_from_flesch, "reliable": total_words >= 100})

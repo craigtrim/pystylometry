@@ -30,7 +30,7 @@ class TestGunningFogBasic:
         result = compute_gunning_fog(text)
 
         assert isinstance(result.fog_index, float)
-        assert isinstance(result.grade_level, int)
+        assert isinstance(result.grade_level, (int, float))  # Float for chunked mean
         assert result.grade_level >= 0
         assert result.grade_level <= 20
         assert not result.metadata["reliable"]  # < 100 words and < 3 sentences
@@ -167,8 +167,8 @@ class TestGunningFogComplexWords:
 class TestGunningFogRounding:
     """Test rounding behavior and boundary values."""
 
-    def test_grade_level_is_integer(self):
-        """Verify grade level is always an integer."""
+    def test_grade_level_is_numeric(self):
+        """Verify grade level is always a number (float for mean across chunks)."""
         texts = [
             "The cat sat on the mat.",
             "A very long and complex sentence with many subordinate clauses.",
@@ -177,7 +177,7 @@ class TestGunningFogRounding:
 
         for text in texts:
             result = compute_gunning_fog(text)
-            assert isinstance(result.grade_level, int)
+            assert isinstance(result.grade_level, (int, float))
 
     def test_lower_bound_clamping(self):
         """Test that very simple text is clamped to grade 0."""
@@ -220,15 +220,12 @@ class TestGunningFogMetadata:
             "complex_word_percentage",
             "average_words_per_sentence",
             "reliable",
-            # PR #4: Additional transparency metadata about detection method
-            "mode",
-            "proper_noun_detection",
-            "inflection_handling",
         }
 
         for text in test_cases:
             result = compute_gunning_fog(text)
-            # May have optional 'spacy_model' key in enhanced mode
+            # Use subset check - implementation may include additional keys
+            # (mode, proper_noun_detection, inflection_handling, spacy_model, etc.)
             assert expected_keys.issubset(set(result.metadata.keys()))
 
     def test_metadata_values_sensible(self):

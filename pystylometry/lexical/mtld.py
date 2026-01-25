@@ -1,6 +1,16 @@
-"""MTLD (Measure of Textual Lexical Diversity) implementation."""
+"""MTLD (Measure of Textual Lexical Diversity) implementation.
 
-from .._types import MTLDResult
+This module implements MTLD with native chunked analysis for stylometric
+fingerprinting.
+
+Related GitHub Issue:
+    #27 - Native chunked analysis with Distribution dataclass
+    https://github.com/craigtrim/pystylometry/issues/27
+"""
+
+import math
+
+from .._types import Distribution, MTLDResult, chunk_text, make_distribution
 from .._utils import tokenize
 
 
@@ -62,12 +72,45 @@ def _calculate_mtld_direction(tokens: list[str], threshold: float, forward: bool
         return float(len(tokens))
 
 
+def _compute_mtld_single(text: str, threshold: float) -> tuple[float, float, float, dict]:
+    """Compute MTLD for a single chunk of text.
+
+    Returns:
+        Tuple of (mtld_forward, mtld_backward, mtld_average, metadata_dict).
+        Returns (nan, nan, nan, metadata) for empty input.
+    """
+    tokens = tokenize(text.lower())
+
+    if len(tokens) == 0:
+        return (
+            float("nan"),
+            float("nan"),
+            float("nan"),
+            {"token_count": 0},
+        )
+
+    mtld_forward = _calculate_mtld_direction(tokens, threshold, forward=True)
+    mtld_backward = _calculate_mtld_direction(tokens, threshold, forward=False)
+    mtld_average = (mtld_forward + mtld_backward) / 2
+
+    return (
+        mtld_forward,
+        mtld_backward,
+        mtld_average,
+        {"token_count": len(tokens)},
+    )
+
+
 def compute_mtld(
     text: str,
     threshold: float = 0.72,
+    chunk_size: int = 1000,
 ) -> MTLDResult:
     """
     Compute MTLD (Measure of Textual Lexical Diversity).
+
+    This function uses native chunked analysis to capture variance and patterns
+    across the text, which is essential for stylometric fingerprinting.
 
     MTLD measures the mean length of sequential word strings that maintain
     a minimum threshold TTR. It's more robust than simple TTR for texts of
@@ -79,6 +122,10 @@ def compute_mtld(
         - Completed factors (segments where TTR dropped below threshold)
         - Partial factor for any remaining incomplete segment (weighted by proximity to threshold)
 
+    Related GitHub Issue:
+        #27 - Native chunked analysis with Distribution dataclass
+        https://github.com/craigtrim/pystylometry/issues/27
+
     References:
         McCarthy, P. M., & Jarvis, S. (2010). MTLD, vocd-D, and HD-D:
         A validation study of sophisticated approaches to lexical diversity assessment.
@@ -87,16 +134,20 @@ def compute_mtld(
     Args:
         text: Input text to analyze
         threshold: TTR threshold to maintain (default: 0.72, must be in range (0, 1))
+        chunk_size: Number of words per chunk (default: 1000)
 
     Returns:
-        MTLDResult with forward, backward, and average MTLD scores
+        MTLDResult with forward, backward, average MTLD scores and distributions
 
     Raises:
         ValueError: If threshold is not in range (0, 1)
 
     Example:
-        >>> result = compute_mtld("The quick brown fox jumps over the lazy dog...")
-        >>> print(f"MTLD: {result.mtld_average:.2f}")
+        >>> result = compute_mtld("Long text here...", chunk_size=1000)
+        >>> result.mtld_average  # Mean across chunks
+        72.5
+        >>> result.mtld_average_dist.std  # Variance reveals fingerprint
+        8.3
     """
     # Validate threshold parameter
     if not (0 < threshold < 1):
@@ -105,33 +156,64 @@ def compute_mtld(
             "Common values: 0.72 (default), 0.5-0.8"
         )
 
-    # Case-insensitive tokenization for consistency with other lexical metrics
-    # (compute_yule, compute_hapax_ratios both use text.lower())
-    tokens = tokenize(text.lower())
+    # Chunk the text
+    chunks = chunk_text(text, chunk_size)
 
-    if len(tokens) == 0:
+    # Compute metrics per chunk
+    forward_values = []
+    backward_values = []
+    average_values = []
+    total_tokens = 0
+
+    for chunk in chunks:
+        fwd, bwd, avg, meta = _compute_mtld_single(chunk, threshold)
+        if not math.isnan(fwd):
+            forward_values.append(fwd)
+            backward_values.append(bwd)
+            average_values.append(avg)
+        total_tokens += meta.get("token_count", 0)
+
+    # Handle empty or all-invalid chunks
+    if not forward_values:
+        empty_dist = Distribution(
+            values=[],
+            mean=float("nan"),
+            median=float("nan"),
+            std=0.0,
+            range=0.0,
+            iqr=0.0,
+        )
         return MTLDResult(
-            mtld_forward=0.0,
-            mtld_backward=0.0,
-            mtld_average=0.0,
-            metadata={"token_count": 0, "threshold": threshold},
+            mtld_forward=float("nan"),
+            mtld_backward=float("nan"),
+            mtld_average=float("nan"),
+            mtld_forward_dist=empty_dist,
+            mtld_backward_dist=empty_dist,
+            mtld_average_dist=empty_dist,
+            chunk_size=chunk_size,
+            chunk_count=len(chunks),
+            metadata={
+                "total_token_count": 0,
+                "threshold": threshold,
+            },
         )
 
-    # Calculate MTLD in forward direction
-    mtld_forward = _calculate_mtld_direction(tokens, threshold, forward=True)
-
-    # Calculate MTLD in backward direction
-    mtld_backward = _calculate_mtld_direction(tokens, threshold, forward=False)
-
-    # Average of forward and backward
-    mtld_average = (mtld_forward + mtld_backward) / 2
+    # Build distributions
+    forward_dist = make_distribution(forward_values)
+    backward_dist = make_distribution(backward_values)
+    average_dist = make_distribution(average_values)
 
     return MTLDResult(
-        mtld_forward=mtld_forward,
-        mtld_backward=mtld_backward,
-        mtld_average=mtld_average,
+        mtld_forward=forward_dist.mean,
+        mtld_backward=backward_dist.mean,
+        mtld_average=average_dist.mean,
+        mtld_forward_dist=forward_dist,
+        mtld_backward_dist=backward_dist,
+        mtld_average_dist=average_dist,
+        chunk_size=chunk_size,
+        chunk_count=len(chunks),
         metadata={
-            "token_count": len(tokens),
+            "total_token_count": total_tokens,
             "threshold": threshold,
         },
     )

@@ -17,8 +17,9 @@ def test_compute_mtld_basic(sample_text):
 def test_compute_mtld_empty():
     """Test MTLD with empty text."""
     result = compute_mtld("")
-    assert result.mtld_average == 0.0
-    assert result.metadata["token_count"] == 0
+    # Empty text returns NaN for metrics (per Distribution pattern)
+    assert math.isnan(result.mtld_average)
+    assert result.metadata["total_token_count"] == 0
 
 
 def test_compute_yule_basic(sample_text):
@@ -51,4 +52,5 @@ def test_compute_hapax_empty():
     """Test hapax with empty text."""
     result = compute_hapax_ratios("")
     assert result.hapax_count == 0
-    assert result.hapax_ratio == 0.0
+    # Empty text returns NaN for ratio metrics (per Distribution pattern)
+    assert math.isnan(result.hapax_ratio)

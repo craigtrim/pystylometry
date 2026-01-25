@@ -1,30 +1,68 @@
-"""Coleman-Liau Index."""
+"""Coleman-Liau Index.
+
+This module implements the Coleman-Liau readability formula with native chunked
+analysis for stylometric fingerprinting.
+
+Related GitHub Issue:
+    #27 - Native chunked analysis with Distribution dataclass
+    https://github.com/craigtrim/pystylometry/issues/27
+"""
 
 import math
 
-from .._types import ColemanLiauResult
+from .._types import ColemanLiauResult, Distribution, chunk_text, make_distribution
 from .._utils import split_sentences, tokenize
 
 # Regression coefficients from Coleman & Liau (1975)
-# Derived from empirical analysis of Cloze test results on graded texts
-# Reference: Coleman, M., & Liau, T. L. (1975). A computer readability formula
-#            designed for machine scoring. Journal of Applied Psychology, 60(2), 283.
-
-# Coefficient for letters per 100 words
-# Represents impact of word length on reading difficulty
 _LETTER_COEFFICIENT = 0.0588
-
-# Coefficient for sentences per 100 words (negative: more sentences = easier)
-# Represents impact of sentence length on reading difficulty
 _SENTENCE_COEFFICIENT = -0.296
-
-# Intercept to calibrate scale to U.S. grade levels (1-16)
 _INTERCEPT = -15.8
 
 
-def compute_coleman_liau(text: str) -> ColemanLiauResult:
+def _compute_coleman_liau_single(text: str) -> tuple[float, float, dict]:
+    """Compute Coleman-Liau metrics for a single chunk of text.
+
+    Returns:
+        Tuple of (cli_index, grade_level, metadata_dict).
+        Returns (nan, nan, metadata) for empty/invalid input.
+    """
+    sentences = split_sentences(text)
+    all_tokens = tokenize(text)
+    tokens = [token for token in all_tokens if any(char.isalpha() for char in token)]
+    letter_count = sum(1 for token in tokens for char in token if char.isalpha())
+
+    if len(sentences) == 0 or len(tokens) == 0:
+        return (
+            float("nan"),
+            float("nan"),
+            {"sentence_count": 0, "word_count": 0, "letter_count": 0},
+        )
+
+    # Calculate per 100 words
+    L = (letter_count / len(tokens)) * 100  # noqa: N806
+    S = (len(sentences) / len(tokens)) * 100  # noqa: N806
+
+    # Compute Coleman-Liau Index
+    cli_index = _LETTER_COEFFICIENT * L + _SENTENCE_COEFFICIENT * S + _INTERCEPT
+    grade_level = max(0, math.floor(cli_index + 0.5))
+
+    metadata = {
+        "sentence_count": len(sentences),
+        "word_count": len(tokens),
+        "letter_count": letter_count,
+        "letters_per_100_words": L,
+        "sentences_per_100_words": S,
+    }
+
+    return (cli_index, float(grade_level), metadata)
+
+
+def compute_coleman_liau(text: str, chunk_size: int = 1000) -> ColemanLiauResult:
     """
     Compute Coleman-Liau Index.
+
+    This function uses native chunked analysis to capture variance and patterns
+    across the text, which is essential for stylometric fingerprinting.
 
     Formula:
         CLI = 0.0588 × L - 0.296 × S - 15.8
@@ -36,19 +74,9 @@ def compute_coleman_liau(text: str) -> ColemanLiauResult:
     The Coleman-Liau index relies on characters rather than syllables,
     making it easier to compute and not requiring syllable-counting algorithms.
 
-    **Implementation Notes:**
-    - Grade levels are NOT clamped (removed upper bound of 20 per PR #2 review).
-      The original Coleman & Liau (1975) paper calibrated to grades 1-16 but did not
-      specify an upper bound. Post-graduate texts may exceed grade 20.
-    - Uses round-half-up rounding (not banker's rounding) for grade level calculation
-    - Letter counts (Unicode alphabetic characters only) computed from tokenized words
-      to ensure measurement consistency. Both letter count and word count use identical
-      tokenization logic, preventing divergence in edge cases (emails, URLs, hyphens).
-      See PR #2 review discussion: https://github.com/craigtrim/pystylometry/pull/2
-    - Reliability heuristic based on validation study passage lengths (~100 words);
-      shorter texts flagged in metadata
-    - English-centric sentence splitting and Unicode assumptions limit true
-      cross-language applicability
+    Related GitHub Issue:
+        #27 - Native chunked analysis with Distribution dataclass
+        https://github.com/craigtrim/pystylometry/issues/27
 
     References:
         Coleman, M., & Liau, T. L. (1975). A computer readability formula
@@ -56,105 +84,102 @@ def compute_coleman_liau(text: str) -> ColemanLiauResult:
 
     Args:
         text: Input text to analyze
+        chunk_size: Number of words per chunk (default: 1000).
+            The text is divided into chunks of this size, and metrics are
+            computed per-chunk.
 
     Returns:
-        ColemanLiauResult with CLI index and grade level
+        ColemanLiauResult with:
+            - cli_index: Mean CLI across chunks
+            - grade_level: Mean grade level across chunks
+            - cli_index_dist: Distribution with per-chunk values and stats
+            - grade_level_dist: Distribution with per-chunk values and stats
+            - chunk_size: The chunk size used
+            - chunk_count: Number of chunks analyzed
 
     Example:
-        >>> result = compute_coleman_liau("The quick brown fox jumps over the lazy dog.")
-        >>> print(f"CLI Index: {result.cli_index:.1f}")
-        CLI Index: 3.8
-        >>> print(f"Grade Level: {result.grade_level}")
-        Grade Level: 4
-        >>> result.metadata["reliable"]
-        False
+        >>> result = compute_coleman_liau("Long text here...", chunk_size=1000)
+        >>> result.cli_index  # Mean across chunks
+        8.5
+        >>> result.cli_index_dist.std  # Variance reveals fingerprint
+        1.2
     """
-    sentences = split_sentences(text)
-    all_tokens = tokenize(text)
+    # Chunk the text
+    chunks = chunk_text(text, chunk_size)
 
-    # Filter to only tokens that contain at least one alphabetic character
-    # This excludes pure punctuation (. ! ?) but keeps words with mixed content
-    # (Hello123, Test@example.com) to count their letters per Coleman-Liau spec.
-    # This is different from Gunning Fog which uses stricter normalization.
-    tokens = [token for token in all_tokens if any(char.isalpha() for char in token)]
+    # Compute metrics per chunk
+    cli_values = []
+    grade_values = []
+    total_sentences = 0
+    total_words = 0
+    total_letters = 0
 
-    # CRITICAL: Count letters from tokenized words, NOT from raw text
-    # ===============================================================
-    # Coleman & Liau (1975) define L as "average number of letters per 100 words"
-    # where both letters and words must be measured consistently from the same text units.
-    #
-    # Original implementation (buggy):
-    #   letter_count = sum(1 for char in text if char.isalpha())
-    #   This counted letters from RAW text but words from TOKENIZED text
-    #
-    # Problem cases (PR #2 review https://github.com/craigtrim/pystylometry/pull/2):
-    #   - "test@example.com" → tokenizer may split into ['test', '@', 'example', '.', 'com']
-    #     Raw letter count: 15 letters, Token count: 5 tokens → wrong ratio
-    #   - "co-operate" → tokenizer may split into ['co', '-', 'operate']
-    #     Raw letter count: 9 letters, Token count: 3 tokens → wrong ratio
-    #   - URLs, special tokens, etc. → similar inconsistencies
-    #
-    # Fixed implementation:
-    #   Count only alphabetic characters that appear in valid word tokens (after normalization).
-    #   This ensures both letter count and word count use identical tokenization logic,
-    #   maintaining the mathematical integrity of the L term in the Coleman-Liau formula.
-    letter_count = sum(1 for token in tokens for char in token if char.isalpha())
+    for chunk in chunks:
+        ci, gl, meta = _compute_coleman_liau_single(chunk)
+        if not math.isnan(ci):
+            cli_values.append(ci)
+            grade_values.append(gl)
+        total_sentences += meta.get("sentence_count", 0)
+        total_words += meta.get("word_count", 0)
+        total_letters += meta.get("letter_count", 0)
 
-    if len(sentences) == 0 or len(tokens) == 0:
+    # Handle empty or all-invalid chunks
+    if not cli_values:
+        empty_dist = Distribution(
+            values=[],
+            mean=float("nan"),
+            median=float("nan"),
+            std=0.0,
+            range=0.0,
+            iqr=0.0,
+        )
         return ColemanLiauResult(
-            cli_index=0.0,
-            grade_level=0,
+            cli_index=float("nan"),
+            grade_level=float("nan"),
+            cli_index_dist=empty_dist,
+            grade_level_dist=empty_dist,
+            chunk_size=chunk_size,
+            chunk_count=len(chunks),
             metadata={
-                "sentence_count": len(sentences),
-                "word_count": len(tokens),
-                "letter_count": letter_count,
+                # Backward-compatible keys
+                "sentence_count": 0,
+                "word_count": 0,
+                "letter_count": 0,
                 "letters_per_100_words": 0.0,
                 "sentences_per_100_words": 0.0,
+                # New prefixed keys for consistency
+                "total_sentence_count": 0,
+                "total_word_count": 0,
+                "total_letter_count": 0,
                 "reliable": False,
             },
         )
 
-    # Calculate per 100 words
-    L = (letter_count / len(tokens)) * 100  # noqa: N806
-    S = (len(sentences) / len(tokens)) * 100  # noqa: N806
+    # Build distributions
+    cli_dist = make_distribution(cli_values)
+    grade_dist = make_distribution(grade_values)
 
-    # Compute Coleman-Liau Index using empirically-derived coefficients
-    cli_index = _LETTER_COEFFICIENT * L + _SENTENCE_COEFFICIENT * S + _INTERCEPT
-
-    # Grade Level Calculation and Bounds
-    # ===================================
-    # Round-half-up rounding (not Python's default banker's rounding):
-    #   4.5 → 5 (always rounds up), not round-half-to-even
-    #   math.floor(x + 0.5) implements this for both positive and negative values
-    #
-    # Lower bound (0): Prevent negative grades for very simple texts
-    #   Coleman & Liau (1975) calibrated to U.S. grades 1-16, but simpler texts
-    #   (e.g., "Go. Run. Stop.") can produce negative CLI values. We clamp to 0
-    #   as there is no "negative grade level" in the educational system.
-    #
-    # Upper bound (REMOVED per PR #2 review):
-    #   Original implementation clamped at grade 20, but this was arbitrary.
-    #   Coleman & Liau (1975) did not specify an upper bound in their paper.
-    #   Clamping discards information: PhD dissertations (grade 25) and complex
-    #   legal documents (grade 30+) would both report as grade 20, making them
-    #   indistinguishable. The empirical formula should determine the full range.
-    #
-    # See PR #2 discussion: https://github.com/craigtrim/pystylometry/pull/2
-    grade_level = max(0, math.floor(cli_index + 0.5))
-
-    # Reliability heuristic: validation study used ~100-word passages
-    # Not a hard minimum, but shorter texts may deviate from expected behavior
-    reliable = len(tokens) >= 100
+    # Reliability heuristic
+    reliable = total_words >= 100
 
     return ColemanLiauResult(
-        cli_index=cli_index,
-        grade_level=grade_level,
+        cli_index=cli_dist.mean,
+        grade_level=grade_dist.mean,
+        cli_index_dist=cli_dist,
+        grade_level_dist=grade_dist,
+        chunk_size=chunk_size,
+        chunk_count=len(chunks),
         metadata={
-            "sentence_count": len(sentences),
-            "word_count": len(tokens),
-            "letter_count": letter_count,
-            "letters_per_100_words": L,
-            "sentences_per_100_words": S,
+            # Backward-compatible keys
+            "sentence_count": total_sentences,
+            "word_count": total_words,
+            "letter_count": total_letters,
+            "letters_per_100_words": (total_letters / total_words * 100) if total_words > 0 else 0,
+            "sentences_per_100_words": (total_sentences / total_words * 100) if total_words > 0 else 0,
+            # New prefixed keys for consistency
+            "total_sentence_count": total_sentences,
+            "total_word_count": total_words,
+            "total_letter_count": total_letters,
             "reliable": reliable,
         },
     )

@@ -24,7 +24,7 @@ References:
     Davies, M. (2008-). The Corpus of Contemporary American English (COCA).
 """
 
-from .._types import WordFrequencySophisticationResult
+from .._types import Distribution, WordFrequencySophisticationResult, make_distribution
 
 
 # Academic Word List (AWL) - Coxhead (2000)
@@ -391,6 +391,7 @@ def compute_word_frequency_sophistication(
     frequency_corpus: str = "coca",
     rare_threshold: int = 10000,
     common_threshold: int = 1000,
+    chunk_size: int = 1000,
 ) -> WordFrequencySophisticationResult:
     """
     Compute word frequency sophistication metrics.
@@ -554,6 +555,14 @@ def compute_word_frequency_sophistication(
     sorted_by_common = sorted(unique_pairs.items(), key=lambda x: x[1])
     most_common_words = [(word, float(rank)) for word, rank in sorted_by_common[:10]]
 
+    # Create single-value distributions (analysis is done on full text)
+    mean_frequency_rank_dist = make_distribution([mean_rank])
+    median_frequency_rank_dist = make_distribution([median_rank])
+    rare_word_ratio_dist = make_distribution([rare_word_ratio])
+    common_word_ratio_dist = make_distribution([common_word_ratio])
+    academic_word_ratio_dist = make_distribution([academic_word_ratio])
+    advanced_word_ratio_dist = make_distribution([advanced_word_ratio])
+
     # Metadata
     metadata = {
         "frequency_corpus": frequency_corpus,
@@ -577,5 +586,13 @@ def compute_word_frequency_sophistication(
         frequency_band_distribution=frequency_band_distribution,
         rarest_words=rarest_words,
         most_common_words=most_common_words,
+        mean_frequency_rank_dist=mean_frequency_rank_dist,
+        median_frequency_rank_dist=median_frequency_rank_dist,
+        rare_word_ratio_dist=rare_word_ratio_dist,
+        common_word_ratio_dist=common_word_ratio_dist,
+        academic_word_ratio_dist=academic_word_ratio_dist,
+        advanced_word_ratio_dist=advanced_word_ratio_dist,
+        chunk_size=chunk_size,
+        chunk_count=1,  # Single pass analysis
         metadata=metadata,
     )

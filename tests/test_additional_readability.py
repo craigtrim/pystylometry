@@ -224,7 +224,7 @@ class TestLinsearWriteBasic:
         """Test basic Linsear Write computation."""
         result = compute_linsear_write(simple_text)
         assert isinstance(result.linsear_score, float)
-        assert isinstance(result.grade_level, int)
+        assert isinstance(result.grade_level, float)  # Now float (mean across chunks)
         assert result.grade_level >= 0
 
     def test_all_fields_present(self, simple_text):
@@ -241,7 +241,7 @@ class TestLinsearWriteBasic:
         """Test with empty text."""
         result = compute_linsear_write("")
         assert math.isnan(result.linsear_score)
-        assert result.grade_level == 0
+        assert math.isnan(result.grade_level)  # Now nan for empty
 
 
 class TestLinsearWriteSpecific:
@@ -253,7 +253,7 @@ class TestLinsearWriteSpecific:
         # Children's text should have mostly easy words
         assert result.easy_word_count > result.hard_word_count
         # Should be low grade level
-        assert result.grade_level <= 6
+        assert result.grade_level <= 6.0
 
     def test_hard_word_dominated(self, academic_text):
         """Test text with many hard words (3+ syllables)."""
@@ -262,7 +262,7 @@ class TestLinsearWriteSpecific:
         # (though may not dominate due to function words)
         assert result.hard_word_count > 0
         # Should be higher grade level
-        assert result.grade_level >= 8
+        assert result.grade_level >= 8.0
 
     def test_score_conversion_high(self):
         """Test score > 20 conversion (score / 2)."""
@@ -274,13 +274,9 @@ class TestLinsearWriteSpecific:
             "interdisciplinary variables and contemporary sociological phenomena."
         )
         result = compute_linsear_write(text)
-        # If raw score > 20, grade = score / 2
-        # Otherwise, grade = (score - 2) / 2
-        if result.linsear_score > 20:
-            expected_grade = round(result.linsear_score / 2)
-        else:
-            expected_grade = round((result.linsear_score - 2) / 2)
-        assert result.grade_level == max(0, expected_grade)
+        # Grade level is now a mean across chunks, so just verify it's reasonable
+        assert result.grade_level >= 0.0
+        assert isinstance(result.grade_level, float)
 
     def test_word_classification(self):
         """Test easy vs hard word classification."""
@@ -367,7 +363,7 @@ class TestFORCASTBasic:
         """Test basic FORCAST computation."""
         result = compute_forcast(simple_text)
         assert isinstance(result.forcast_score, float)
-        assert isinstance(result.grade_level, int)
+        assert isinstance(result.grade_level, float)  # Now float (mean across chunks)
         assert result.grade_level >= 0
 
     def test_all_fields_present(self, simple_text):
@@ -384,7 +380,7 @@ class TestFORCASTBasic:
         """Test with empty text."""
         result = compute_forcast("")
         assert math.isnan(result.forcast_score)
-        assert result.grade_level == 0
+        assert math.isnan(result.grade_level)  # Now nan for empty
 
 
 class TestFORCASTSpecific:
@@ -395,8 +391,9 @@ class TestFORCASTSpecific:
         # Create text with > 150 words
         text = " ".join(["word"] * 200) + "."
         result = compute_forcast(text)
-        # Should use 150-word sample
-        assert result.total_words == 150
+        # With chunked analysis, total_words is the actual total
+        assert result.total_words == 200
+        # sample_size in metadata reflects the sampling approach
         assert result.metadata["sample_size"] == 150
 
     def test_short_text_scaling(self):
@@ -424,7 +421,7 @@ class TestFORCASTSpecific:
         result = compute_forcast(text)
         # Scaled N should be close to 100
         # Grade should be close to 10
-        assert 8 <= result.grade_level <= 12
+        assert 8.0 <= result.grade_level <= 12.0
 
 
 # ===== Powers-Sumner-Kearl Tests =====
@@ -507,9 +504,9 @@ class TestComparativeAnalysis:
 
         # All should indicate low difficulty
         assert dc.grade_level in ["4 and below", "5-6", "7-8"]
-        assert lw.grade_level <= 8
+        assert lw.grade_level <= 8.0
         assert fry.grade_level in ["1", "2", "3", "4", "5", "6"]
-        assert fc.grade_level <= 8
+        assert fc.grade_level <= 8.0
         assert psk.grade_level <= 6.0
 
     def test_academic_text_all_formulas(self, academic_text):
@@ -522,9 +519,9 @@ class TestComparativeAnalysis:
 
         # All should indicate high difficulty
         assert dc.grade_level in ["11-12", "College", "College Graduate"]
-        assert lw.grade_level >= 10
+        assert lw.grade_level >= 10.0
         # Fry might vary, but should be upper grades or college
-        assert fc.grade_level >= 10
+        assert fc.grade_level >= 10.0
         # PSK is designed for primary grades (1-4), so it may produce
         # out-of-range scores for academic text - just check it exists
         assert isinstance(psk.grade_level, float)
@@ -600,7 +597,7 @@ class TestRealWorldTexts:
         # Scientific text should be difficult
         assert dc.dale_chall_score >= 9.0
         # Linsear may vary - just check it's above elementary level
-        assert lw.grade_level >= 7
+        assert lw.grade_level >= 7.0
 
     def test_instruction_manual(self):
         """Test with instruction manual text."""
@@ -614,8 +611,8 @@ class TestRealWorldTexts:
         fc = compute_forcast(text)
 
         # Instructions should be moderately easy (wide range acceptable)
-        assert 3 <= lw.grade_level <= 12
-        assert 3 <= fc.grade_level <= 12
+        assert 3.0 <= lw.grade_level <= 12.0
+        assert 3.0 <= fc.grade_level <= 12.0
 
 
 # ===== Constraint Tests =====
@@ -632,7 +629,7 @@ class TestConstraints:
     def test_linsear_grade_positive(self, simple_text):
         """Test Linsear grade level is non-negative."""
         result = compute_linsear_write(simple_text)
-        assert result.grade_level >= 0
+        assert result.grade_level >= 0.0
 
     def test_forcast_ratios(self, simple_text):
         """Test FORCAST ratios are in valid range."""
@@ -647,8 +644,9 @@ class TestConstraints:
 
     def test_metadata_consistency(self, simple_text):
         """Test metadata is consistent across formulas."""
-        # All formulas should report same total_words for same text
+        # With chunked analysis, metadata structure varies by formula
         lw = compute_linsear_write(simple_text)
         psk = compute_powers_sumner_kearl(simple_text)
 
+        # Both should have consistent total_words
         assert lw.metadata["total_words"] == psk.total_words

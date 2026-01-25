@@ -3,6 +3,12 @@
 This module computes the Gunning Fog Index, a readability metric that
 estimates the years of formal education needed to understand text on first reading.
 
+This implementation includes native chunked analysis for stylometric fingerprinting.
+
+Related GitHub Issues:
+    #4 - NLP-enhanced complex word detection
+    #27 - Native chunked analysis with Distribution dataclass
+
 Historical Background:
 ----------------------
 The Gunning Fog Index was developed by Robert Gunning in 1952 as part of his
@@ -12,221 +18,215 @@ a U.S. grade-level score (e.g., 12 = high school senior reading level).
 Reference:
     Gunning, R. (1952). The Technique of Clear Writing.
     McGraw-Hill, New York.
-
-Implementation Notes (PR #4):
-------------------------------
-This implementation addresses issues raised in GitHub PR #4:
-https://github.com/craigtrim/pystylometry/pull/4
-
-The original TODO implementation used simple syllable counting without proper
-exclusions for proper nouns, compounds, or inflections. This NLP-enhanced
-version uses the complex_words module for accurate detection via:
-
-1. spaCy POS tagging for proper noun detection (enhanced mode)
-2. spaCy lemmatization for morphological analysis (enhanced mode)
-3. Component-based analysis for hyphenated words (both modes)
-4. Graceful fallback to heuristics when spaCy unavailable (basic mode)
-
-See complex_words.py for detailed rationale and implementation.
 """
 
-from .._normalize import normalize_for_readability
-from .._types import GunningFogResult
-from .._utils import split_sentences, tokenize
+import math
 
-# Import NLP-enhanced complex word detection module
-# This module addresses PR #4 issues with proper noun and inflection detection
+from .._normalize import normalize_for_readability
+from .._types import Distribution, GunningFogResult, chunk_text, make_distribution
+from .._utils import split_sentences, tokenize
 from .complex_words import process_text_for_complex_words
 
 # Formula coefficient from Gunning (1952)
-# Reference: Gunning, R. (1952). The Technique of Clear Writing. McGraw-Hill.
-# The 0.4 coefficient scales the combined complexity measure to approximate grade level
 _FOG_COEFFICIENT = 0.4
 
 
-def compute_gunning_fog(text: str, spacy_model: str = "en_core_web_sm") -> GunningFogResult:
+def _compute_gunning_fog_single(text: str, spacy_model: str) -> tuple[float, float, dict]:
+    """Compute Gunning Fog metrics for a single chunk of text.
+
+    Returns:
+        Tuple of (fog_index, grade_level, metadata_dict).
+        Returns (nan, nan, metadata) for empty/invalid input.
+    """
+    sentences = split_sentences(text)
+    all_tokens = tokenize(text)
+    tokens = normalize_for_readability(all_tokens)
+
+    if len(sentences) == 0 or len(tokens) == 0:
+        return (
+            float("nan"),
+            float("nan"),
+            {
+                "sentence_count": 0,
+                "word_count": 0,
+                "complex_word_count": 0,
+                "complex_word_percentage": 0.0,
+            },
+        )
+
+    # Count complex words using NLP-enhanced detection
+    complex_word_count, detection_metadata = process_text_for_complex_words(
+        text, tokens, model=spacy_model
+    )
+
+    # Calculate formula components
+    average_words_per_sentence = len(tokens) / len(sentences)
+    complex_word_percentage = (complex_word_count / len(tokens)) * 100
+
+    # Apply Gunning Fog formula
+    fog_index = _FOG_COEFFICIENT * (average_words_per_sentence + complex_word_percentage)
+    grade_level = max(0, min(20, round(fog_index)))
+
+    metadata = {
+        "sentence_count": len(sentences),
+        "word_count": len(tokens),
+        "complex_word_count": complex_word_count,
+        "complex_word_percentage": complex_word_percentage,
+        "average_words_per_sentence": average_words_per_sentence,
+        **detection_metadata,
+    }
+
+    return (fog_index, float(grade_level), metadata)
+
+
+def compute_gunning_fog(
+    text: str, chunk_size: int = 1000, spacy_model: str = "en_core_web_sm"
+) -> GunningFogResult:
     """
     Compute Gunning Fog Index with NLP-enhanced complex word detection.
 
-    The Gunning Fog Index estimates the years of formal education required
-    to understand text on first reading. It combines sentence length and
-    lexical complexity (polysyllabic words) into a single grade-level score.
+    This function uses native chunked analysis to capture variance and patterns
+    across the text, which is essential for stylometric fingerprinting.
 
     Formula (Gunning, 1952):
     ------------------------
         Fog Index = 0.4 × [(words/sentences) + 100 × (complex words/words)]
 
-    Where:
-        - words/sentences = Average Sentence Length (ASL)
-        - complex words/words = Percentage of Hard Words (PHW)
-        - 0.4 = Scaling coefficient to approximate U.S. grade levels
-
-    The resulting score represents a U.S. education grade level:
-        - 6 = Sixth grade (age 11-12)
-        - 12 = High school senior (age 17-18)
-        - 17+ = College graduate level
-
-    Complex Words Definition (Gunning, 1952):
-    ------------------------------------------
-    Words with 3+ syllables, EXCLUDING:
+    Where complex words are words with 3+ syllables, EXCLUDING:
         1. Proper nouns (names, places, organizations)
         2. Compound words (hyphenated)
         3. Common verb forms (-es, -ed, -ing endings)
 
+    Related GitHub Issues:
+        #4 - NLP-enhanced complex word detection
+        #27 - Native chunked analysis with Distribution dataclass
+
     Reference:
         Gunning, R. (1952). The Technique of Clear Writing. McGraw-Hill.
-        Pages 38-39: Complex word criteria
-
-    NLP Enhancement (PR #4):
-    ------------------------
-    This implementation addresses issues in GitHub PR #4:
-    https://github.com/craigtrim/pystylometry/pull/4
-
-    **Enhanced Mode** (when spaCy available):
-        - Uses POS tagging (PROPN) for proper noun detection
-        - Uses lemmatization for morphological analysis
-        - Analyzes hyphenated word components individually
-        - More accurate, handles edge cases (acronyms, irregular verbs)
-
-    **Basic Mode** (when spaCy unavailable):
-        - Uses capitalization heuristic for proper nouns
-        - Uses simple suffix stripping for inflections
-        - Analyzes hyphenated word components individually
-        - Less accurate but requires no external dependencies
-
-    The mode used is reported in metadata for transparency.
 
     Args:
         text: Input text to analyze
+        chunk_size: Number of words per chunk (default: 1000).
+            The text is divided into chunks of this size, and metrics are
+            computed per-chunk.
         spacy_model: spaCy model name for enhanced mode (default: "en_core_web_sm")
-                    Requires model download: python -m spacy download en_core_web_sm
-                    Other options: "en_core_web_md", "en_core_web_lg"
 
     Returns:
         GunningFogResult with:
-            - fog_index: Float, the calculated Gunning Fog Index
-            - grade_level: Float, rounded U.S. grade level (0-20), or NaN if empty
-            - metadata: Dict with:
-                - sentence_count: Number of sentences
-                - word_count: Number of words (tokens)
-                - complex_word_count: Number of complex words
-                - complex_word_percentage: Percentage of complex words
-                - average_words_per_sentence: Mean sentence length
-                - reliable: Boolean, True if word_count >= 100 and sentence_count >= 3
-                - mode: "enhanced" (spaCy) or "basic" (heuristics)
-                - proper_noun_detection: Detection method used
-                - inflection_handling: Inflection analysis method used
-                - spacy_model: Model name if enhanced mode (else absent)
+            - fog_index: Mean Fog Index across chunks
+            - grade_level: Mean grade level across chunks
+            - fog_index_dist: Distribution with per-chunk values and stats
+            - grade_level_dist: Distribution with per-chunk values and stats
+            - chunk_size: The chunk size used
+            - chunk_count: Number of chunks analyzed
 
     Example:
-        >>> # Simple text (low complexity)
-        >>> result = compute_gunning_fog("The cat sat on the mat. The dog ran.")
-        >>> print(f"Fog Index: {result.fog_index:.1f}")
-        Fog Index: 2.7
-        >>> print(f"Grade Level: {result.grade_level}")
-        Grade Level: 3
-        >>> print(f"Mode: {result.metadata['mode']}")
-        Mode: enhanced
-
-        >>> # Complex academic text (high complexity)
-        >>> text = "Understanding phenomenological hermeneutics necessitates comprehensive study."
-        >>> result = compute_gunning_fog(text)
-        >>> print(f"Fog Index: {result.fog_index:.1f}")
-        Fog Index: 23.6
-        >>> print(f"Grade Level: {result.grade_level}")
-        Grade Level: 20
-
-        >>> # Check which detection mode was used
-        >>> if result.metadata['mode'] == 'enhanced':
-        ...     print("Using spaCy NLP features")
-        Using spaCy NLP features
-
-    Notes:
-        - Empty text returns fog_index=NaN and grade_level=NaN (no data)
-        - Grade levels are clamped to [0, 20] range for valid input
-        - For short texts (< 100 words), results may be unreliable
-        - Gunning (1952) recommends analyzing samples of 100+ words
+        >>> result = compute_gunning_fog("Long text here...", chunk_size=1000)
+        >>> result.fog_index  # Mean across chunks
+        12.5
+        >>> result.fog_index_dist.std  # Variance reveals fingerprint
+        2.1
     """
-    # Step 1: Sentence and word tokenization
-    # Using the project's standard utilities for consistency
-    sentences = split_sentences(text)
-    all_tokens = tokenize(text)
+    # Chunk the text
+    chunks = chunk_text(text, chunk_size)
 
-    # Filter to only valid words (exclude punctuation, numbers, URLs, emails)
-    # Allows hyphenated words and contractions per Gunning (1952)
-    # Prevents errors in syllable counting from non-word tokens
-    tokens = normalize_for_readability(all_tokens)
+    # Compute metrics per chunk
+    fog_values = []
+    grade_values = []
+    total_sentences = 0
+    total_words = 0
+    total_complex = 0
+    detection_metadata: dict = {}
 
-    # Edge case: Empty or whitespace-only input
-    # Return NaN to distinguish "no data" from actual zero scores
-    # This matches SMOG behavior and prevents conflating empty input with simple text
-    if len(sentences) == 0 or len(tokens) == 0:
+    for chunk in chunks:
+        fi, gl, meta = _compute_gunning_fog_single(chunk, spacy_model)
+        if not math.isnan(fi):
+            fog_values.append(fi)
+            grade_values.append(gl)
+        total_sentences += meta.get("sentence_count", 0)
+        total_words += meta.get("word_count", 0)
+        total_complex += meta.get("complex_word_count", 0)
+        # Capture detection metadata from first chunk (same for all chunks)
+        if not detection_metadata and "mode" in meta:
+            detection_metadata = {
+                "mode": meta.get("mode"),
+                "proper_noun_detection": meta.get("proper_noun_detection"),
+                "inflection_handling": meta.get("inflection_handling"),
+            }
+            if "spacy_model" in meta:
+                detection_metadata["spacy_model"] = meta.get("spacy_model")
+
+    # Handle empty or all-invalid chunks
+    if not fog_values:
+        empty_dist = Distribution(
+            values=[],
+            mean=float("nan"),
+            median=float("nan"),
+            std=0.0,
+            range=0.0,
+            iqr=0.0,
+        )
         return GunningFogResult(
             fog_index=float("nan"),
             grade_level=float("nan"),
+            fog_index_dist=empty_dist,
+            grade_level_dist=empty_dist,
+            chunk_size=chunk_size,
+            chunk_count=len(chunks),
             metadata={
+                # Backward-compatible keys
                 "sentence_count": 0,
                 "word_count": 0,
                 "complex_word_count": 0,
                 "complex_word_percentage": 0.0,
                 "average_words_per_sentence": 0.0,
+                # New prefixed keys for consistency
+                "total_sentence_count": 0,
+                "total_word_count": 0,
+                "total_complex_word_count": 0,
                 "reliable": False,
+                # Detection metadata
                 "mode": "none",
-                "proper_noun_detection": "N/A",
-                "inflection_handling": "N/A",
+                "proper_noun_detection": "none",
+                "inflection_handling": "none",
             },
         )
 
-    # Step 2: Count complex words using NLP-enhanced detection
-    # This addresses PR #4 issues with proper noun and inflection detection
-    # See complex_words.py for detailed implementation
-    complex_word_count, detection_metadata = process_text_for_complex_words(
-        text, tokens, model=spacy_model
-    )
+    # Build distributions
+    fog_dist = make_distribution(fog_values)
+    grade_dist = make_distribution(grade_values)
 
-    # Step 3: Calculate formula components
-    # Reference: Gunning (1952), p. 40: "The Fog Index formula"
+    # Reliability heuristic
+    reliable = total_words >= 100 and total_sentences >= 3
 
-    # Average Sentence Length (ASL)
-    # Number of words divided by number of sentences
-    average_words_per_sentence = len(tokens) / len(sentences)
+    # Ensure detection metadata has defaults
+    if not detection_metadata:
+        detection_metadata = {
+            "mode": "none",
+            "proper_noun_detection": "none",
+            "inflection_handling": "none",
+        }
 
-    # Percentage of Hard Words (PHW)
-    # Number of complex words divided by total words, multiplied by 100
-    complex_word_percentage = (complex_word_count / len(tokens)) * 100
-
-    # Step 4: Apply Gunning Fog formula
-    # Fog = 0.4 × (ASL + PHW)
-    # The 0.4 coefficient scales the result to approximate U.S. grade levels
-    fog_index = _FOG_COEFFICIENT * (average_words_per_sentence + complex_word_percentage)
-
-    # Step 5: Convert to grade level
-    # Round to nearest integer using standard rounding (round half to even)
-    # Clamp to reasonable range [0, 20] to prevent extreme values
-    # Note: Texts with fog_index > 20 are considered "post-graduate" level
-    grade_level = max(0, min(20, round(fog_index)))
-
-    # Reliability heuristic: Gunning (1952) recommends 100+ word samples
-    # Also require 3+ sentences to ensure meaningful average sentence length
-    # Very long texts with few sentences can produce unstable FOG estimates
-    reliable = len(tokens) >= 100 and len(sentences) >= 3
-
-    # Step 6: Assemble result with comprehensive metadata
     return GunningFogResult(
-        fog_index=fog_index,
-        grade_level=grade_level,
+        fog_index=fog_dist.mean,
+        grade_level=grade_dist.mean,
+        fog_index_dist=fog_dist,
+        grade_level_dist=grade_dist,
+        chunk_size=chunk_size,
+        chunk_count=len(chunks),
         metadata={
-            # Core counts
-            "sentence_count": len(sentences),
-            "word_count": len(tokens),
-            "complex_word_count": complex_word_count,
-            # Derived metrics
-            "complex_word_percentage": complex_word_percentage,
-            "average_words_per_sentence": average_words_per_sentence,
-            # Reliability indicator
+            # Backward-compatible keys
+            "sentence_count": total_sentences,
+            "word_count": total_words,
+            "complex_word_count": total_complex,
+            "complex_word_percentage": (total_complex / total_words * 100) if total_words > 0 else 0,
+            "average_words_per_sentence": total_words / total_sentences if total_sentences > 0 else 0,
+            # New prefixed keys for consistency
+            "total_sentence_count": total_sentences,
+            "total_word_count": total_words,
+            "total_complex_word_count": total_complex,
             "reliable": reliable,
-            # Detection method transparency (from complex_words module)
-            # This allows users to verify which mode was used
+            # Detection metadata
             **detection_metadata,
         },
     )

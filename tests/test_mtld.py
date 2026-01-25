@@ -54,12 +54,15 @@ class TestMTLDEdgeCases:
 
     def test_empty_text(self):
         """Test MTLD with empty text."""
+        import math
+
         result = compute_mtld("")
 
-        assert result.mtld_forward == 0.0
-        assert result.mtld_backward == 0.0
-        assert result.mtld_average == 0.0
-        assert result.metadata["token_count"] == 0
+        # Empty text returns NaN for metrics (per Distribution pattern)
+        assert math.isnan(result.mtld_forward)
+        assert math.isnan(result.mtld_backward)
+        assert math.isnan(result.mtld_average)
+        assert result.metadata["total_token_count"] == 0
 
     def test_very_short_text(self):
         """Test MTLD with very short text (fewer tokens than typical factor)."""
@@ -70,7 +73,7 @@ class TestMTLDEdgeCases:
         assert result.mtld_forward >= 0.0
         assert result.mtld_backward >= 0.0
         # For very short text with high diversity, MTLD equals text length
-        assert result.metadata["token_count"] == 3
+        assert result.metadata["total_token_count"] == 3
 
     def test_single_word(self):
         """Test MTLD with single word."""
@@ -85,11 +88,14 @@ class TestMTLDEdgeCases:
 
     def test_whitespace_only(self):
         """Test MTLD with only whitespace."""
+        import math
+
         result = compute_mtld("   \n\t  ")
 
-        assert result.mtld_forward == 0.0
-        assert result.mtld_backward == 0.0
-        assert result.mtld_average == 0.0
+        # Whitespace-only returns NaN for metrics (per Distribution pattern)
+        assert math.isnan(result.mtld_forward)
+        assert math.isnan(result.mtld_backward)
+        assert math.isnan(result.mtld_average)
 
 
 class TestMTLDRepetitionVsDiversity:
@@ -225,14 +231,14 @@ class TestMTLDMetadata:
     """Test metadata returned with MTLD results."""
 
     def test_metadata_contains_counts(self):
-        """Test that metadata contains token_count and threshold."""
+        """Test that metadata contains total_token_count and threshold."""
         text = "The quick brown fox"
         result = compute_mtld(text)
 
-        assert "token_count" in result.metadata
+        assert "total_token_count" in result.metadata
         assert "threshold" in result.metadata
 
-        assert result.metadata["token_count"] == 4
+        assert result.metadata["total_token_count"] == 4
         assert result.metadata["threshold"] == 0.72  # default
 
     def test_metadata_threshold_matches_parameter(self):

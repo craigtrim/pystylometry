@@ -24,6 +24,7 @@ CRITICAL IMPLEMENTATION CHANGES (PR #2 Review):
          documents) indistinguishable. The empirical formula should determine range.
 """
 
+import math
 from pathlib import Path
 
 import pytest
@@ -40,7 +41,7 @@ class TestColemanLiauBasic:
         result = compute_coleman_liau(text)
 
         assert isinstance(result.cli_index, float)
-        assert isinstance(result.grade_level, int)
+        assert isinstance(result.grade_level, (int, float))  # Float for chunked mean
         assert result.grade_level >= 0
         # NOTE: No upper bound check (removed per PR #2 review)
         # Previously checked <= 20, but upper bound was arbitrary
@@ -92,8 +93,8 @@ class TestColemanLiauEdgeCases:
         """Test empty string input."""
         result = compute_coleman_liau("")
 
-        assert result.cli_index == 0.0
-        assert result.grade_level == 0
+        assert math.isnan(result.cli_index)
+        assert math.isnan(result.grade_level)
         assert result.metadata["sentence_count"] == 0
         assert result.metadata["word_count"] == 0
         assert result.metadata["letter_count"] == 0
@@ -105,8 +106,8 @@ class TestColemanLiauEdgeCases:
         """Test string with only whitespace."""
         result = compute_coleman_liau("   \n\t  ")
 
-        assert result.cli_index == 0.0
-        assert result.grade_level == 0
+        assert math.isnan(result.cli_index)
+        assert math.isnan(result.grade_level)
         assert not result.metadata["reliable"]
 
     def test_no_letters(self):
@@ -138,8 +139,8 @@ class TestColemanLiauEdgeCases:
 class TestColemanLiauRounding:
     """Test rounding behavior and boundary values."""
 
-    def test_grade_level_is_integer(self):
-        """Verify grade level is always an integer."""
+    def test_grade_level_is_numeric(self):
+        """Verify grade level is always a number (float for mean across chunks)."""
         texts = [
             "The cat sat on the mat.",
             "A very long and complex sentence with many subordinate clauses.",
@@ -148,7 +149,7 @@ class TestColemanLiauRounding:
 
         for text in texts:
             result = compute_coleman_liau(text)
-            assert isinstance(result.grade_level, int)
+            assert isinstance(result.grade_level, (int, float))
 
     def test_lower_bound_clamping(self):
         """Test that negative CLI values are clamped to grade 0."""
@@ -191,7 +192,7 @@ class TestColemanLiauRounding:
         # Should be very high (no upper bound)
         # The empirical formula determines the actual grade level
         assert result.grade_level > 20  # Verify it exceeds the old arbitrary cap
-        assert isinstance(result.grade_level, int)  # Still an integer
+        assert isinstance(result.grade_level, (int, float))  # Numeric (float for chunked mean)
 
 
 class TestColemanLiauMetadata:
@@ -217,7 +218,8 @@ class TestColemanLiauMetadata:
 
         for text in test_cases:
             result = compute_coleman_liau(text)
-            assert set(result.metadata.keys()) == expected_keys
+            # Use subset check - implementation may include additional prefixed keys
+            assert expected_keys.issubset(set(result.metadata.keys()))
 
     def test_metadata_values_sensible(self):
         """Test that metadata values are within sensible ranges."""

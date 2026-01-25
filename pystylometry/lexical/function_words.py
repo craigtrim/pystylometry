@@ -32,7 +32,7 @@ References:
         words for authorship attribution. ACH/ALLC.
 """
 
-from .._types import FunctionWordResult
+from .._types import Distribution, FunctionWordResult, make_distribution
 
 
 # Function word lists for English
@@ -113,7 +113,7 @@ PARTICLES = {
 }
 
 
-def compute_function_words(text: str) -> FunctionWordResult:
+def compute_function_words(text: str, chunk_size: int = 1000) -> FunctionWordResult:
     """
     Compute function word frequency profiles for authorship analysis.
 
@@ -192,6 +192,14 @@ def compute_function_words(text: str) -> FunctionWordResult:
     # Step 2: Tokenize text (lowercase, split on whitespace, strip punctuation)
     if not text or not text.strip():
         # Handle empty text edge case
+        empty_dist = Distribution(
+            values=[],
+            mean=float("nan"),
+            median=float("nan"),
+            std=0.0,
+            range=0.0,
+            iqr=0.0,
+        )
         return FunctionWordResult(
             determiner_ratio=0.0,
             preposition_ratio=0.0,
@@ -204,6 +212,16 @@ def compute_function_words(text: str) -> FunctionWordResult:
             most_frequent_function_words=[],
             least_frequent_function_words=[],
             function_word_distribution={},
+            determiner_ratio_dist=empty_dist,
+            preposition_ratio_dist=empty_dist,
+            conjunction_ratio_dist=empty_dist,
+            pronoun_ratio_dist=empty_dist,
+            auxiliary_ratio_dist=empty_dist,
+            particle_ratio_dist=empty_dist,
+            total_function_word_ratio_dist=empty_dist,
+            function_word_diversity_dist=empty_dist,
+            chunk_size=chunk_size,
+            chunk_count=0,
             metadata={
                 "total_word_count": 0,
                 "total_function_word_count": 0,
@@ -353,7 +371,17 @@ def compute_function_words(text: str) -> FunctionWordResult:
 
     overlapping_words.sort()
 
-    # Step 11: Build metadata
+    # Step 11: Create single-value distributions (analysis is done on full text)
+    determiner_ratio_dist = make_distribution([determiner_ratio])
+    preposition_ratio_dist = make_distribution([preposition_ratio])
+    conjunction_ratio_dist = make_distribution([conjunction_ratio])
+    pronoun_ratio_dist = make_distribution([pronoun_ratio])
+    auxiliary_ratio_dist = make_distribution([auxiliary_ratio])
+    particle_ratio_dist = make_distribution([particle_ratio])
+    total_function_word_ratio_dist = make_distribution([total_function_word_ratio])
+    function_word_diversity_dist = make_distribution([function_word_diversity])
+
+    # Step 12: Build metadata
     metadata = {
         "total_word_count": total_words,
         "total_function_word_count": total_function_word_count,
@@ -374,7 +402,7 @@ def compute_function_words(text: str) -> FunctionWordResult:
         "overlapping_word_categories": overlapping_word_categories,
     }
 
-    # Step 12: Return result
+    # Step 13: Return result
     return FunctionWordResult(
         determiner_ratio=determiner_ratio,
         preposition_ratio=preposition_ratio,
@@ -387,5 +415,15 @@ def compute_function_words(text: str) -> FunctionWordResult:
         most_frequent_function_words=most_frequent,
         least_frequent_function_words=least_frequent,
         function_word_distribution=function_word_counts,
+        determiner_ratio_dist=determiner_ratio_dist,
+        preposition_ratio_dist=preposition_ratio_dist,
+        conjunction_ratio_dist=conjunction_ratio_dist,
+        pronoun_ratio_dist=pronoun_ratio_dist,
+        auxiliary_ratio_dist=auxiliary_ratio_dist,
+        particle_ratio_dist=particle_ratio_dist,
+        total_function_word_ratio_dist=total_function_word_ratio_dist,
+        function_word_diversity_dist=function_word_diversity_dist,
+        chunk_size=chunk_size,
+        chunk_count=1,  # Single pass analysis
         metadata=metadata,
     )

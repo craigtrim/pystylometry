@@ -27,13 +27,14 @@ References:
     Quirk, R., et al. (1985). A Comprehensive Grammar of the English Language. Longman.
 """
 
-from .._types import SentenceTypeResult
+from .._types import Distribution, SentenceTypeResult, make_distribution
 from .._utils import check_optional_dependency
 
 
 def compute_sentence_types(
     text: str,
     model: str = "en_core_web_sm",
+    chunk_size: int = 1000,
 ) -> SentenceTypeResult:
     """
     Classify sentences by structure and function.
@@ -203,6 +204,14 @@ def compute_sentence_types(
 
     # Handle empty text
     if len(sentences) == 0:
+        empty_dist = Distribution(
+            values=[],
+            mean=float("nan"),
+            median=float("nan"),
+            std=0.0,
+            range=0.0,
+            iqr=0.0,
+        )
         return SentenceTypeResult(
             simple_ratio=float("nan"),
             compound_ratio=float("nan"),
@@ -223,6 +232,18 @@ def compute_sentence_types(
             total_sentences=0,
             structural_diversity=float("nan"),
             functional_diversity=float("nan"),
+            simple_ratio_dist=empty_dist,
+            compound_ratio_dist=empty_dist,
+            complex_ratio_dist=empty_dist,
+            compound_complex_ratio_dist=empty_dist,
+            declarative_ratio_dist=empty_dist,
+            interrogative_ratio_dist=empty_dist,
+            imperative_ratio_dist=empty_dist,
+            exclamatory_ratio_dist=empty_dist,
+            structural_diversity_dist=empty_dist,
+            functional_diversity_dist=empty_dist,
+            chunk_size=chunk_size,
+            chunk_count=0,
             metadata={
                 "warning": "Empty text or no sentences found",
             },
@@ -276,6 +297,18 @@ def compute_sentence_types(
     structural_diversity = _calculate_shannon_entropy(structural_ratios)
     functional_diversity = _calculate_shannon_entropy(functional_ratios)
 
+    # Create single-value distributions (sentence analysis is done on full text)
+    simple_ratio_dist = make_distribution([simple_ratio])
+    compound_ratio_dist = make_distribution([compound_ratio])
+    complex_ratio_dist = make_distribution([complex_ratio])
+    compound_complex_ratio_dist = make_distribution([compound_complex_ratio])
+    declarative_ratio_dist = make_distribution([declarative_ratio])
+    interrogative_ratio_dist = make_distribution([interrogative_ratio])
+    imperative_ratio_dist = make_distribution([imperative_ratio])
+    exclamatory_ratio_dist = make_distribution([exclamatory_ratio])
+    structural_diversity_dist = make_distribution([structural_diversity])
+    functional_diversity_dist = make_distribution([functional_diversity])
+
     # Collect metadata
     metadata = {
         "sentence_count": total_sentences,
@@ -306,6 +339,18 @@ def compute_sentence_types(
         total_sentences=total_sentences,
         structural_diversity=structural_diversity,
         functional_diversity=functional_diversity,
+        simple_ratio_dist=simple_ratio_dist,
+        compound_ratio_dist=compound_ratio_dist,
+        complex_ratio_dist=complex_ratio_dist,
+        compound_complex_ratio_dist=compound_complex_ratio_dist,
+        declarative_ratio_dist=declarative_ratio_dist,
+        interrogative_ratio_dist=interrogative_ratio_dist,
+        imperative_ratio_dist=imperative_ratio_dist,
+        exclamatory_ratio_dist=exclamatory_ratio_dist,
+        structural_diversity_dist=structural_diversity_dist,
+        functional_diversity_dist=functional_diversity_dist,
+        chunk_size=chunk_size,
+        chunk_count=1,  # Single pass analysis
         metadata=metadata,
     )
 

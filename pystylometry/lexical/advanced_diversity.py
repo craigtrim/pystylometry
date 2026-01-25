@@ -32,7 +32,7 @@ References:
 import random
 from typing import Optional
 
-from .._types import HDDResult, MATTRResult, MSTTRResult, VocdDResult
+from .._types import Distribution, HDDResult, MATTRResult, MSTTRResult, VocdDResult, make_distribution
 
 
 def _tokenize_for_diversity(text: str) -> list[str]:
@@ -80,6 +80,7 @@ def compute_vocd_d(
     num_samples: int = 100,
     min_tokens: int = 100,
     random_seed: Optional[int] = None,
+    chunk_size: int = 1000,
 ) -> VocdDResult:
     """
     Compute voc-D (vocabulary D) using curve-fitting approach.
@@ -237,17 +238,25 @@ def compute_vocd_d(
         "random_seed": random_seed,
     }
 
-    # Step 8: Return result
+    # Step 8: Create distributions (single-pass analysis)
+    d_parameter_dist = make_distribution([D])
+    curve_fit_r_squared_dist = make_distribution([r_squared])
+
+    # Step 9: Return result
     return VocdDResult(
         d_parameter=D,
         curve_fit_r_squared=r_squared,
         sample_count=len(sample_sizes),
         optimal_sample_size=sample_size,  # Input parameter
+        d_parameter_dist=d_parameter_dist,
+        curve_fit_r_squared_dist=curve_fit_r_squared_dist,
+        chunk_size=chunk_size,
+        chunk_count=1,  # Single pass analysis
         metadata=metadata,
     )
 
 
-def compute_mattr(text: str, window_size: int = 50) -> MATTRResult:
+def compute_mattr(text: str, window_size: int = 50, chunk_size: int = 1000) -> MATTRResult:
     """
     Compute Moving-Average Type-Token Ratio (MATTR).
 
@@ -360,7 +369,13 @@ def compute_mattr(text: str, window_size: int = 50) -> MATTRResult:
         "last_window_ttr": window_ttrs[-1],
     }
 
-    # Step 7: Return result
+    # Step 7: Create distributions (single-pass analysis)
+    mattr_score_dist = make_distribution([mattr_score])
+    ttr_std_dev_dist = make_distribution([ttr_std_dev])
+    min_ttr_dist = make_distribution([min_ttr])
+    max_ttr_dist = make_distribution([max_ttr])
+
+    # Step 8: Return result
     return MATTRResult(
         mattr_score=mattr_score,
         window_size=window_size,
@@ -368,11 +383,17 @@ def compute_mattr(text: str, window_size: int = 50) -> MATTRResult:
         ttr_std_dev=ttr_std_dev,
         min_ttr=min_ttr,
         max_ttr=max_ttr,
+        mattr_score_dist=mattr_score_dist,
+        ttr_std_dev_dist=ttr_std_dev_dist,
+        min_ttr_dist=min_ttr_dist,
+        max_ttr_dist=max_ttr_dist,
+        chunk_size=chunk_size,
+        chunk_count=1,  # Single pass analysis
         metadata=metadata,
     )
 
 
-def compute_hdd(text: str, sample_size: int = 42) -> HDDResult:
+def compute_hdd(text: str, sample_size: int = 42, chunk_size: int = 1000) -> HDDResult:
     """
     Compute HD-D (Hypergeometric Distribution D).
 
@@ -485,17 +506,23 @@ def compute_hdd(text: str, sample_size: int = 42) -> HDDResult:
         "calculation_method": "simplified",
     }
 
-    # Step 6: Return result
+    # Step 6: Create distribution (single-pass analysis)
+    hdd_score_dist = make_distribution([hdd_sum])
+
+    # Step 7: Return result
     return HDDResult(
         hdd_score=hdd_sum,
         sample_size=sample_size,
         type_count=total_types,
         token_count=total_tokens,
+        hdd_score_dist=hdd_score_dist,
+        chunk_size=chunk_size,
+        chunk_count=1,  # Single pass analysis
         metadata=metadata,
     )
 
 
-def compute_msttr(text: str, segment_size: int = 100) -> MSTTRResult:
+def compute_msttr(text: str, segment_size: int = 100, chunk_size: int = 1000) -> MSTTRResult:
     """
     Compute Mean Segmental Type-Token Ratio (MSTTR).
 
@@ -628,7 +655,13 @@ def compute_msttr(text: str, segment_size: int = 100) -> MSTTRResult:
         "last_segment_ttr": segment_ttrs[-1],
     }
 
-    # Step 9: Return result
+    # Step 9: Create distributions (single-pass analysis)
+    msttr_score_dist = make_distribution([msttr_score])
+    ttr_std_dev_dist = make_distribution([ttr_std_dev])
+    min_ttr_dist = make_distribution([min_ttr])
+    max_ttr_dist = make_distribution([max_ttr])
+
+    # Step 10: Return result
     return MSTTRResult(
         msttr_score=msttr_score,
         segment_size=segment_size,
@@ -637,5 +670,11 @@ def compute_msttr(text: str, segment_size: int = 100) -> MSTTRResult:
         min_ttr=min_ttr,
         max_ttr=max_ttr,
         segment_ttrs=segment_ttrs,
+        msttr_score_dist=msttr_score_dist,
+        ttr_std_dev_dist=ttr_std_dev_dist,
+        min_ttr_dist=min_ttr_dist,
+        max_ttr_dist=max_ttr_dist,
+        chunk_size=chunk_size,
+        chunk_count=1,  # Single pass analysis
         metadata=metadata,
     )

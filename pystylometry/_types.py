@@ -1,42 +1,282 @@
-"""Result dataclasses for all pystylometry metrics."""
+"""Result dataclasses for all pystylometry metrics.
+
+This module defines dataclasses for all metric results in pystylometry.
+
+Native Chunked Analysis (Issue #27):
+    All metrics support chunked analysis by default. Results include:
+    - Convenient access to the mean value (e.g., result.reading_ease)
+    - Full distribution with per-chunk values and statistics (e.g., result.reading_ease_dist)
+
+    The Distribution dataclass provides:
+    - values: list of per-chunk metric values
+    - mean, median, std: central tendency and variability
+    - range, iqr: spread measures
+
+    This design captures the variance and rhythm in writing style, which is
+    essential for authorship attribution and linguistic fingerprinting.
+
+References:
+    STTR methodology: Johnson, W. (1944). Studies in language behavior.
+"""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import statistics
+from dataclasses import dataclass, field
 from typing import Any
+
+
+# ===== Distribution and Chunking =====
+# Related to GitHub Issue #27: Native chunked analysis with Distribution dataclass
+# https://github.com/craigtrim/pystylometry/issues/27
+
+
+@dataclass
+class Distribution:
+    """Distribution of metric values across chunks.
+
+    This dataclass captures the variance and rhythm in writing style by storing
+    per-chunk values along with descriptive statistics. The variance across chunks
+    is often more revealing of authorial fingerprint than aggregate values.
+
+    Related GitHub Issue:
+        #27 - Native chunked analysis with Distribution dataclass
+        https://github.com/craigtrim/pystylometry/issues/27
+
+    Attributes:
+        values: Raw per-chunk metric values
+        mean: Arithmetic mean of values
+        median: Middle value when sorted
+        std: Standard deviation (0.0 for single-chunk)
+        range: max - min (spread measure)
+        iqr: Interquartile range (Q3 - Q1), robust spread measure
+
+    Note:
+        min/max are omitted as trivial operations on values:
+        - min(dist.values), max(dist.values)
+
+    Example:
+        >>> dist = Distribution(
+        ...     values=[65.2, 71.1, 68.8, 70.5],
+        ...     mean=68.9, median=69.65, std=2.57,
+        ...     range=5.9, iqr=3.15
+        ... )
+        >>> dist.std  # variance reveals authorial fingerprint
+        2.57
+    """
+
+    values: list[float]
+    mean: float
+    median: float
+    std: float
+    range: float
+    iqr: float
+
+
+def chunk_text(text: str, chunk_size: int) -> list[str]:
+    """Split text into word-based chunks of approximately equal size.
+
+    Chunks are created by splitting on whitespace and grouping words.
+    The last chunk may be smaller than chunk_size if the text doesn't
+    divide evenly.
+
+    Related GitHub Issue:
+        #27 - Native chunked analysis with Distribution dataclass
+        https://github.com/craigtrim/pystylometry/issues/27
+
+    Args:
+        text: The text to chunk
+        chunk_size: Target number of words per chunk (default: 1000)
+
+    Returns:
+        List of text chunks. For text smaller than chunk_size,
+        returns a single-element list with the entire text.
+
+    Example:
+        >>> chunks = chunk_text("word " * 2500, chunk_size=1000)
+        >>> len(chunks)
+        3
+        >>> # First two chunks have ~1000 words, last has ~500
+    """
+    words = text.split()
+    if not words:
+        return [""]
+
+    chunks = []
+    for i in range(0, len(words), chunk_size):
+        chunk_words = words[i : i + chunk_size]
+        chunks.append(" ".join(chunk_words))
+
+    return chunks
+
+
+def make_distribution(values: list[float]) -> Distribution:
+    """Create a Distribution from a list of values.
+
+    Computes all descriptive statistics for the distribution.
+    Handles single-value lists by setting std, range, and iqr to 0.0.
+
+    Related GitHub Issue:
+        #27 - Native chunked analysis with Distribution dataclass
+        https://github.com/craigtrim/pystylometry/issues/27
+
+    Args:
+        values: List of numeric values (must be non-empty)
+
+    Returns:
+        Distribution with computed statistics
+
+    Raises:
+        ValueError: If values is empty
+
+    Example:
+        >>> dist = make_distribution([65.2, 71.1, 68.8, 70.5])
+        >>> dist.mean
+        68.9
+        >>> dist.std  # reveals variance in the signal
+        2.57...
+    """
+    if not values:
+        raise ValueError("Cannot create distribution from empty values")
+
+    if len(values) == 1:
+        return Distribution(
+            values=values,
+            mean=values[0],
+            median=values[0],
+            std=0.0,
+            range=0.0,
+            iqr=0.0,
+        )
+
+    # For 2-3 values, quantiles() needs special handling
+    if len(values) < 4:
+        q1 = values[0]
+        q3 = values[-1]
+    else:
+        q = statistics.quantiles(values, n=4)
+        q1, q3 = q[0], q[2]
+
+    return Distribution(
+        values=values,
+        mean=statistics.mean(values),
+        median=statistics.median(values),
+        std=statistics.stdev(values),
+        range=max(values) - min(values),
+        iqr=q3 - q1,
+    )
+
 
 # ===== Lexical Results =====
 
 
 @dataclass
 class MTLDResult:
-    """Result from MTLD (Measure of Textual Lexical Diversity) computation."""
+    """Result from MTLD (Measure of Textual Lexical Diversity) computation.
 
+    All numeric metrics include both a mean value (convenient access) and
+    a full distribution with per-chunk values and statistics.
+
+    Related GitHub Issue:
+        #27 - Native chunked analysis with Distribution dataclass
+        https://github.com/craigtrim/pystylometry/issues/27
+
+    Example:
+        >>> result = compute_mtld(text, chunk_size=1000)
+        >>> result.mtld_average  # mean MTLD across chunks
+        72.5
+        >>> result.mtld_average_dist.std  # MTLD variance
+        8.3
+    """
+
+    # Convenient access (mean values)
     mtld_forward: float
     mtld_backward: float
     mtld_average: float
+
+    # Full distributions
+    mtld_forward_dist: Distribution
+    mtld_backward_dist: Distribution
+    mtld_average_dist: Distribution
+
+    # Chunking context
+    chunk_size: int
+    chunk_count: int
+
     metadata: dict[str, Any]
 
 
 @dataclass
 class YuleResult:
-    """Result from Yule's K and I computation."""
+    """Result from Yule's K and I computation.
 
+    All numeric metrics include both a mean value (convenient access) and
+    a full distribution with per-chunk values and statistics.
+
+    Related GitHub Issue:
+        #27 - Native chunked analysis with Distribution dataclass
+        https://github.com/craigtrim/pystylometry/issues/27
+
+    Example:
+        >>> result = compute_yule(text, chunk_size=1000)
+        >>> result.yule_k  # mean across chunks
+        120.5
+        >>> result.yule_k_dist.std  # variance reveals fingerprint
+        15.2
+    """
+
+    # Convenient access (mean values)
     yule_k: float
     yule_i: float
+
+    # Full distributions
+    yule_k_dist: Distribution
+    yule_i_dist: Distribution
+
+    # Chunking context
+    chunk_size: int
+    chunk_count: int
+
     metadata: dict[str, Any]
 
 
 @dataclass
 class HapaxResult:
-    """Result from Hapax Legomena analysis."""
+    """Result from Hapax Legomena analysis.
 
-    hapax_count: int
-    hapax_ratio: float
-    dis_hapax_count: int
-    dis_hapax_ratio: float
-    sichel_s: float
-    honore_r: float
+    All numeric metrics include both a mean value (convenient access) and
+    a full distribution with per-chunk values and statistics.
+
+    Related GitHub Issue:
+        #27 - Native chunked analysis with Distribution dataclass
+        https://github.com/craigtrim/pystylometry/issues/27
+
+    Example:
+        >>> result = compute_hapax(text, chunk_size=1000)
+        >>> result.hapax_ratio  # mean across chunks
+        0.45
+        >>> result.hapax_ratio_dist.std  # variance
+        0.08
+    """
+
+    # Convenient access (mean/total values)
+    hapax_count: int  # Total across all chunks
+    hapax_ratio: float  # Mean ratio
+    dis_hapax_count: int  # Total across all chunks
+    dis_hapax_ratio: float  # Mean ratio
+    sichel_s: float  # Mean
+    honore_r: float  # Mean
+
+    # Full distributions (ratios only - counts don't distribute meaningfully)
+    hapax_ratio_dist: Distribution
+    dis_hapax_ratio_dist: Distribution
+    sichel_s_dist: Distribution
+    honore_r_dist: Distribution
+
+    # Chunking context
+    chunk_size: int
+    chunk_count: int
+
     metadata: dict[str, Any]
 
 
@@ -80,6 +320,9 @@ class TTRResult:
     Wraps stylometry-ttr package functionality to measure vocabulary richness
     through the ratio of unique words (types) to total words (tokens).
 
+    All numeric metrics include both a mean value (convenient access) and
+    a full distribution with per-chunk values and statistics.
+
     Includes multiple TTR variants for length normalization:
     - Raw TTR: Direct ratio of unique to total words
     - Root TTR (Guiraud's index): types / sqrt(tokens)
@@ -87,18 +330,44 @@ class TTRResult:
     - STTR: Standardized TTR across fixed-size chunks
     - Delta Std: Measures vocabulary consistency across chunks
 
+    Related GitHub Issue:
+        #27 - Native chunked analysis with Distribution dataclass
+        https://github.com/craigtrim/pystylometry/issues/27
+
     References:
         Guiraud, P. (1960). Problèmes et méthodes de la statistique linguistique.
         Herdan, G. (1960). Type-token Mathematics.
+
+    Example:
+        >>> result = compute_ttr(text, chunk_size=1000)
+        >>> result.ttr  # mean TTR across chunks
+        0.42
+        >>> result.ttr_dist.std  # TTR variance reveals fingerprint
+        0.05
+        >>> result.chunk_count
+        59
     """
 
+    # Convenient access (mean values)
     total_words: int
     unique_words: int
-    ttr: float  # Raw TTR
-    root_ttr: float  # Guiraud's index
-    log_ttr: float  # Herdan's C
-    sttr: float  # Standardized TTR
-    delta_std: float  # Vocabulary consistency
+    ttr: float  # Raw TTR (mean)
+    root_ttr: float  # Guiraud's index (mean)
+    log_ttr: float  # Herdan's C (mean)
+    sttr: float  # Standardized TTR (mean)
+    delta_std: float  # Vocabulary consistency (mean)
+
+    # Full distributions with per-chunk values
+    ttr_dist: Distribution
+    root_ttr_dist: Distribution
+    log_ttr_dist: Distribution
+    sttr_dist: Distribution
+    delta_std_dist: Distribution
+
+    # Chunking context
+    chunk_size: int
+    chunk_count: int
+
     metadata: dict[str, Any]
 
 
@@ -107,48 +376,135 @@ class TTRResult:
 
 @dataclass
 class FleschResult:
-    """Result from Flesch Reading Ease and Flesch-Kincaid Grade computation."""
+    """Result from Flesch Reading Ease and Flesch-Kincaid Grade computation.
 
+    All numeric metrics include both a mean value (convenient access) and
+    a full distribution with per-chunk values and statistics.
+
+    Related GitHub Issue:
+        #27 - Native chunked analysis with Distribution dataclass
+        https://github.com/craigtrim/pystylometry/issues/27
+
+    Example:
+        >>> result = compute_flesch(text, chunk_size=1000)
+        >>> result.reading_ease  # mean across chunks
+        68.54
+        >>> result.reading_ease_dist.std  # variance reveals fingerprint
+        4.2
+        >>> result.reading_ease_dist.values  # per-chunk values
+        [65.2, 71.1, 68.8, ...]
+    """
+
+    # Convenient access (mean values)
     reading_ease: float
     grade_level: float
-    difficulty: str  # "Very Easy", "Easy", "Fairly Easy", "Standard", etc.
+    difficulty: str  # Based on mean reading_ease
+
+    # Full distributions
+    reading_ease_dist: Distribution
+    grade_level_dist: Distribution
+
+    # Chunking context
+    chunk_size: int
+    chunk_count: int
+
     metadata: dict[str, Any]
 
 
 @dataclass
 class SMOGResult:
-    """Result from SMOG Index computation."""
+    """Result from SMOG Index computation.
 
+    Related GitHub Issue:
+        #27 - Native chunked analysis with Distribution dataclass
+        https://github.com/craigtrim/pystylometry/issues/27
+    """
+
+    # Convenient access (mean values)
     smog_index: float
     grade_level: float
+
+    # Full distributions
+    smog_index_dist: Distribution
+    grade_level_dist: Distribution
+
+    # Chunking context
+    chunk_size: int
+    chunk_count: int
+
     metadata: dict[str, Any]
 
 
 @dataclass
 class GunningFogResult:
-    """Result from Gunning Fog Index computation."""
+    """Result from Gunning Fog Index computation.
 
+    Related GitHub Issue:
+        #27 - Native chunked analysis with Distribution dataclass
+        https://github.com/craigtrim/pystylometry/issues/27
+    """
+
+    # Convenient access (mean values)
     fog_index: float
     grade_level: float
+
+    # Full distributions
+    fog_index_dist: Distribution
+    grade_level_dist: Distribution
+
+    # Chunking context
+    chunk_size: int
+    chunk_count: int
+
     metadata: dict[str, Any]
 
 
 @dataclass
 class ColemanLiauResult:
-    """Result from Coleman-Liau Index computation."""
+    """Result from Coleman-Liau Index computation.
 
+    Related GitHub Issue:
+        #27 - Native chunked analysis with Distribution dataclass
+        https://github.com/craigtrim/pystylometry/issues/27
+    """
+
+    # Convenient access (mean values)
     cli_index: float
-    grade_level: int
+    grade_level: float  # Changed to float for mean across chunks
+
+    # Full distributions
+    cli_index_dist: Distribution
+    grade_level_dist: Distribution
+
+    # Chunking context
+    chunk_size: int
+    chunk_count: int
+
     metadata: dict[str, Any]
 
 
 @dataclass
 class ARIResult:
-    """Result from Automated Readability Index computation."""
+    """Result from Automated Readability Index computation.
 
+    Related GitHub Issue:
+        #27 - Native chunked analysis with Distribution dataclass
+        https://github.com/craigtrim/pystylometry/issues/27
+    """
+
+    # Convenient access (mean values)
     ari_score: float
-    grade_level: int
-    age_range: str
+    grade_level: float  # Changed to float for mean across chunks
+    age_range: str  # Based on mean grade level
+
+    # Full distributions
+    ari_score_dist: Distribution
+    grade_level_dist: Distribution
+
+    # Chunking context
+    chunk_size: int
+    chunk_count: int
+
     metadata: dict[str, Any]
 
 
@@ -157,8 +513,14 @@ class ARIResult:
 
 @dataclass
 class POSResult:
-    """Result from Part-of-Speech ratio analysis."""
+    """Result from Part-of-Speech ratio analysis.
 
+    Related GitHub Issue:
+        #27 - Native chunked analysis with Distribution dataclass
+        https://github.com/craigtrim/pystylometry/issues/27
+    """
+
+    # Convenient access (mean values)
     noun_ratio: float
     verb_ratio: float
     adjective_ratio: float
@@ -167,19 +529,52 @@ class POSResult:
     adjective_noun_ratio: float
     lexical_density: float
     function_word_ratio: float
+
+    # Full distributions
+    noun_ratio_dist: Distribution
+    verb_ratio_dist: Distribution
+    adjective_ratio_dist: Distribution
+    adverb_ratio_dist: Distribution
+    noun_verb_ratio_dist: Distribution
+    adjective_noun_ratio_dist: Distribution
+    lexical_density_dist: Distribution
+    function_word_ratio_dist: Distribution
+
+    # Chunking context
+    chunk_size: int
+    chunk_count: int
+
     metadata: dict[str, Any]
 
 
 @dataclass
 class SentenceStatsResult:
-    """Result from sentence-level statistics."""
+    """Result from sentence-level statistics.
 
+    Related GitHub Issue:
+        #27 - Native chunked analysis with Distribution dataclass
+        https://github.com/craigtrim/pystylometry/issues/27
+    """
+
+    # Convenient access (mean values)
     mean_sentence_length: float
     sentence_length_std: float
-    sentence_length_range: int
-    min_sentence_length: int
-    max_sentence_length: int
-    sentence_count: int
+    sentence_length_range: float  # Changed to float for mean across chunks
+    min_sentence_length: float  # Changed to float for mean across chunks
+    max_sentence_length: float  # Changed to float for mean across chunks
+    sentence_count: int  # Total across all chunks
+
+    # Full distributions
+    mean_sentence_length_dist: Distribution
+    sentence_length_std_dist: Distribution
+    sentence_length_range_dist: Distribution
+    min_sentence_length_dist: Distribution
+    max_sentence_length_dist: Distribution
+
+    # Chunking context
+    chunk_size: int
+    chunk_count: int
+
     metadata: dict[str, Any]
 
 
@@ -211,11 +606,26 @@ class ZetaResult:
 
 @dataclass
 class EntropyResult:
-    """Result from n-gram entropy computation."""
+    """Result from n-gram entropy computation.
 
+    Related GitHub Issue:
+        #27 - Native chunked analysis with Distribution dataclass
+        https://github.com/craigtrim/pystylometry/issues/27
+    """
+
+    # Convenient access (mean values)
     entropy: float
     perplexity: float
     ngram_type: str  # "character_bigram", "word_bigram", "word_trigram"
+
+    # Full distributions
+    entropy_dist: Distribution
+    perplexity_dist: Distribution
+
+    # Chunking context
+    chunk_size: int
+    chunk_count: int
+
     metadata: dict[str, Any]
 
 
@@ -233,9 +643,9 @@ class CharacterMetricsResult:
     fundamental for authorship attribution and can capture distinctive
     patterns in punctuation, formatting, and word construction.
 
-    Related GitHub Issue:
+    Related GitHub Issues:
         #12 - Character-Level Metrics
-        https://github.com/craigtrim/pystylometry/issues/12
+        #27 - Native chunked analysis with Distribution dataclass
 
     Metrics included:
         - Average word length (characters per word)
@@ -253,25 +663,35 @@ class CharacterMetricsResult:
             of techniques. Literary and Linguistic Computing, 22(3), 251-270.
         Stamatatos, E. (2009). A survey of modern authorship attribution methods.
             JASIST, 60(3), 538-556.
-
-    Example:
-        >>> result = compute_character_metrics("Sample text here.")
-        >>> print(f"Avg word length: {result.avg_word_length:.2f} chars")
-        >>> print(f"Punctuation density: {result.punctuation_density:.2f}")
-        >>> print(f"Vowel/consonant ratio: {result.vowel_consonant_ratio:.2f}")
     """
 
-    avg_word_length: float  # Mean characters per word
-    avg_sentence_length_chars: float  # Mean characters per sentence
-    punctuation_density: float  # Punctuation marks per 100 words
-    punctuation_variety: int  # Count of unique punctuation types used
-    letter_frequency: dict[str, float]  # Frequency distribution for a-z
-    vowel_consonant_ratio: float  # Ratio of vowels to consonants
-    digit_count: int  # Total count of digit characters (0-9)
-    digit_ratio: float  # Digits / total characters
-    uppercase_ratio: float  # Uppercase letters / total letters
-    whitespace_ratio: float  # Whitespace characters / total characters
-    metadata: dict[str, Any]  # Additional info (character counts, etc.)
+    # Convenient access (mean values)
+    avg_word_length: float
+    avg_sentence_length_chars: float
+    punctuation_density: float
+    punctuation_variety: float  # Changed to float for mean across chunks
+    letter_frequency: dict[str, float]  # Aggregate frequency
+    vowel_consonant_ratio: float
+    digit_count: int  # Total across all chunks
+    digit_ratio: float
+    uppercase_ratio: float
+    whitespace_ratio: float
+
+    # Full distributions
+    avg_word_length_dist: Distribution
+    avg_sentence_length_chars_dist: Distribution
+    punctuation_density_dist: Distribution
+    punctuation_variety_dist: Distribution
+    vowel_consonant_ratio_dist: Distribution
+    digit_ratio_dist: Distribution
+    uppercase_ratio_dist: Distribution
+    whitespace_ratio_dist: Distribution
+
+    # Chunking context
+    chunk_size: int
+    chunk_count: int
+
+    metadata: dict[str, Any]
 
 
 # ===== Function Word Results =====
@@ -288,9 +708,9 @@ class FunctionWordResult:
     subconsciously. They are considered strong authorship markers because authors
     use them consistently across different topics and genres.
 
-    Related GitHub Issue:
+    Related GitHub Issues:
         #13 - Function Word Analysis
-        https://github.com/craigtrim/pystylometry/issues/13
+        #27 - Native chunked analysis with Distribution dataclass
 
     This analysis computes:
         - Frequency profiles for all function word categories
@@ -311,26 +731,36 @@ class FunctionWordResult:
             The Federalist. Addison-Wesley.
         Burrows, J. (2002). 'Delta': A measure of stylistic difference and a guide
             to likely authorship. Literary and Linguistic Computing, 17(3), 267-287.
-
-    Example:
-        >>> result = compute_function_words("Sample text for analysis.")
-        >>> print(f"Determiner ratio: {result.determiner_ratio:.3f}")
-        >>> print(f"Preposition ratio: {result.preposition_ratio:.3f}")
-        >>> print(f"Most frequent: {result.most_frequent_function_words[:5]}")
     """
 
-    determiner_ratio: float  # Determiners / total words
-    preposition_ratio: float  # Prepositions / total words
-    conjunction_ratio: float  # Conjunctions / total words
-    pronoun_ratio: float  # Pronouns / total words
-    auxiliary_ratio: float  # Auxiliary verbs / total words
-    particle_ratio: float  # Particles / total words
-    total_function_word_ratio: float  # All function words / total words
-    function_word_diversity: float  # Unique function words / total function words
-    most_frequent_function_words: list[tuple[str, int]]  # Top N with counts
-    least_frequent_function_words: list[tuple[str, int]]  # Bottom N with counts
-    function_word_distribution: dict[str, int]  # All function words with counts
-    metadata: dict[str, Any]  # Category-specific counts, total counts, etc.
+    # Convenient access (mean values)
+    determiner_ratio: float
+    preposition_ratio: float
+    conjunction_ratio: float
+    pronoun_ratio: float
+    auxiliary_ratio: float
+    particle_ratio: float
+    total_function_word_ratio: float
+    function_word_diversity: float
+    most_frequent_function_words: list[tuple[str, int]]  # Aggregate
+    least_frequent_function_words: list[tuple[str, int]]  # Aggregate
+    function_word_distribution: dict[str, int]  # Aggregate
+
+    # Full distributions
+    determiner_ratio_dist: Distribution
+    preposition_ratio_dist: Distribution
+    conjunction_ratio_dist: Distribution
+    pronoun_ratio_dist: Distribution
+    auxiliary_ratio_dist: Distribution
+    particle_ratio_dist: Distribution
+    total_function_word_ratio_dist: Distribution
+    function_word_diversity_dist: Distribution
+
+    # Chunking context
+    chunk_size: int
+    chunk_count: int
+
+    metadata: dict[str, Any]
 
 
 # ===== Advanced Lexical Diversity Results =====
@@ -347,9 +777,9 @@ class VocdDResult:
     It fits a curve to the relationship between tokens and types across multiple
     random samples of the text.
 
-    Related GitHub Issue:
+    Related GitHub Issues:
         #14 - Advanced Lexical Diversity Metrics
-        https://github.com/craigtrim/pystylometry/issues/14
+        #27 - Native chunked analysis with Distribution dataclass
 
     The D parameter represents the theoretical vocabulary size and is more
     stable across different text lengths than simple TTR measures.
@@ -360,18 +790,23 @@ class VocdDResult:
         McKee, G., Malvern, D., & Richards, B. (2000). Measuring vocabulary
             diversity using dedicated software. Literary and Linguistic Computing,
             15(3), 323-337.
-
-    Example:
-        >>> result = compute_vocd_d("Long sample text for voc-D analysis...")
-        >>> print(f"D parameter: {result.d_parameter:.2f}")
-        >>> print(f"Curve fit R²: {result.curve_fit_r_squared:.3f}")
     """
 
-    d_parameter: float  # The D value (theoretical vocabulary size)
-    curve_fit_r_squared: float  # Quality of curve fit (0-1)
-    sample_count: int  # Number of random samples used
-    optimal_sample_size: int  # Optimal token sample size used
-    metadata: dict[str, Any]  # Sampling parameters, convergence info, etc.
+    # Convenient access (mean values)
+    d_parameter: float
+    curve_fit_r_squared: float
+    sample_count: int  # Total across all chunks
+    optimal_sample_size: int
+
+    # Full distributions
+    d_parameter_dist: Distribution
+    curve_fit_r_squared_dist: Distribution
+
+    # Chunking context
+    chunk_size: int
+    chunk_count: int
+
+    metadata: dict[str, Any]
 
 
 @dataclass
@@ -383,28 +818,35 @@ class MATTRResult:
     for longer texts. The moving window approach reduces the impact of text
     length on the TTR calculation.
 
-    Related GitHub Issue:
+    Related GitHub Issues:
         #14 - Advanced Lexical Diversity Metrics
-        https://github.com/craigtrim/pystylometry/issues/14
+        #27 - Native chunked analysis with Distribution dataclass
 
     References:
         Covington, M. A., & McFall, J. D. (2010). Cutting the Gordian knot:
             The moving-average type-token ratio (MATTR). Journal of Quantitative
             Linguistics, 17(2), 94-100.
-
-    Example:
-        >>> result = compute_mattr("Sample text here...", window_size=50)
-        >>> print(f"MATTR score: {result.mattr_score:.3f}")
-        >>> print(f"Window size: {result.window_size}")
     """
 
-    mattr_score: float  # Average TTR across all windows
-    window_size: int  # Size of moving window used
-    window_count: int  # Number of windows analyzed
-    ttr_std_dev: float  # Standard deviation of TTR across windows
-    min_ttr: float  # Minimum TTR in any window
-    max_ttr: float  # Maximum TTR in any window
-    metadata: dict[str, Any]  # Window-by-window TTR values, etc.
+    # Convenient access (mean values)
+    mattr_score: float
+    window_size: int
+    window_count: int  # Total across all chunks
+    ttr_std_dev: float
+    min_ttr: float
+    max_ttr: float
+
+    # Full distributions
+    mattr_score_dist: Distribution
+    ttr_std_dev_dist: Distribution
+    min_ttr_dist: Distribution
+    max_ttr_dist: Distribution
+
+    # Chunking context
+    chunk_size: int
+    chunk_count: int
+
+    metadata: dict[str, Any]
 
 
 @dataclass
@@ -416,26 +858,30 @@ class HDDResult:
     new word types as text length increases, providing a mathematically
     rigorous measure that is less sensitive to text length than TTR.
 
-    Related GitHub Issue:
+    Related GitHub Issues:
         #14 - Advanced Lexical Diversity Metrics
-        https://github.com/craigtrim/pystylometry/issues/14
+        #27 - Native chunked analysis with Distribution dataclass
 
     References:
         McCarthy, P. M., & Jarvis, S. (2010). MTLD, vocd-D, and HD-D: A validation
             study of sophisticated approaches to lexical diversity assessment.
             Behavior Research Methods, 42(2), 381-392.
-
-    Example:
-        >>> result = compute_hdd("Sample text for HD-D analysis...")
-        >>> print(f"HD-D score: {result.hdd_score:.3f}")
-        >>> print(f"Sample size: {result.sample_size}")
     """
 
-    hdd_score: float  # The HD-D value
-    sample_size: int  # Sample size used for calculation
-    type_count: int  # Number of unique types in sample
-    token_count: int  # Number of tokens in sample
-    metadata: dict[str, Any]  # Probability distribution info, etc.
+    # Convenient access (mean values)
+    hdd_score: float
+    sample_size: int
+    type_count: int  # Total unique across all chunks
+    token_count: int  # Total across all chunks
+
+    # Full distributions
+    hdd_score_dist: Distribution
+
+    # Chunking context
+    chunk_size: int
+    chunk_count: int
+
+    metadata: dict[str, Any]
 
 
 @dataclass
@@ -447,28 +893,35 @@ class MSTTRResult:
     normalized measure of lexical diversity that is more comparable across
     texts of different lengths.
 
-    Related GitHub Issue:
+    Related GitHub Issues:
         #14 - Advanced Lexical Diversity Metrics
-        https://github.com/craigtrim/pystylometry/issues/14
+        #27 - Native chunked analysis with Distribution dataclass
 
     References:
         Johnson, W. (1944). Studies in language behavior: I. A program of research.
             Psychological Monographs, 56(2), 1-15.
-
-    Example:
-        >>> result = compute_msttr("Sample text...", segment_size=100)
-        >>> print(f"MSTTR score: {result.msttr_score:.3f}")
-        >>> print(f"Segments analyzed: {result.segment_count}")
     """
 
-    msttr_score: float  # Mean TTR across all segments
-    segment_size: int  # Size of each segment
-    segment_count: int  # Number of segments analyzed
-    ttr_std_dev: float  # Standard deviation of TTR across segments
-    min_ttr: float  # Minimum TTR in any segment
-    max_ttr: float  # Maximum TTR in any segment
-    segment_ttrs: list[float]  # TTR for each individual segment
-    metadata: dict[str, Any]  # Segment details, remaining tokens, etc.
+    # Convenient access (mean values)
+    msttr_score: float
+    segment_size: int
+    segment_count: int  # Total across all chunks
+    ttr_std_dev: float
+    min_ttr: float
+    max_ttr: float
+    segment_ttrs: list[float]  # Aggregate from all chunks
+
+    # Full distributions
+    msttr_score_dist: Distribution
+    ttr_std_dev_dist: Distribution
+    min_ttr_dist: Distribution
+    max_ttr_dist: Distribution
+
+    # Chunking context
+    chunk_size: int
+    chunk_count: int
+
+    metadata: dict[str, Any]
 
 
 # ===== Word Frequency Sophistication Results =====
@@ -485,9 +938,9 @@ class WordFrequencySophisticationResult:
     large corpora. Authors who use less frequent (more sophisticated) words
     score higher on these metrics.
 
-    Related GitHub Issue:
+    Related GitHub Issues:
         #15 - Word Frequency Sophistication Metrics
-        https://github.com/craigtrim/pystylometry/issues/15
+        #27 - Native chunked analysis with Distribution dataclass
 
     This analysis uses reference frequency data from:
         - COCA (Corpus of Contemporary American English)
@@ -507,24 +960,32 @@ class WordFrequencySophisticationResult:
             A critical evaluation of current word frequency norms. Behavior
             Research Methods, Instruments, & Computers, 41(4), 977-990.
         Coxhead, A. (2000). A new academic word list. TESOL Quarterly, 34(2), 213-238.
-
-    Example:
-        >>> result = compute_word_frequency_sophistication("Sample text...")
-        >>> print(f"Mean frequency rank: {result.mean_frequency_rank:.1f}")
-        >>> print(f"Rare word ratio: {result.rare_word_ratio:.3f}")
-        >>> print(f"Academic word ratio: {result.academic_word_ratio:.3f}")
     """
 
-    mean_frequency_rank: float  # Average frequency rank of words
-    median_frequency_rank: float  # Median frequency rank
-    rare_word_ratio: float  # Words beyond frequency threshold / total
-    common_word_ratio: float  # High-frequency words / total
-    academic_word_ratio: float  # Academic Word List words / total
-    advanced_word_ratio: float  # Sophisticated vocabulary / total
-    frequency_band_distribution: dict[str, float]  # Distribution across frequency bands
-    rarest_words: list[tuple[str, float]]  # Least frequent words with ranks
-    most_common_words: list[tuple[str, float]]  # Most frequent words with ranks
-    metadata: dict[str, Any]  # Corpus source, band thresholds, total words, etc.
+    # Convenient access (mean values)
+    mean_frequency_rank: float
+    median_frequency_rank: float
+    rare_word_ratio: float
+    common_word_ratio: float
+    academic_word_ratio: float
+    advanced_word_ratio: float
+    frequency_band_distribution: dict[str, float]  # Aggregate
+    rarest_words: list[tuple[str, float]]  # Aggregate
+    most_common_words: list[tuple[str, float]]  # Aggregate
+
+    # Full distributions
+    mean_frequency_rank_dist: Distribution
+    median_frequency_rank_dist: Distribution
+    rare_word_ratio_dist: Distribution
+    common_word_ratio_dist: Distribution
+    academic_word_ratio_dist: Distribution
+    advanced_word_ratio_dist: Distribution
+
+    # Chunking context
+    chunk_size: int
+    chunk_count: int
+
+    metadata: dict[str, Any]
 
 
 # ===== Additional Readability Results =====
@@ -541,9 +1002,9 @@ class DaleChallResult:
     The formula provides a grade level estimate based on sentence length and
     the percentage of difficult words.
 
-    Related GitHub Issue:
+    Related GitHub Issues:
         #16 - Additional Readability Formulas
-        https://github.com/craigtrim/pystylometry/issues/16
+        #27 - Native chunked analysis with Distribution dataclass
 
     Formula: 0.1579 * (difficult_words / total_words * 100) + 0.0496 * avg_sentence_length
 
@@ -554,21 +1015,26 @@ class DaleChallResult:
             Educational Research Bulletin, 27(1), 11-28.
         Chall, J. S., & Dale, E. (1995). Readability revisited: The new Dale-Chall
             readability formula. Brookline Books.
-
-    Example:
-        >>> result = compute_dale_chall("Sample text to analyze...")
-        >>> print(f"Dale-Chall score: {result.dale_chall_score:.2f}")
-        >>> print(f"Grade level: {result.grade_level}")
-        >>> print(f"Difficult word %: {result.difficult_word_ratio * 100:.1f}%")
     """
 
-    dale_chall_score: float  # The Dale-Chall readability score
-    grade_level: str  # Corresponding grade level (e.g., "7-8", "College")
-    difficult_word_count: int  # Words not on Dale-Chall list
-    difficult_word_ratio: float  # Difficult words / total words
-    avg_sentence_length: float  # Average words per sentence
-    total_words: int  # Total word count
-    metadata: dict[str, Any]  # List of difficult words, adjusted score, etc.
+    # Convenient access (mean values)
+    dale_chall_score: float
+    grade_level: str  # Based on mean score
+    difficult_word_count: int  # Total across all chunks
+    difficult_word_ratio: float  # Mean ratio
+    avg_sentence_length: float  # Mean
+    total_words: int  # Total across all chunks
+
+    # Full distributions
+    dale_chall_score_dist: Distribution
+    difficult_word_ratio_dist: Distribution
+    avg_sentence_length_dist: Distribution
+
+    # Chunking context
+    chunk_size: int
+    chunk_count: int
+
+    metadata: dict[str, Any]
 
 
 @dataclass
@@ -580,26 +1046,32 @@ class LinsearWriteResult:
     syllables) or "hard" (3+ syllables) and uses sentence length to estimate
     grade level. It's particularly effective for technical writing.
 
-    Related GitHub Issue:
+    Related GitHub Issues:
         #16 - Additional Readability Formulas
-        https://github.com/craigtrim/pystylometry/issues/16
+        #27 - Native chunked analysis with Distribution dataclass
 
     References:
         Klare, G. R. (1974-1975). Assessing readability. Reading Research Quarterly,
             10(1), 62-102.
-
-    Example:
-        >>> result = compute_linsear_write("Technical manual text...")
-        >>> print(f"Linsear Write score: {result.linsear_score:.2f}")
-        >>> print(f"Grade level: {result.grade_level}")
     """
 
-    linsear_score: float  # The Linsear Write score
-    grade_level: int  # Corresponding U.S. grade level
-    easy_word_count: int  # Words with 1-2 syllables
-    hard_word_count: int  # Words with 3+ syllables
-    avg_sentence_length: float  # Average words per sentence
-    metadata: dict[str, Any]  # Calculation details, sentence count, etc.
+    # Convenient access (mean values)
+    linsear_score: float
+    grade_level: float  # Changed to float for mean across chunks
+    easy_word_count: int  # Total across all chunks
+    hard_word_count: int  # Total across all chunks
+    avg_sentence_length: float  # Mean
+
+    # Full distributions
+    linsear_score_dist: Distribution
+    grade_level_dist: Distribution
+    avg_sentence_length_dist: Distribution
+
+    # Chunking context
+    chunk_size: int
+    chunk_count: int
+
+    metadata: dict[str, Any]
 
 
 @dataclass
@@ -611,28 +1083,32 @@ class FryResult:
     to determine the grade level. This implementation provides the numerical
     coordinates and estimated grade level.
 
-    Related GitHub Issue:
+    Related GitHub Issues:
         #16 - Additional Readability Formulas
-        https://github.com/craigtrim/pystylometry/issues/16
+        #27 - Native chunked analysis with Distribution dataclass
 
     References:
         Fry, E. (1968). A readability formula that saves time. Journal of Reading,
             11(7), 513-578.
         Fry, E. (1977). Fry's readability graph: Clarifications, validity, and
             extension to level 17. Journal of Reading, 21(3), 242-252.
-
-    Example:
-        >>> result = compute_fry("Sample educational text...")
-        >>> print(f"Avg sentence length: {result.avg_sentence_length:.1f}")
-        >>> print(f"Avg syllables/100 words: {result.avg_syllables_per_100:.1f}")
-        >>> print(f"Grade level: {result.grade_level}")
     """
 
-    avg_sentence_length: float  # Average words per sentence
-    avg_syllables_per_100: float  # Average syllables per 100 words
-    grade_level: str  # Estimated grade level (e.g., "5", "7", "College")
-    graph_zone: str  # Which zone of Fry graph (for validity checking)
-    metadata: dict[str, Any]  # Total sentences, total syllables, etc.
+    # Convenient access (mean values)
+    avg_sentence_length: float
+    avg_syllables_per_100: float
+    grade_level: str  # Based on mean coordinates
+    graph_zone: str  # Based on mean coordinates
+
+    # Full distributions
+    avg_sentence_length_dist: Distribution
+    avg_syllables_per_100_dist: Distribution
+
+    # Chunking context
+    chunk_size: int
+    chunk_count: int
+
+    metadata: dict[str, Any]
 
 
 @dataclass
@@ -644,9 +1120,9 @@ class FORCASTResult:
     words as a measure, making it faster to compute than syllable-based formulas.
     Particularly useful for technical and military documents.
 
-    Related GitHub Issue:
+    Related GitHub Issues:
         #16 - Additional Readability Formulas
-        https://github.com/craigtrim/pystylometry/issues/16
+        #27 - Native chunked analysis with Distribution dataclass
 
     Formula: 20 - (N / 10), where N is the number of single-syllable words
     per 150-word sample.
@@ -655,19 +1131,25 @@ class FORCASTResult:
         Caylor, J. S., Sticht, T. G., Fox, L. C., & Ford, J. P. (1973).
             Methodologies for determining reading requirements of military
             occupational specialties. Human Resources Research Organization.
-
-    Example:
-        >>> result = compute_forcast("Military technical document text...")
-        >>> print(f"FORCAST score: {result.forcast_score:.2f}")
-        >>> print(f"Grade level: {result.grade_level}")
     """
 
-    forcast_score: float  # The FORCAST readability score
-    grade_level: int  # Corresponding U.S. grade level
-    single_syllable_ratio: float  # Single-syllable words / total words
-    single_syllable_count: int  # Count of single-syllable words
-    total_words: int  # Total word count
-    metadata: dict[str, Any]  # Samples used, calculation details, etc.
+    # Convenient access (mean values)
+    forcast_score: float
+    grade_level: float  # Changed to float for mean across chunks
+    single_syllable_ratio: float  # Mean ratio
+    single_syllable_count: int  # Total across all chunks
+    total_words: int  # Total across all chunks
+
+    # Full distributions
+    forcast_score_dist: Distribution
+    grade_level_dist: Distribution
+    single_syllable_ratio_dist: Distribution
+
+    # Chunking context
+    chunk_size: int
+    chunk_count: int
+
+    metadata: dict[str, Any]
 
 
 @dataclass
@@ -679,9 +1161,9 @@ class PowersSumnerKearlResult:
     average sentence length and average syllables per word, but with different
     coefficients optimized for younger readers.
 
-    Related GitHub Issue:
+    Related GitHub Issues:
         #16 - Additional Readability Formulas
-        https://github.com/craigtrim/pystylometry/issues/16
+        #27 - Native chunked analysis with Distribution dataclass
 
     Formula: 0.0778 * avg_sentence_length + 0.0455 * avg_syllables_per_word - 2.2029
 
@@ -689,21 +1171,28 @@ class PowersSumnerKearlResult:
         Powers, R. D., Sumner, W. A., & Kearl, B. E. (1958). A recalculation of
             four adult readability formulas. Journal of Educational Psychology,
             49(2), 99-105.
-
-    Example:
-        >>> result = compute_powers_sumner_kearl("Children's book text...")
-        >>> print(f"PSK score: {result.psk_score:.2f}")
-        >>> print(f"Grade level: {result.grade_level}")
     """
 
-    psk_score: float  # The Powers-Sumner-Kearl score
-    grade_level: float  # Corresponding grade level (can be decimal for primary grades)
-    avg_sentence_length: float  # Average words per sentence
-    avg_syllables_per_word: float  # Average syllables per word
-    total_sentences: int  # Total sentence count
-    total_words: int  # Total word count
-    total_syllables: int  # Total syllable count
-    metadata: dict[str, Any]  # Calculation details, comparison to Flesch, etc.
+    # Convenient access (mean values)
+    psk_score: float
+    grade_level: float
+    avg_sentence_length: float
+    avg_syllables_per_word: float
+    total_sentences: int  # Total across all chunks
+    total_words: int  # Total across all chunks
+    total_syllables: int  # Total across all chunks
+
+    # Full distributions
+    psk_score_dist: Distribution
+    grade_level_dist: Distribution
+    avg_sentence_length_dist: Distribution
+    avg_syllables_per_word_dist: Distribution
+
+    # Chunking context
+    chunk_size: int
+    chunk_count: int
+
+    metadata: dict[str, Any]
 
 
 # ===== Advanced Syntactic Results =====
@@ -720,9 +1209,9 @@ class AdvancedSyntacticResult:
     capture sentence complexity, grammatical sophistication, and syntactic
     style preferences.
 
-    Related GitHub Issue:
+    Related GitHub Issues:
         #17 - Advanced Syntactic Analysis
-        https://github.com/craigtrim/pystylometry/issues/17
+        #27 - Native chunked analysis with Distribution dataclass
 
     Features analyzed:
         - Parse tree depth (sentence structural complexity)
@@ -740,28 +1229,42 @@ class AdvancedSyntacticResult:
         Biber, D. (1988). Variation across speech and writing. Cambridge University Press.
         Lu, X. (2010). Automatic analysis of syntactic complexity in second language
             writing. International Journal of Corpus Linguistics, 15(4), 474-496.
-
-    Example:
-        >>> result = compute_advanced_syntactic("Complex sentence structures...")
-        >>> print(f"Parse tree depth: {result.mean_parse_tree_depth:.1f}")
-        >>> print(f"T-units: {result.t_unit_count}")
-        >>> print(f"Passive voice %: {result.passive_voice_ratio * 100:.1f}%")
     """
 
-    mean_parse_tree_depth: float  # Average depth of dependency parse trees
-    max_parse_tree_depth: int  # Maximum parse tree depth in text
-    t_unit_count: int  # Number of T-units (minimal terminable units)
-    mean_t_unit_length: float  # Average words per T-unit
-    clausal_density: float  # Clauses per T-unit
-    dependent_clause_ratio: float  # Dependent clauses / total clauses
-    passive_voice_ratio: float  # Passive constructions / total sentences
-    subordination_index: float  # Subordinate clauses / total clauses
-    coordination_index: float  # Coordinate clauses / total clauses
-    sentence_complexity_score: float  # Composite complexity metric
-    dependency_distance: float  # Mean distance between heads and dependents
-    left_branching_ratio: float  # Left-branching structures / total
-    right_branching_ratio: float  # Right-branching structures / total
-    metadata: dict[str, Any]  # Parse tree details, clause counts, etc.
+    # Convenient access (mean values)
+    mean_parse_tree_depth: float
+    max_parse_tree_depth: float  # Changed to float for mean across chunks
+    t_unit_count: int  # Total across all chunks
+    mean_t_unit_length: float
+    clausal_density: float
+    dependent_clause_ratio: float
+    passive_voice_ratio: float
+    subordination_index: float
+    coordination_index: float
+    sentence_complexity_score: float
+    dependency_distance: float
+    left_branching_ratio: float
+    right_branching_ratio: float
+
+    # Full distributions
+    mean_parse_tree_depth_dist: Distribution
+    max_parse_tree_depth_dist: Distribution
+    mean_t_unit_length_dist: Distribution
+    clausal_density_dist: Distribution
+    dependent_clause_ratio_dist: Distribution
+    passive_voice_ratio_dist: Distribution
+    subordination_index_dist: Distribution
+    coordination_index_dist: Distribution
+    sentence_complexity_score_dist: Distribution
+    dependency_distance_dist: Distribution
+    left_branching_ratio_dist: Distribution
+    right_branching_ratio_dist: Distribution
+
+    # Chunking context
+    chunk_size: int
+    chunk_count: int
+
+    metadata: dict[str, Any]
 
 
 # ===== Sentence Type Results =====
@@ -778,9 +1281,9 @@ class SentenceTypeResult:
     function (declarative, interrogative, imperative, exclamatory). Different
     authors and genres show distinct patterns in sentence type distribution.
 
-    Related GitHub Issue:
+    Related GitHub Issues:
         #18 - Sentence Type Classification
-        https://github.com/craigtrim/pystylometry/issues/18
+        #27 - Native chunked analysis with Distribution dataclass
 
     Structural types:
         - Simple: One independent clause (e.g., "The cat sat.")
@@ -797,27 +1300,19 @@ class SentenceTypeResult:
     References:
         Biber, D. (1988). Variation across speech and writing. Cambridge University Press.
         Huddleston, R., & Pullum, G. K. (2002). The Cambridge Grammar of the English Language.
-
-    Example:
-        >>> result = compute_sentence_types("Mix of sentence types here...")
-        >>> print(f"Simple: {result.simple_ratio * 100:.1f}%")
-        >>> print(f"Complex: {result.complex_ratio * 100:.1f}%")
-        >>> print(f"Questions: {result.interrogative_ratio * 100:.1f}%")
     """
 
-    # Structural type ratios (sum to 1.0)
-    simple_ratio: float  # Simple sentences / total
-    compound_ratio: float  # Compound sentences / total
-    complex_ratio: float  # Complex sentences / total
-    compound_complex_ratio: float  # Compound-complex / total
+    # Convenient access (mean ratios)
+    simple_ratio: float
+    compound_ratio: float
+    complex_ratio: float
+    compound_complex_ratio: float
+    declarative_ratio: float
+    interrogative_ratio: float
+    imperative_ratio: float
+    exclamatory_ratio: float
 
-    # Functional type ratios (sum to 1.0)
-    declarative_ratio: float  # Declarative sentences / total
-    interrogative_ratio: float  # Interrogative (questions) / total
-    imperative_ratio: float  # Imperative (commands) / total
-    exclamatory_ratio: float  # Exclamatory sentences / total
-
-    # Counts
+    # Counts (totals across all chunks)
     simple_count: int
     compound_count: int
     complex_count: int
@@ -828,11 +1323,27 @@ class SentenceTypeResult:
     exclamatory_count: int
     total_sentences: int
 
-    # Diversity
-    structural_diversity: float  # Shannon entropy of structural type distribution
-    functional_diversity: float  # Shannon entropy of functional type distribution
+    # Diversity (mean across chunks)
+    structural_diversity: float
+    functional_diversity: float
 
-    metadata: dict[str, Any]  # Sentence-by-sentence classifications, etc.
+    # Full distributions
+    simple_ratio_dist: Distribution
+    compound_ratio_dist: Distribution
+    complex_ratio_dist: Distribution
+    compound_complex_ratio_dist: Distribution
+    declarative_ratio_dist: Distribution
+    interrogative_ratio_dist: Distribution
+    imperative_ratio_dist: Distribution
+    exclamatory_ratio_dist: Distribution
+    structural_diversity_dist: Distribution
+    functional_diversity_dist: Distribution
+
+    # Chunking context
+    chunk_size: int
+    chunk_count: int
+
+    metadata: dict[str, Any]
 
 
 # ===== Extended N-gram Results =====

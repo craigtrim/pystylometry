@@ -28,13 +28,14 @@ References:
         of linguistic complexity. In Image, language, brain (pp. 95-126).
 """
 
-from .._types import AdvancedSyntacticResult
+from .._types import AdvancedSyntacticResult, Distribution, make_distribution
 from .._utils import check_optional_dependency
 
 
 def compute_advanced_syntactic(
     text: str,
     model: str = "en_core_web_sm",
+    chunk_size: int = 1000,
 ) -> AdvancedSyntacticResult:
     """
     Compute advanced syntactic complexity metrics using dependency parsing.
@@ -169,6 +170,14 @@ def compute_advanced_syntactic(
 
     # Handle empty text
     if len(sentences) == 0 or len(doc) == 0:
+        empty_dist = Distribution(
+            values=[],
+            mean=float("nan"),
+            median=float("nan"),
+            std=0.0,
+            range=0.0,
+            iqr=0.0,
+        )
         return AdvancedSyntacticResult(
             mean_parse_tree_depth=float("nan"),
             max_parse_tree_depth=0,
@@ -183,6 +192,20 @@ def compute_advanced_syntactic(
             dependency_distance=float("nan"),
             left_branching_ratio=float("nan"),
             right_branching_ratio=float("nan"),
+            mean_parse_tree_depth_dist=empty_dist,
+            max_parse_tree_depth_dist=empty_dist,
+            mean_t_unit_length_dist=empty_dist,
+            clausal_density_dist=empty_dist,
+            dependent_clause_ratio_dist=empty_dist,
+            passive_voice_ratio_dist=empty_dist,
+            subordination_index_dist=empty_dist,
+            coordination_index_dist=empty_dist,
+            sentence_complexity_score_dist=empty_dist,
+            dependency_distance_dist=empty_dist,
+            left_branching_ratio_dist=empty_dist,
+            right_branching_ratio_dist=empty_dist,
+            chunk_size=chunk_size,
+            chunk_count=0,
             metadata={
                 "sentence_count": 0,
                 "word_count": 0,
@@ -298,6 +321,20 @@ def compute_advanced_syntactic(
         + 0.1 * normalized_dependency_distance
     )
 
+    # Create single-value distributions (analysis is done on full text)
+    mean_parse_tree_depth_dist = make_distribution([mean_parse_tree_depth])
+    max_parse_tree_depth_dist = make_distribution([float(max_parse_tree_depth)])
+    mean_t_unit_length_dist = make_distribution([mean_t_unit_length])
+    clausal_density_dist = make_distribution([clausal_density])
+    dependent_clause_ratio_dist = make_distribution([dependent_clause_ratio])
+    passive_voice_ratio_dist = make_distribution([passive_voice_ratio])
+    subordination_index_dist = make_distribution([subordination_index])
+    coordination_index_dist = make_distribution([coordination_index])
+    sentence_complexity_score_dist = make_distribution([sentence_complexity_score])
+    dependency_distance_dist = make_distribution([mean_dependency_distance])
+    left_branching_ratio_dist = make_distribution([left_branching_ratio])
+    right_branching_ratio_dist = make_distribution([right_branching_ratio])
+
     # Collect metadata
     metadata = {
         "sentence_count": len(sentences),
@@ -331,6 +368,20 @@ def compute_advanced_syntactic(
         dependency_distance=mean_dependency_distance,
         left_branching_ratio=left_branching_ratio,
         right_branching_ratio=right_branching_ratio,
+        mean_parse_tree_depth_dist=mean_parse_tree_depth_dist,
+        max_parse_tree_depth_dist=max_parse_tree_depth_dist,
+        mean_t_unit_length_dist=mean_t_unit_length_dist,
+        clausal_density_dist=clausal_density_dist,
+        dependent_clause_ratio_dist=dependent_clause_ratio_dist,
+        passive_voice_ratio_dist=passive_voice_ratio_dist,
+        subordination_index_dist=subordination_index_dist,
+        coordination_index_dist=coordination_index_dist,
+        sentence_complexity_score_dist=sentence_complexity_score_dist,
+        dependency_distance_dist=dependency_distance_dist,
+        left_branching_ratio_dist=left_branching_ratio_dist,
+        right_branching_ratio_dist=right_branching_ratio_dist,
+        chunk_size=chunk_size,
+        chunk_count=1,  # Single pass analysis
         metadata=metadata,
     )
 
