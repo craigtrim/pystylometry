@@ -32,12 +32,39 @@ from .._types import CharacterMetricsResult, Distribution, chunk_text, make_dist
 
 # Character sets
 _PUNCTUATION = {
-    ".", ",", "!", "?", ";", ":", "-", "—", "–",  # Basic punctuation
-    "'", '"', """, """, "'", "'",  # Quotes
-    "(", ")", "[", "]", "{", "}",  # Brackets
-    "/", "\\", "|",  # Slashes
+    ".",
+    ",",
+    "!",
+    "?",
+    ";",
+    ":",
+    "-",
+    "—",
+    "–",  # Basic punctuation
+    "'",
+    '"',
+    """, """,
+    "'",
+    "'",  # Quotes
+    "(",
+    ")",
+    "[",
+    "]",
+    "{",
+    "}",  # Brackets
+    "/",
+    "\\",
+    "|",  # Slashes
     "…",  # Ellipsis
-    "*", "&", "@", "#", "$", "%", "^", "~", "`",  # Special symbols
+    "*",
+    "&",
+    "@",
+    "#",
+    "$",
+    "%",
+    "^",
+    "~",
+    "`",  # Special symbols
 }
 _VOWELS = {"a", "e", "i", "o", "u"}
 _STANDARD_LETTERS = set("abcdefghijklmnopqrstuvwxyz")
@@ -115,7 +142,9 @@ def _compute_character_metrics_single(text: str) -> dict:
 
     # Letter frequency distribution
     if total_letters > 0:
-        letter_frequency = {letter: count / total_letters for letter, count in letter_counts.items()}
+        letter_frequency = {
+            letter: count / total_letters for letter, count in letter_counts.items()
+        }
     else:
         letter_frequency = {letter: 0.0 for letter in "abcdefghijklmnopqrstuvwxyz"}
 
@@ -124,7 +153,9 @@ def _compute_character_metrics_single(text: str) -> dict:
     total_words = len(words)
 
     if total_words > 0:
-        word_lengths = [sum(1 for c in w if c.isalnum()) for w in words if any(c.isalnum() for c in w)]
+        word_lengths = [
+            sum(1 for c in w if c.isalnum()) for w in words if any(c.isalnum() for c in w)
+        ]
         avg_word_length = sum(word_lengths) / len(word_lengths) if word_lengths else float("nan")
     else:
         avg_word_length = float("nan")
@@ -156,7 +187,9 @@ def _compute_character_metrics_single(text: str) -> dict:
         avg_sentence_length_chars = float("nan")
 
     # Ratios
-    punctuation_density = (punctuation_count / total_words * 100) if total_words > 0 else float("nan")
+    punctuation_density = (
+        (punctuation_count / total_words * 100) if total_words > 0 else float("nan")
+    )
     punctuation_variety = len(punctuation_types)
 
     if consonant_count > 0:
@@ -246,14 +279,30 @@ def compute_character_metrics(text: str, chunk_size: int = 1000) -> CharacterMet
     chunk_results = [_compute_character_metrics_single(chunk) for chunk in chunks]
 
     # Collect values for distributions
-    avg_word_length_vals = [r["avg_word_length"] for r in chunk_results if not math.isnan(r["avg_word_length"])]
-    avg_sentence_vals = [r["avg_sentence_length_chars"] for r in chunk_results if not math.isnan(r["avg_sentence_length_chars"])]
-    punct_density_vals = [r["punctuation_density"] for r in chunk_results if not math.isnan(r["punctuation_density"])]
+    avg_word_length_vals = [
+        r["avg_word_length"] for r in chunk_results if not math.isnan(r["avg_word_length"])
+    ]
+    avg_sentence_vals = [
+        r["avg_sentence_length_chars"]
+        for r in chunk_results
+        if not math.isnan(r["avg_sentence_length_chars"])
+    ]
+    punct_density_vals = [
+        r["punctuation_density"] for r in chunk_results if not math.isnan(r["punctuation_density"])
+    ]
     punct_variety_vals = [float(r["punctuation_variety"]) for r in chunk_results]
-    vc_ratio_vals = [r["vowel_consonant_ratio"] for r in chunk_results if not math.isnan(r["vowel_consonant_ratio"]) and not math.isinf(r["vowel_consonant_ratio"])]
+    vc_ratio_vals = [
+        r["vowel_consonant_ratio"]
+        for r in chunk_results
+        if not math.isnan(r["vowel_consonant_ratio"]) and not math.isinf(r["vowel_consonant_ratio"])
+    ]
     digit_ratio_vals = [r["digit_ratio"] for r in chunk_results if not math.isnan(r["digit_ratio"])]
-    uppercase_ratio_vals = [r["uppercase_ratio"] for r in chunk_results if not math.isnan(r["uppercase_ratio"])]
-    whitespace_ratio_vals = [r["whitespace_ratio"] for r in chunk_results if not math.isnan(r["whitespace_ratio"])]
+    uppercase_ratio_vals = [
+        r["uppercase_ratio"] for r in chunk_results if not math.isnan(r["uppercase_ratio"])
+    ]
+    whitespace_ratio_vals = [
+        r["whitespace_ratio"] for r in chunk_results if not math.isnan(r["whitespace_ratio"])
+    ]
 
     # Aggregate totals
     total_digits = sum(r["digit_count"] for r in chunk_results)
@@ -279,14 +328,18 @@ def compute_character_metrics(text: str, chunk_size: int = 1000) -> CharacterMet
                 total_letter_counts[letter] += freq * r["total_letters"]
 
     if total_letters > 0:
-        letter_frequency = {letter: count / total_letters for letter, count in total_letter_counts.items()}
+        letter_frequency = {
+            letter: count / total_letters for letter, count in total_letter_counts.items()
+        }
     else:
         letter_frequency = {letter: 0.0 for letter in "abcdefghijklmnopqrstuvwxyz"}
 
     # Build distributions (handle empty case)
-    def safe_dist(values):
+    def safe_dist(values: list[float]) -> Distribution:
         if not values:
-            return Distribution(values=[], mean=float("nan"), median=float("nan"), std=0.0, range=0.0, iqr=0.0)
+            return Distribution(
+                values=[], mean=float("nan"), median=float("nan"), std=0.0, range=0.0, iqr=0.0
+            )
         return make_distribution(values)
 
     avg_word_length_dist = safe_dist(avg_word_length_vals)

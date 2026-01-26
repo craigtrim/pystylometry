@@ -54,8 +54,8 @@ References:
         https://www.whonix.org/wiki/Stylometry
 """
 
+from ._loader import DialectMarkers, clear_cache, get_markers
 from .detector import compute_dialect
-from ._loader import get_markers, clear_cache, DialectMarkers
 
 __all__ = [
     "compute_dialect",

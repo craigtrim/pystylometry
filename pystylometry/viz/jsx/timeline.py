@@ -96,8 +96,7 @@ def export_drift_timeline_jsx(
         spike_data = result.pairwise_scores[result.max_location]
         if "top_words" in spike_data and spike_data["top_words"]:
             top_words = [
-                {"word": w[0], "contribution": round(w[1], 2)}
-                for w in spike_data["top_words"][:8]
+                {"word": w[0], "contribution": round(w[1], 2)} for w in spike_data["top_words"][:8]
             ]
 
     config = {
@@ -147,7 +146,7 @@ def export_drift_timeline_jsx(
 
 def _get_timeline_component() -> str:
     """Return the React component code for the timeline visualization."""
-    return f'''
+    return f"""
     {COLOR_INTERPOLATION_JS}
 
     function DriftTimeline() {{
@@ -714,4 +713,4 @@ def _get_timeline_component() -> str:
         </div>
       );
     }}
-'''
+"""

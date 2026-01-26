@@ -47,7 +47,7 @@ def export_drift_viewer(
 
 def _generate_viewer_html(title: str) -> str:
     """Generate the complete HTML for the standalone viewer."""
-    return f'''<!DOCTYPE html>
+    return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -222,12 +222,12 @@ def _generate_viewer_html(title: str) -> str:
 {_get_viewer_component()}
     </script>
 </body>
-</html>'''
+</html>"""
 
 
 def _get_viewer_component() -> str:
     """Return the React component for the viewer."""
-    return '''
+    return """
     // Color interpolation for data points
     function getPointColor(distance) {
         const green = [34, 197, 94];
@@ -1029,4 +1029,4 @@ def _get_viewer_component() -> str:
 
     const root = ReactDOM.createRoot(document.getElementById("root"));
     root.render(<DriftViewer />);
-'''
+"""

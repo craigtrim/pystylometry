@@ -15,9 +15,7 @@ Related GitHub Issues:
 
 import math
 
-import pytest
-
-from pystylometry.dialect import compute_dialect, get_markers, clear_cache
+from pystylometry.dialect import clear_cache, compute_dialect, get_markers
 
 
 class TestDialectBasicFunctionality:
@@ -48,8 +46,6 @@ class TestDialectBasicFunctionality:
 
         # Should detect mixed or have close scores
         assert result.dialect in ["mixed", "british", "american"]
-        # Scores should be somewhat close
-        score_diff = abs(result.british_score - result.american_score)
         # Both dialects should have some presence
         assert result.british_score > 0 or result.american_score > 0
 
@@ -161,7 +157,6 @@ class TestDialectGrammarPatterns:
     def test_have_got_pattern(self):
         """Test detection of 'have got' vs 'have' pattern."""
         british_text = "I've got a car. She's got three children."
-        american_text = "I have a car. She has three children."
 
         british_result = compute_dialect(british_text)
         # Grammar patterns are harder to distinguish, so just check for detection
@@ -226,11 +221,11 @@ class TestDialectMarkersLoader:
 
     def test_cache_clear(self):
         """Test that cache can be cleared."""
-        markers1 = get_markers()
+        get_markers()  # Prime the cache
         clear_cache()
-        markers2 = get_markers()
+        markers_after_clear = get_markers()
         # After clearing, should still work
-        assert markers2 is not None
+        assert markers_after_clear is not None
 
     def test_markers_contain_expected_data(self):
         """Test that markers contain expected data structures."""

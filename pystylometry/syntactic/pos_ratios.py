@@ -9,7 +9,9 @@ from .._types import Distribution, POSResult, make_distribution
 from .._utils import check_optional_dependency
 
 
-def compute_pos_ratios(text: str, model: str = "en_core_web_sm", chunk_size: int = 1000) -> POSResult:
+def compute_pos_ratios(
+    text: str, model: str = "en_core_web_sm", chunk_size: int = 1000
+) -> POSResult:
     """
     Compute Part-of-Speech ratios and lexical density using spaCy.
 
@@ -60,8 +62,7 @@ def compute_pos_ratios(text: str, model: str = "en_core_web_sm", chunk_size: int
         nlp = spacy.load(model)
     except OSError:
         raise OSError(
-            f"spaCy model '{model}' not found. "
-            f"Download it with: python -m spacy download {model}"
+            f"spaCy model '{model}' not found. Download it with: python -m spacy download {model}"
         )
 
     # Process text with spaCy
@@ -165,11 +166,19 @@ def compute_pos_ratios(text: str, model: str = "en_core_web_sm", chunk_size: int
     verb_ratio_dist = make_distribution([verb_ratio])
     adj_ratio_dist = make_distribution([adj_ratio])
     adv_ratio_dist = make_distribution([adv_ratio])
-    noun_verb_dist = make_distribution([noun_verb_ratio]) if not (noun_verb_ratio != noun_verb_ratio) else Distribution(
-        values=[], mean=float("nan"), median=float("nan"), std=0.0, range=0.0, iqr=0.0
+    noun_verb_dist = (
+        make_distribution([noun_verb_ratio])
+        if not (noun_verb_ratio != noun_verb_ratio)
+        else Distribution(
+            values=[], mean=float("nan"), median=float("nan"), std=0.0, range=0.0, iqr=0.0
+        )
     )
-    adj_noun_dist = make_distribution([adj_noun_ratio]) if not (adj_noun_ratio != adj_noun_ratio) else Distribution(
-        values=[], mean=float("nan"), median=float("nan"), std=0.0, range=0.0, iqr=0.0
+    adj_noun_dist = (
+        make_distribution([adj_noun_ratio])
+        if not (adj_noun_ratio != adj_noun_ratio)
+        else Distribution(
+            values=[], mean=float("nan"), median=float("nan"), std=0.0, range=0.0, iqr=0.0
+        )
     )
     lexical_density_dist = make_distribution([lexical_density])
     function_word_dist = make_distribution([function_word_ratio])

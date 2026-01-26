@@ -11,10 +11,20 @@ Related GitHub Issues:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict
 
 if TYPE_CHECKING:
     from .._types import KilgarriffDriftResult
+
+
+class _ScatterDataPoint(TypedDict):
+    """Type for scatter plot data points."""
+
+    label: str
+    mean_chi: float
+    cv: float
+    pattern: str
+
 
 # Reference bounds for zone classification (empirically derived)
 MEAN_CHI_LOW = 100  # Below: AI-like baseline
@@ -54,7 +64,7 @@ def plot_drift_timeline(
     _check_viz_available()
 
     import matplotlib.pyplot as plt
-    import seaborn as sns
+    import seaborn as sns  # type: ignore[import-untyped]
 
     # Extract data
     chi_values = [s["chi_squared"] for s in result.pairwise_scores]
@@ -197,10 +207,10 @@ def plot_drift_scatter(
 
     import matplotlib.patches as mpatches
     import matplotlib.pyplot as plt
-    import seaborn as sns
+    import seaborn as sns  # type: ignore[import-untyped]
 
     # Extract data
-    data = []
+    data: list[_ScatterDataPoint] = []
     for label, result in results:
         mean_chi = result.mean_chi_squared
         cv = result.std_chi_squared / mean_chi if mean_chi > 0 else 0
@@ -244,10 +254,14 @@ def plot_drift_scatter(
         )
 
         # Bottom-left: AI zone
-        ax.axvspan(0, MEAN_CHI_LOW, ymin=0, ymax=CV_HIGH, alpha=0.3, color=zone_colors["ai_uniform"])
+        ax.axvspan(
+            0, MEAN_CHI_LOW, ymin=0, ymax=CV_HIGH, alpha=0.3, color=zone_colors["ai_uniform"]
+        )
 
         # Top zones: Splice/volatile
-        ax.axvspan(MEAN_CHI_HIGH, 450, ymin=CV_HIGH, ymax=1.0, alpha=0.3, color=zone_colors["splice"])
+        ax.axvspan(
+            MEAN_CHI_HIGH, 450, ymin=CV_HIGH, ymax=1.0, alpha=0.3, color=zone_colors["splice"]
+        )
 
         # Middle: Transition
         ax.axvspan(
@@ -273,10 +287,24 @@ def plot_drift_scatter(
             50, 0.5, "ANOMALOUS", fontsize=9, ha="center", va="center", color="#6b7280", alpha=0.8
         )
         ax.text(
-            175, 0.14, "TRANSITION", fontsize=9, ha="center", va="center", color="#6b7280", alpha=0.8
+            175,
+            0.14,
+            "TRANSITION",
+            fontsize=9,
+            ha="center",
+            va="center",
+            color="#6b7280",
+            alpha=0.8,
         )
         ax.text(
-            350, 0.04, "HUMAN-TIGHT", fontsize=9, ha="center", va="center", color="#6b7280", alpha=0.8
+            350,
+            0.04,
+            "HUMAN-TIGHT",
+            fontsize=9,
+            ha="center",
+            va="center",
+            color="#6b7280",
+            alpha=0.8,
         )
         ax.text(
             350, 0.14, "HUMAN", fontsize=9, ha="center", va="center", color="#059669", alpha=0.9
@@ -334,9 +362,7 @@ def plot_drift_scatter(
         mpatches.Patch(color=pattern_colors["gradual_drift"], label="Gradual Drift"),
         mpatches.Patch(color=pattern_colors["suspiciously_uniform"], label="Suspiciously Uniform"),
     ]
-    ax.legend(
-        handles=legend_handles, loc="upper right", title="Detected Pattern", framealpha=0.9
-    )
+    ax.legend(handles=legend_handles, loc="upper right", title="Detected Pattern", framealpha=0.9)
 
     # Reference bounds annotation
     bounds_text = (
@@ -395,7 +421,7 @@ def plot_drift_report(
     _check_viz_available()
 
     import matplotlib.pyplot as plt
-    import seaborn as sns
+    import seaborn as sns  # type: ignore[import-untyped]
 
     # Extract data
     chi_values = [s["chi_squared"] for s in result.pairwise_scores]
@@ -404,7 +430,7 @@ def plot_drift_report(
     # Set up style
     sns.set_theme(style="whitegrid")
 
-    fig = plt.figure(figsize=figsize)
+    fig = plt.figure(figsize=figsize, constrained_layout=True)
 
     # Create grid layout
     gs = fig.add_gridspec(3, 2, height_ratios=[2, 1, 1], hspace=0.3, wspace=0.3)
@@ -481,11 +507,22 @@ def plot_drift_report(
             word_labels = [w[0] for w in words]
             word_values = [w[1] for w in words]
 
-            bars = ax4.barh(word_labels[::-1], word_values[::-1], color="#2563eb", alpha=0.7)
+            ax4.barh(word_labels[::-1], word_values[::-1], color="#2563eb", alpha=0.7)
             ax4.set_xlabel("χ² Contribution")
-            ax4.set_title(f"Top Contributors at Spike (Window {result.max_location})", fontsize=12, fontweight="bold")
+            ax4.set_title(
+                f"Top Contributors at Spike (Window {result.max_location})",
+                fontsize=12,
+                fontweight="bold",
+            )
         else:
-            ax4.text(0.5, 0.5, "No word data available", ha="center", va="center", transform=ax4.transAxes)
+            ax4.text(
+                0.5,
+                0.5,
+                "No word data available",
+                ha="center",
+                va="center",
+                transform=ax4.transAxes,
+            )
             ax4.set_title("Top Contributors at Spike", fontsize=12, fontweight="bold")
     else:
         ax4.text(0.5, 0.5, "No spike detected", ha="center", va="center", transform=ax4.transAxes)
@@ -498,23 +535,17 @@ def plot_drift_report(
     # Determine zone
     if result.mean_chi_squared < MEAN_CHI_LOW:
         baseline_zone = "AI-like baseline"
-        baseline_color = "#dc2626"
     elif result.mean_chi_squared > MEAN_CHI_HIGH:
         baseline_zone = "Human-like baseline"
-        baseline_color = "#22c55e"
     else:
         baseline_zone = "Transition zone"
-        baseline_color = "#f59e0b"
 
     if cv < CV_LOW:
         volatility_zone = "Very stable"
-        vol_color = "#3b82f6"
     elif cv > CV_HIGH:
         volatility_zone = "Volatile"
-        vol_color = "#ef4444"
     else:
         volatility_zone = "Normal volatility"
-        vol_color = "#22c55e"
 
     zone_text = (
         f"Zone Classification\n"
@@ -551,13 +582,8 @@ def plot_drift_report(
         y=0.98,
     )
 
-    # Use constrained_layout instead of tight_layout to avoid warnings with mixed axes
-    fig.set_constrained_layout(True)
-
     if output:
         plt.savefig(output, dpi=150, bbox_inches="tight")
         plt.close()
     else:
         plt.show()
-
-

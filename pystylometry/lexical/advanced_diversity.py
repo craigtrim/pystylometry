@@ -32,7 +32,13 @@ References:
 import random
 from typing import Optional
 
-from .._types import Distribution, HDDResult, MATTRResult, MSTTRResult, VocdDResult, make_distribution
+from .._types import (
+    HDDResult,
+    MATTRResult,
+    MSTTRResult,
+    VocdDResult,
+    make_distribution,
+)
 
 
 def _tokenize_for_diversity(text: str) -> list[str]:
@@ -61,13 +67,13 @@ def _tokenize_for_diversity(text: str) -> list[str]:
     raw_tokens = text_lower.split()
 
     # Comprehensive punctuation set for stripping
-    PUNCTUATION = set(".,!?;:'\"()[]{}/-—–…*&@#$%^~`\\|<>«»„\"\"''‚'")
+    punctuation_chars = set(".,!?;:'\"()[]{}/-—–…*&@#$%^~`\\|<>«»„\"\"''‚'")
 
     # Strip punctuation from each token
     tokens = []
     for token in raw_tokens:
         # Strip leading and trailing punctuation
-        clean_token = token.strip("".join(PUNCTUATION))
+        clean_token = token.strip("".join(punctuation_chars))
         if clean_token:  # Only add non-empty tokens
             tokens.append(clean_token)
 
@@ -168,9 +174,7 @@ def compute_vocd_d(
 
     # Step 2: Validate minimum length
     if total_tokens < min_tokens:
-        raise ValueError(
-            f"Text has {total_tokens} tokens, minimum {min_tokens} required for voc-D"
-        )
+        raise ValueError(f"Text has {total_tokens} tokens, minimum {min_tokens} required for voc-D")
 
     # Step 3: Determine sample sizes to test
     # Test from 10 tokens up to min(100, total_tokens - 10)
@@ -213,12 +217,12 @@ def compute_vocd_d(
         numerator += ttr / (size**0.5)
         denominator += 1.0 / size
 
-    D = numerator / denominator if denominator > 0 else 0.0
+    d_param = numerator / denominator if denominator > 0 else 0.0
 
     # Step 6: Calculate R² (goodness of fit)
     # Predicted TTR = D / sqrt(sample_size)
     y_actual = list(sample_size_to_mean_ttr.values())
-    y_predicted = [D / (size**0.5) for size in sample_sizes]
+    y_predicted = [d_param / (size**0.5) for size in sample_sizes]
 
     # R² calculation
     mean_y = sum(y_actual) / len(y_actual)
@@ -239,12 +243,12 @@ def compute_vocd_d(
     }
 
     # Step 8: Create distributions (single-pass analysis)
-    d_parameter_dist = make_distribution([D])
+    d_parameter_dist = make_distribution([d_param])
     curve_fit_r_squared_dist = make_distribution([r_squared])
 
     # Step 9: Return result
     return VocdDResult(
-        d_parameter=D,
+        d_parameter=d_param,
         curve_fit_r_squared=r_squared,
         sample_count=len(sample_sizes),
         optimal_sample_size=sample_size,  # Input parameter
@@ -472,9 +476,7 @@ def compute_hdd(text: str, sample_size: int = 42, chunk_size: int = 1000) -> HDD
 
     # Step 2: Validate minimum length
     if total_tokens < sample_size:
-        raise ValueError(
-            f"Text has {total_tokens} tokens, minimum {sample_size} required for HD-D"
-        )
+        raise ValueError(f"Text has {total_tokens} tokens, minimum {sample_size} required for HD-D")
 
     # Step 3: Build frequency distribution
     type_counts: dict[str, int] = {}
@@ -631,9 +633,7 @@ def compute_msttr(text: str, segment_size: int = 100, chunk_size: int = 1000) ->
 
     # Step 6: Calculate statistics
     # Standard deviation
-    variance = sum((ttr - msttr_score) ** 2 for ttr in segment_ttrs) / len(
-        segment_ttrs
-    )
+    variance = sum((ttr - msttr_score) ** 2 for ttr in segment_ttrs) / len(segment_ttrs)
     ttr_std_dev = variance**0.5
 
     # Min and max

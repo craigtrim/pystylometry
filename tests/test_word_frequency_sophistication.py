@@ -5,8 +5,8 @@ corpus frequency data. Related to GitHub Issue #15.
 """
 
 import pytest
-from pystylometry.lexical import compute_word_frequency_sophistication
 
+from pystylometry.lexical import compute_word_frequency_sophistication
 
 # ===== Fixtures =====
 
@@ -236,11 +236,8 @@ class TestWordFrequencyConstraints:
         result = compute_word_frequency_sophistication(mixed_sophistication_text)
 
         if result.rarest_words and result.most_common_words:
-            # Rarest words should have higher ranks
-            min_rarest_rank = min(rank for _, rank in result.rarest_words)
-            max_common_rank = max(rank for _, rank in result.most_common_words)
-            # Not a strict requirement if there's overlap, but generally true
-            # So we'll just check the top rarest vs top common
+            # Rarest words should have higher ranks than common words
+            # Check the top rarest vs top common
             assert result.rarest_words[0][1] >= result.most_common_words[0][1]
 
 
@@ -253,16 +250,12 @@ class TestWordFrequencyParameters:
     def test_invalid_corpus(self, simple_text):
         """Test invalid corpus name raises ValueError."""
         with pytest.raises(ValueError, match="Only 'coca' corpus"):
-            compute_word_frequency_sophistication(
-                simple_text, frequency_corpus="invalid"
-            )
+            compute_word_frequency_sophistication(simple_text, frequency_corpus="invalid")
 
     def test_custom_rare_threshold(self, academic_text):
         """Test with custom rare_threshold."""
         result_default = compute_word_frequency_sophistication(academic_text)
-        result_custom = compute_word_frequency_sophistication(
-            academic_text, rare_threshold=5000
-        )
+        result_custom = compute_word_frequency_sophistication(academic_text, rare_threshold=5000)
 
         # With lower threshold, more words should be classified as rare
         assert result_custom.rare_word_ratio >= result_default.rare_word_ratio
@@ -271,9 +264,7 @@ class TestWordFrequencyParameters:
     def test_custom_common_threshold(self, academic_text):
         """Test with custom common_threshold."""
         result_default = compute_word_frequency_sophistication(academic_text)
-        result_custom = compute_word_frequency_sophistication(
-            academic_text, common_threshold=2000
-        )
+        result_custom = compute_word_frequency_sophistication(academic_text, common_threshold=2000)
 
         # With higher threshold, more words should be classified as common
         assert result_custom.common_word_ratio >= result_default.common_word_ratio

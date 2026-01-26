@@ -6,7 +6,6 @@ import pytest
 
 from pystylometry.syntactic.advanced_syntactic import compute_advanced_syntactic
 
-
 # ===== Fixtures =====
 
 
@@ -333,8 +332,7 @@ class TestClausalDensity:
         assert metadata["dependent_clause_count"] >= 0
         assert (
             metadata["total_clauses"]
-            == metadata["independent_clause_count"]
-            + metadata["dependent_clause_count"]
+            == metadata["independent_clause_count"] + metadata["dependent_clause_count"]
         )
 
 
@@ -454,9 +452,7 @@ class TestBranchingDirection:
         """Left and right branching should sum to ~1.0."""
         result = compute_advanced_syntactic(academic_text)
 
-        total_branching = (
-            result.left_branching_ratio + result.right_branching_ratio
-        )
+        total_branching = result.left_branching_ratio + result.right_branching_ratio
         assert total_branching == pytest.approx(1.0, abs=0.01)
 
     def test_branching_counts_in_metadata(self, simple_text):
@@ -539,6 +535,8 @@ class TestComparativeAnalysis:
 
         # Subordinated should have higher subordination
         assert subordinated_result.subordination_index > 0
+        # coordinated_result computed for comparison (may have lower subordination)
+        assert coordinated_result.subordination_index >= 0
 
     def test_complexity_ranking_consistency(self, childrens_text, simple_text, academic_text):
         """Complexity should increase: children's < simple < academic."""

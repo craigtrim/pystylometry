@@ -387,9 +387,7 @@ def compute_kilgarriff_drift(
         raise ValueError(f"window_size must be positive, got {window_size}")
     valid_modes = ("sequential", "all_pairs", "fixed_lag")
     if comparison_mode not in valid_modes:
-        raise ValueError(
-            f"comparison_mode must be one of {valid_modes}, got '{comparison_mode}'"
-        )
+        raise ValueError(f"comparison_mode must be one of {valid_modes}, got '{comparison_mode}'")
 
     # Tokenize text
     tokens = [t.lower() for t in tokenize(text) if t.isalpha()]
@@ -443,9 +441,7 @@ def compute_kilgarriff_drift(
 
     elif comparison_mode == "all_pairs":
         # Compare all window pairs: (0,1), (0,2), ..., (n-2,n-1)
-        pairs_to_compare = [
-            (i, j) for i in range(window_count) for j in range(i + 1, window_count)
-        ]
+        pairs_to_compare = [(i, j) for i in range(window_count) for j in range(i + 1, window_count)]
 
     elif comparison_mode == "fixed_lag":
         # Compare windows at fixed lag distance: (0,lag), (1,lag+1), ...
@@ -462,14 +458,16 @@ def compute_kilgarriff_drift(
             windows[i], windows[j], n_words=n_words
         )
 
-        pairwise_scores.append({
-            "chunk_pair": (i, j),
-            "chi_squared": chi_sq,
-            "degrees_of_freedom": df,
-            "top_words": contributions[:10],  # Top 10 contributing words
-            "window_i_size": len(windows[i]),
-            "window_j_size": len(windows[j]),
-        })
+        pairwise_scores.append(
+            {
+                "chunk_pair": (i, j),
+                "chi_squared": chi_sq,
+                "degrees_of_freedom": df,
+                "top_words": contributions[:10],  # Top 10 contributing words
+                "window_i_size": len(windows[i]),
+                "window_j_size": len(windows[j]),
+            }
+        )
         chi_squared_values.append(chi_sq)
 
     # Build distance matrix for all_pairs mode

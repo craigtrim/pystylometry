@@ -33,7 +33,7 @@ def generate_html_document(
     """
     config_json = json.dumps(config, indent=2)
 
-    return f'''<!DOCTYPE html>
+    return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -70,7 +70,7 @@ def generate_html_document(
     ReactDOM.createRoot(document.getElementById('root')).render(<{component_name} />);
   </script>
 </body>
-</html>'''
+</html>"""
 
 
 def write_html_file(path: str | Path, content: str) -> Path:
@@ -82,7 +82,7 @@ def write_html_file(path: str | Path, content: str) -> Path:
 
 
 # Shared color interpolation function as a JavaScript string
-COLOR_INTERPOLATION_JS = '''
+COLOR_INTERPOLATION_JS = """
     // Color interpolation: blue -> amber -> red based on distance
     function getPointColor(distance) {
       const colors = [
@@ -110,11 +110,11 @@ COLOR_INTERPOLATION_JS = '''
 
       return `rgb(${r}, ${g}, ${b})`;
     }
-'''
+"""
 
 
 # Common CSS for cards and panels
-CARD_STYLES = '''
+CARD_STYLES = """
     .card {
       background: white;
       border-radius: 8px;
@@ -141,4 +141,4 @@ CARD_STYLES = '''
     .stat-value {
       font-family: ui-monospace, monospace;
     }
-'''
+"""

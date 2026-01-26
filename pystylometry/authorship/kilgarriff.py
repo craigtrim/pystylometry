@@ -324,9 +324,7 @@ def compute_kilgarriff(
     tokens2 = [t.lower() for t in tokenize(text2) if t.isalpha()]
 
     # Compute chi-squared using core function
-    chi_squared, df, contributions, details = _kilgarriff_core(
-        tokens1, tokens2, n_words=n_words
-    )
+    chi_squared, df, contributions, details = _kilgarriff_core(tokens1, tokens2, n_words=n_words)
 
     # P-value computation (pure Python, no scipy required)
     # Note: This is provided for completeness but should be used cautiously.

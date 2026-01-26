@@ -28,8 +28,15 @@ References:
         of linguistic complexity. In Image, language, brain (pp. 95-126).
 """
 
+from typing import Any
+
 from .._types import AdvancedSyntacticResult, Distribution, make_distribution
 from .._utils import check_optional_dependency
+
+# Type aliases for spaCy objects (loaded dynamically)
+_SpaCyToken = Any
+_SpaCyDoc = Any
+_SpaCySpan = Any
 
 
 def compute_advanced_syntactic(
@@ -148,7 +155,6 @@ def compute_advanced_syntactic(
 
     try:
         import spacy  # type: ignore
-        from spacy.tokens import Doc, Span, Token  # type: ignore
     except ImportError as e:
         raise ImportError(
             "spaCy is required for advanced syntactic analysis. "
@@ -160,8 +166,7 @@ def compute_advanced_syntactic(
         nlp = spacy.load(model)
     except OSError as e:
         raise OSError(
-            f"spaCy model '{model}' not found. "
-            f"Download with: python -m spacy download {model}"
+            f"spaCy model '{model}' not found. Download with: python -m spacy download {model}"
         ) from e
 
     # Parse text
@@ -252,9 +257,7 @@ def compute_advanced_syntactic(
     coordinate_clause_count = 0
 
     for sent in sentences:
-        sent_total, sent_dependent, sent_subordinate, sent_coordinate = _count_clauses(
-            sent
-        )
+        sent_total, sent_dependent, sent_subordinate, sent_coordinate = _count_clauses(sent)
         total_clauses += sent_total
         dependent_clause_count += sent_dependent
         subordinate_clause_count += sent_subordinate
@@ -302,14 +305,22 @@ def compute_advanced_syntactic(
     # Normalize individual metrics to 0-1 range
     normalized_parse_depth = min(mean_parse_tree_depth / 10, 1.0)
     normalized_clausal_density = (
-        min(clausal_density / 3, 1.0) if not isinstance(clausal_density, float) or not (clausal_density != clausal_density) else 0.0
+        min(clausal_density / 3, 1.0)
+        if not isinstance(clausal_density, float) or not (clausal_density != clausal_density)
+        else 0.0
     )
     normalized_t_unit_length = (
-        min(mean_t_unit_length / 25, 1.0) if not isinstance(mean_t_unit_length, float) or not (mean_t_unit_length != mean_t_unit_length) else 0.0
+        min(mean_t_unit_length / 25, 1.0)
+        if not isinstance(mean_t_unit_length, float)
+        or not (mean_t_unit_length != mean_t_unit_length)
+        else 0.0
     )
     normalized_dependency_distance = min(mean_dependency_distance / 5, 1.0)
     normalized_subordination = (
-        subordination_index if not isinstance(subordination_index, float) or not (subordination_index != subordination_index) else 0.0
+        subordination_index
+        if not isinstance(subordination_index, float)
+        or not (subordination_index != subordination_index)
+        else 0.0
     )
 
     # Weighted combination
@@ -386,7 +397,7 @@ def compute_advanced_syntactic(
     )
 
 
-def _calculate_max_tree_depth(token) -> int:
+def _calculate_max_tree_depth(token: _SpaCyToken) -> int:
     """
     Calculate maximum depth of dependency tree starting from token.
 
@@ -403,7 +414,7 @@ def _calculate_max_tree_depth(token) -> int:
     return max(child_depths) + 1
 
 
-def _identify_t_units(doc) -> list:
+def _identify_t_units(doc: _SpaCyDoc) -> list[_SpaCySpan]:
     """
     Identify T-units (minimal terminable units) in document.
 
@@ -422,7 +433,7 @@ def _identify_t_units(doc) -> list:
     return list(doc.sents)
 
 
-def _count_clauses(sent) -> tuple[int, int, int, int]:
+def _count_clauses(sent: _SpaCySpan) -> tuple[int, int, int, int]:
     """
     Count different types of clauses in sentence.
 
@@ -457,7 +468,7 @@ def _count_clauses(sent) -> tuple[int, int, int, int]:
     return total, dependent, subordinate, coordinate
 
 
-def _is_passive_voice(sent) -> bool:
+def _is_passive_voice(sent: _SpaCySpan) -> bool:
     """
     Detect if sentence contains passive voice construction.
 

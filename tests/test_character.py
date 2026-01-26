@@ -11,7 +11,6 @@ import pytest
 
 from pystylometry.character import compute_character_metrics
 
-
 # ===== Fixtures =====
 
 
@@ -542,7 +541,7 @@ class TestCharacterMetricsSpecialCharacters:
 
     def test_mixed_quotes(self):
         """Test different quote styles."""
-        text = '"Double quotes" and \'single quotes\' work.'
+        text = "\"Double quotes\" and 'single quotes' work."
         result = compute_character_metrics(text)
 
         # Should detect quote marks as punctuation

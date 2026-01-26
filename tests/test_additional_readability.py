@@ -24,7 +24,6 @@ from pystylometry.readability import (
     compute_powers_sumner_kearl,
 )
 
-
 # ===== Fixtures =====
 
 
@@ -513,14 +512,15 @@ class TestComparativeAnalysis:
         """Test all formulas agree academic text is difficult."""
         dc = compute_dale_chall(academic_text)
         lw = compute_linsear_write(academic_text)
-        fry = compute_fry(academic_text)
+        fry_result = compute_fry(academic_text)
         fc = compute_forcast(academic_text)
         psk = compute_powers_sumner_kearl(academic_text)
 
         # All should indicate high difficulty
         assert dc.grade_level in ["11-12", "College", "College Graduate"]
         assert lw.grade_level >= 10.0
-        # Fry might vary, but should be upper grades or college
+        # Fry might vary - just ensure it returned a result
+        assert fry_result.grade_level is not None
         assert fc.grade_level >= 10.0
         # PSK is designed for primary grades (1-4), so it may produce
         # out-of-range scores for academic text - just check it exists

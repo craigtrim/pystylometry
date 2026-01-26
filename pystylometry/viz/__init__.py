@@ -29,9 +29,20 @@ Example:
     >>> export_drift_timeline_jsx(result, "timeline.html")  # Interactive HTML
 """
 
+from .drift import (  # noqa: E402
+    plot_drift_report,
+    plot_drift_scatter,
+    plot_drift_timeline,
+)
+from .jsx import (  # noqa: E402
+    export_drift_report_jsx,
+    export_drift_timeline_jsx,
+    export_drift_viewer,
+)
+
 try:
-    import matplotlib
-    import seaborn
+    import matplotlib  # noqa: F401
+    import seaborn  # noqa: F401  # type: ignore[import-untyped]
 
     _VIZ_AVAILABLE = True
 except ImportError:
@@ -46,20 +57,6 @@ def _check_viz_available() -> None:
             "Install with: pip install pystylometry[viz] or poetry install --with viz"
         )
 
-
-# Matplotlib-based visualizations (PNG)
-from .drift import (
-    plot_drift_report,
-    plot_drift_scatter,
-    plot_drift_timeline,
-)
-
-# Interactive JSX-based visualizations (HTML)
-from .jsx import (
-    export_drift_report_jsx,
-    export_drift_timeline_jsx,
-    export_drift_viewer,
-)
 
 __all__ = [
     # Matplotlib (PNG)

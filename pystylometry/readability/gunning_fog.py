@@ -219,8 +219,12 @@ def compute_gunning_fog(
             "sentence_count": total_sentences,
             "word_count": total_words,
             "complex_word_count": total_complex,
-            "complex_word_percentage": (total_complex / total_words * 100) if total_words > 0 else 0,
-            "average_words_per_sentence": total_words / total_sentences if total_sentences > 0 else 0,
+            "complex_word_percentage": (total_complex / total_words * 100)
+            if total_words > 0
+            else 0,
+            "average_words_per_sentence": total_words / total_sentences
+            if total_sentences > 0
+            else 0,
             # New prefixed keys for consistency
             "total_sentence_count": total_sentences,
             "total_word_count": total_words,

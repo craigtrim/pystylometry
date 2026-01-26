@@ -27,8 +27,13 @@ References:
     Quirk, R., et al. (1985). A Comprehensive Grammar of the English Language. Longman.
 """
 
+from typing import Any
+
 from .._types import Distribution, SentenceTypeResult, make_distribution
 from .._utils import check_optional_dependency
+
+# Type alias for spaCy Span (loaded dynamically)
+_SpaCySpan = Any
 
 
 def compute_sentence_types(
@@ -194,8 +199,7 @@ def compute_sentence_types(
         nlp = spacy.load(model)
     except OSError as e:
         raise OSError(
-            f"spaCy model '{model}' not found. "
-            f"Download with: python -m spacy download {model}"
+            f"spaCy model '{model}' not found. Download with: python -m spacy download {model}"
         ) from e
 
     # Parse text
@@ -270,13 +274,15 @@ def compute_sentence_types(
         functional_counts[functional_type] += 1
 
         # Store classification
-        sentence_classifications.append({
-            "text": sent.text,
-            "structural_type": structural_type,
-            "functional_type": functional_type,
-            "independent_clauses": independent_count,
-            "dependent_clauses": dependent_count,
-        })
+        sentence_classifications.append(
+            {
+                "text": sent.text,
+                "structural_type": structural_type,
+                "functional_type": functional_type,
+                "independent_clauses": independent_count,
+                "dependent_clauses": dependent_count,
+            }
+        )
 
     # Calculate ratios
     total_sentences = len(sentences)
@@ -292,7 +298,12 @@ def compute_sentence_types(
 
     # Calculate diversity metrics
     structural_ratios = [simple_ratio, compound_ratio, complex_ratio, compound_complex_ratio]
-    functional_ratios = [declarative_ratio, interrogative_ratio, imperative_ratio, exclamatory_ratio]
+    functional_ratios = [
+        declarative_ratio,
+        interrogative_ratio,
+        imperative_ratio,
+        exclamatory_ratio,
+    ]
 
     structural_diversity = _calculate_shannon_entropy(structural_ratios)
     functional_diversity = _calculate_shannon_entropy(functional_ratios)
@@ -355,7 +366,7 @@ def compute_sentence_types(
     )
 
 
-def _count_independent_clauses(sent) -> int:
+def _count_independent_clauses(sent: _SpaCySpan) -> int:
     """
     Count independent clauses in a sentence.
 
@@ -381,7 +392,7 @@ def _count_independent_clauses(sent) -> int:
     return count
 
 
-def _count_dependent_clauses(sent) -> int:
+def _count_dependent_clauses(sent: _SpaCySpan) -> int:
     """
     Count dependent clauses in a sentence.
 
@@ -427,7 +438,7 @@ def _classify_structural(independent: int, dependent: int) -> str:
         return "simple"
 
 
-def _classify_functional(sent) -> str:
+def _classify_functional(sent: _SpaCySpan) -> str:
     """
     Classify sentence function based on punctuation and structure.
 
@@ -460,7 +471,7 @@ def _classify_functional(sent) -> str:
     return "declarative"
 
 
-def _is_imperative_structure(sent) -> bool:
+def _is_imperative_structure(sent: _SpaCySpan) -> bool:
     """
     Check if sentence has imperative structure.
 

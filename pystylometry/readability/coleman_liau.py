@@ -175,7 +175,9 @@ def compute_coleman_liau(text: str, chunk_size: int = 1000) -> ColemanLiauResult
             "word_count": total_words,
             "letter_count": total_letters,
             "letters_per_100_words": (total_letters / total_words * 100) if total_words > 0 else 0,
-            "sentences_per_100_words": (total_sentences / total_words * 100) if total_words > 0 else 0,
+            "sentences_per_100_words": (total_sentences / total_words * 100)
+            if total_words > 0
+            else 0,
             # New prefixed keys for consistency
             "total_sentence_count": total_sentences,
             "total_word_count": total_words,

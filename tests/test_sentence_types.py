@@ -6,7 +6,6 @@ import pytest
 
 from pystylometry.syntactic.sentence_types import compute_sentence_types
 
-
 # ===== Fixtures =====
 
 
@@ -35,10 +34,7 @@ def complex_sentences():
 @pytest.fixture
 def compound_complex_sentences():
     """Text with compound-complex sentences."""
-    return (
-        "When I called, she came and she stayed. "
-        "Although we tried, we failed but we learned."
-    )
+    return "When I called, she came and she stayed. Although we tried, we failed but we learned."
 
 
 @pytest.fixture
@@ -185,7 +181,13 @@ class TestEdgeCases:
         result = compute_sentence_types(text)
 
         assert result.total_sentences == 3
-        assert result.simple_count + result.compound_count + result.complex_count + result.compound_complex_count == 3
+        assert (
+            result.simple_count
+            + result.compound_count
+            + result.complex_count
+            + result.compound_complex_count
+            == 3
+        )
 
     def test_homogeneous_structural(self, simple_sentences):
         """Test with all same structural type."""
@@ -317,11 +319,14 @@ class TestFunctionalClassification:
         result = compute_sentence_types(mixed_functional)
 
         # Should have multiple types
-        types_present = sum([
-            result.declarative_count > 0,
-            result.interrogative_count > 0,
-            result.imperative_count > 0 or result.exclamatory_count > 0,  # Either imperative or exclamatory
-        ])
+        types_present = sum(
+            [
+                result.declarative_count > 0,
+                result.interrogative_count > 0,
+                result.imperative_count > 0
+                or result.exclamatory_count > 0,  # Either imperative or exclamatory
+            ]
+        )
         assert types_present >= 2
 
     def test_question_mark_detection(self, interrogative_sentences):
@@ -451,11 +456,13 @@ class TestGenreSpecific:
         result = compute_sentence_types(text)
 
         # Fiction: mixed types
-        types_present = sum([
-            result.simple_count > 0,
-            result.compound_count > 0,
-            result.complex_count > 0,
-        ])
+        types_present = sum(
+            [
+                result.simple_count > 0,
+                result.compound_count > 0,
+                result.complex_count > 0,
+            ]
+        )
         assert types_present >= 2
 
     def test_news_text(self):
@@ -487,12 +494,7 @@ class TestGenreSpecific:
 
     def test_dialog_text(self):
         """Dialog should have interrogative/exclamatory."""
-        text = (
-            "Are you ready? "
-            "Yes, I am! "
-            "What should we do? "
-            "Let's go now!"
-        )
+        text = "Are you ready? Yes, I am! What should we do? Let's go now!"
         result = compute_sentence_types(text)
 
         # Dialog: questions and exclamations

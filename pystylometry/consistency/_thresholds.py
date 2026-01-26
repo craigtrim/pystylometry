@@ -131,6 +131,7 @@ MARGINAL_DATA_MAX_CONFIDENCE = 0.6
 # Export all thresholds as a dict for easy inspection
 # =============================================================================
 
+
 def get_all_thresholds() -> dict[str, float]:
     """
     Return all threshold values as a dictionary.

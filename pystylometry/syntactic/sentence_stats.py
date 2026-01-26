@@ -9,7 +9,9 @@ from .._types import Distribution, SentenceStatsResult, make_distribution
 from .._utils import check_optional_dependency
 
 
-def compute_sentence_stats(text: str, model: str = "en_core_web_sm", chunk_size: int = 1000) -> SentenceStatsResult:
+def compute_sentence_stats(
+    text: str, model: str = "en_core_web_sm", chunk_size: int = 1000
+) -> SentenceStatsResult:
     """
     Compute sentence-level statistics using spaCy.
 
@@ -58,8 +60,7 @@ def compute_sentence_stats(text: str, model: str = "en_core_web_sm", chunk_size:
         nlp = spacy.load(model)
     except OSError:
         raise OSError(
-            f"spaCy model '{model}' not found. "
-            f"Download it with: python -m spacy download {model}"
+            f"spaCy model '{model}' not found. Download it with: python -m spacy download {model}"
         )
 
     # Process text with spaCy

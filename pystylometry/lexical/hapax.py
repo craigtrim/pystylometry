@@ -11,8 +11,14 @@ Related GitHub Issue:
 import math
 from collections import Counter
 
-from .._types import Distribution, HapaxLexiconResult, HapaxResult, LexiconCategories
-from .._types import chunk_text, make_distribution
+from .._types import (
+    Distribution,
+    HapaxLexiconResult,
+    HapaxResult,
+    LexiconCategories,
+    chunk_text,
+    make_distribution,
+)
 from .._utils import check_optional_dependency, tokenize
 
 
@@ -28,8 +34,15 @@ def _compute_hapax_single(text: str) -> tuple[int, float, int, float, float, flo
     N = len(tokens)  # noqa: N806
 
     if N == 0:
-        return (0, float("nan"), 0, float("nan"), float("nan"), float("nan"),
-                {"token_count": 0, "vocabulary_size": 0})
+        return (
+            0,
+            float("nan"),
+            0,
+            float("nan"),
+            float("nan"),
+            float("nan"),
+            {"token_count": 0, "vocabulary_size": 0},
+        )
 
     # Count frequency of each token
     freq_counter = Counter(tokens)
@@ -52,8 +65,13 @@ def _compute_hapax_single(text: str) -> tuple[int, float, int, float, float, flo
     dis_hapax_ratio = V2 / N if N > 0 else 0.0
 
     return (
-        V1, hapax_ratio, V2, dis_hapax_ratio, sichel_s, honore_r,
-        {"token_count": N, "vocabulary_size": V}
+        V1,
+        hapax_ratio,
+        V2,
+        dis_hapax_ratio,
+        sichel_s,
+        honore_r,
+        {"token_count": N, "vocabulary_size": V},
     )
 
 
@@ -160,8 +178,12 @@ def compute_hapax_ratios(text: str, chunk_size: int = 1000) -> HapaxResult:
     # Build distributions
     hapax_ratio_dist = make_distribution(hapax_ratio_values)
     dis_hapax_ratio_dist = make_distribution(dis_hapax_ratio_values)
-    sichel_s_dist = make_distribution(sichel_s_values) if sichel_s_values else Distribution(
-        values=[], mean=float("nan"), median=float("nan"), std=0.0, range=0.0, iqr=0.0
+    sichel_s_dist = (
+        make_distribution(sichel_s_values)
+        if sichel_s_values
+        else Distribution(
+            values=[], mean=float("nan"), median=float("nan"), std=0.0, range=0.0, iqr=0.0
+        )
     )
 
     # Handle honore_r specially: if all valid chunks had V₁ = V (all unique words),
@@ -256,8 +278,8 @@ def compute_hapax_with_lexicon_analysis(text: str) -> HapaxLexiconResult:
     check_optional_dependency("bnc_lookup", "lexical")
     check_optional_dependency("wordnet_lookup", "lexical")
 
-    from bnc_lookup import exists as is_bnc_term  # type: ignore[import-not-found]
-    from wordnet_lookup import is_wordnet_term  # type: ignore[import-not-found]
+    from bnc_lookup import exists as is_bnc_term  # type: ignore[import-untyped]
+    from wordnet_lookup import is_wordnet_term  # type: ignore[import-untyped]
 
     # First compute standard hapax metrics
     hapax_result = compute_hapax_ratios(text)

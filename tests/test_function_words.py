@@ -29,8 +29,8 @@ References:
 """
 
 import pytest
-from pystylometry.lexical import compute_function_words
 
+from pystylometry.lexical import compute_function_words
 
 # ==============================================================================
 # Fixtures
@@ -307,10 +307,7 @@ class TestFunctionWordsEdgeCases:
         assert result.total_function_word_ratio == 1.0
 
         # Total function word count should equal total word count
-        assert (
-            result.metadata["total_function_word_count"]
-            == result.metadata["total_word_count"]
-        )
+        assert result.metadata["total_function_word_count"] == result.metadata["total_word_count"]
 
         # Distribution should contain all the words
         assert len(result.function_word_distribution) > 0
@@ -367,10 +364,7 @@ class TestFunctionWordsConstraints:
         assert metadata["total_function_word_count"] <= metadata["total_word_count"]
 
         # Unique function word count <= total function word count
-        assert (
-            metadata["unique_function_word_count"]
-            <= metadata["total_function_word_count"]
-        )
+        assert metadata["unique_function_word_count"] <= metadata["total_function_word_count"]
 
         # Sum of category counts >= total function word count (due to overlaps)
         category_sum = (
@@ -773,7 +767,7 @@ class TestFunctionWordsPunctuation:
 
     def test_quoted_function_words(self):
         """Test function words in quotes."""
-        text = '"the" \'and\' "but" \'or\''
+        text = "\"the\" 'and' \"but\" 'or'"
         result = compute_function_words(text)
 
         assert "the" in result.function_word_distribution
@@ -837,10 +831,7 @@ class TestFunctionWordsRealWorld:
 
     def test_informal_text(self):
         """Test with conversational text."""
-        text = (
-            "Hey! How are you? I'm doing great. "
-            "We should hang out sometime. What do you think?"
-        )
+        text = "Hey! How are you? I'm doing great. We should hang out sometime. What do you think?"
         result = compute_function_words(text)
 
         # Conversational text has many pronouns
@@ -900,8 +891,12 @@ class TestFunctionWordsAuthorship:
 
         # Different determiner preferences
         # Author A uses "the" more, Author B uses "this/these" more
-        assert result_a.function_word_distribution.get("the", 0) > result_b.function_word_distribution.get("the", 0)
-        assert result_b.function_word_distribution.get("this", 0) > result_a.function_word_distribution.get("this", 0)
+        assert result_a.function_word_distribution.get(
+            "the", 0
+        ) > result_b.function_word_distribution.get("the", 0)
+        assert result_b.function_word_distribution.get(
+            "this", 0
+        ) > result_a.function_word_distribution.get("this", 0)
 
     def test_profile_consistency(self):
         """Test that same author has consistent profile across texts."""

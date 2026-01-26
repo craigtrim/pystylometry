@@ -8,6 +8,8 @@ Related GitHub Issue:
     https://github.com/craigtrim/pystylometry/issues/27
 """
 
+from __future__ import annotations
+
 from .._types import Distribution, TTRResult, make_distribution
 
 
@@ -86,20 +88,40 @@ def compute_ttr(text: str, text_id: str | None = None, chunk_size: int = 1000) -
     # Create single-value distributions from stylometry-ttr results
     # The stylometry-ttr package handles its own internal chunking for STTR
     # so we wrap the aggregate results in Distribution objects
-    ttr_dist = make_distribution([ttr_val]) if ttr_val is not None else Distribution(
-        values=[], mean=float("nan"), median=float("nan"), std=0.0, range=0.0, iqr=0.0
+    ttr_dist = (
+        make_distribution([ttr_val])
+        if ttr_val is not None
+        else Distribution(
+            values=[], mean=float("nan"), median=float("nan"), std=0.0, range=0.0, iqr=0.0
+        )
     )
-    root_ttr_dist = make_distribution([root_ttr_val]) if root_ttr_val is not None else Distribution(
-        values=[], mean=float("nan"), median=float("nan"), std=0.0, range=0.0, iqr=0.0
+    root_ttr_dist = (
+        make_distribution([root_ttr_val])
+        if root_ttr_val is not None
+        else Distribution(
+            values=[], mean=float("nan"), median=float("nan"), std=0.0, range=0.0, iqr=0.0
+        )
     )
-    log_ttr_dist = make_distribution([log_ttr_val]) if log_ttr_val is not None else Distribution(
-        values=[], mean=float("nan"), median=float("nan"), std=0.0, range=0.0, iqr=0.0
+    log_ttr_dist = (
+        make_distribution([log_ttr_val])
+        if log_ttr_val is not None
+        else Distribution(
+            values=[], mean=float("nan"), median=float("nan"), std=0.0, range=0.0, iqr=0.0
+        )
     )
-    sttr_dist = make_distribution([sttr_val]) if ttr_result.sttr is not None else Distribution(
-        values=[], mean=float("nan"), median=float("nan"), std=0.0, range=0.0, iqr=0.0
+    sttr_dist = (
+        make_distribution([sttr_val])
+        if ttr_result.sttr is not None
+        else Distribution(
+            values=[], mean=float("nan"), median=float("nan"), std=0.0, range=0.0, iqr=0.0
+        )
     )
-    delta_std_dist = make_distribution([delta_std_val]) if ttr_result.delta_std is not None else Distribution(
-        values=[], mean=float("nan"), median=float("nan"), std=0.0, range=0.0, iqr=0.0
+    delta_std_dist = (
+        make_distribution([delta_std_val])
+        if ttr_result.delta_std is not None
+        else Distribution(
+            values=[], mean=float("nan"), median=float("nan"), std=0.0, range=0.0, iqr=0.0
+        )
     )
 
     # Convert to our TTRResult dataclass

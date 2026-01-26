@@ -63,9 +63,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any
 
-from .._types import Distribution, DialectResult, chunk_text, make_distribution
+from .._types import DialectResult, Distribution, chunk_text, make_distribution
 from ._loader import get_markers
-
 
 # Simple word tokenizer pattern
 _WORD_PATTERN = re.compile(r"\b[a-zA-Z]+(?:'[a-zA-Z]+)?\b")
@@ -135,7 +134,6 @@ def _compute_dialect_single(text: str) -> _ChunkAnalysis:
     """
     markers = get_markers()
     words = _tokenize_words(text)
-    word_set = set(words)
     word_count = len(words)
 
     # Initialize counters
@@ -222,32 +220,32 @@ def _compute_dialect_single(text: str) -> _ChunkAnalysis:
 
     # ===== Grammar patterns (syntactic level) =====
     # Patterns like "have got", "gotten", collective noun agreement
-    for pattern in markers.grammar_patterns:
-        weight = pattern.weight
+    for grammar_pattern in markers.grammar_patterns:
+        weight = grammar_pattern.weight
 
         # Match British grammar pattern
-        if pattern.pattern_british:
-            matches = list(pattern.pattern_british.finditer(text_lower))
+        if grammar_pattern.pattern_british:
+            matches = list(grammar_pattern.pattern_british.finditer(text_lower))
             if matches:
                 british_count += weight * len(matches)
                 total_markers += len(matches)
-                grammar_markers[pattern.name] = len(matches)
-                markers_by_level["syntactic"][pattern.name] = (
-                    markers_by_level["syntactic"].get(pattern.name, 0) + len(matches)
-                )
+                grammar_markers[grammar_pattern.name] = len(matches)
+                markers_by_level["syntactic"][grammar_pattern.name] = markers_by_level[
+                    "syntactic"
+                ].get(grammar_pattern.name, 0) + len(matches)
 
         # Match American grammar pattern
-        if pattern.pattern_american:
-            matches = list(pattern.pattern_american.finditer(text_lower))
+        if grammar_pattern.pattern_american:
+            matches = list(grammar_pattern.pattern_american.finditer(text_lower))
             if matches:
                 american_count += weight * len(matches)
                 total_markers += len(matches)
-                grammar_markers[pattern.name] = (
-                    grammar_markers.get(pattern.name, 0) + len(matches)
-                )
-                markers_by_level["syntactic"][pattern.name] = (
-                    markers_by_level["syntactic"].get(pattern.name, 0) + len(matches)
-                )
+                grammar_markers[grammar_pattern.name] = grammar_markers.get(
+                    grammar_pattern.name, 0
+                ) + len(matches)
+                markers_by_level["syntactic"][grammar_pattern.name] = markers_by_level[
+                    "syntactic"
+                ].get(grammar_pattern.name, 0) + len(matches)
 
     # ===== Eye dialect (register markers, not dialect) =====
     # gonna, wanna, etc. indicate informal register

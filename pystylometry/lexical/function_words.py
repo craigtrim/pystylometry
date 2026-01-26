@@ -34,7 +34,6 @@ References:
 
 from .._types import Distribution, FunctionWordResult, make_distribution
 
-
 # Function word lists for English
 # GitHub Issue #13: https://github.com/craigtrim/pystylometry/issues/13
 # These lists should be comprehensive and cover all major function word categories.
@@ -42,74 +41,245 @@ from .._types import Distribution, FunctionWordResult, make_distribution
 
 # Determiners (articles, demonstratives, possessives, quantifiers)
 DETERMINERS = {
-    "the", "a", "an",  # Articles
-    "this", "that", "these", "those",  # Demonstratives
-    "my", "your", "his", "her", "its", "our", "their",  # Possessive determiners
-    "some", "any", "no", "every", "each", "either", "neither",  # Quantifiers
-    "much", "many", "more", "most", "few", "fewer", "less", "least",
-    "all", "both", "half", "several", "enough",
+    "the",
+    "a",
+    "an",  # Articles
+    "this",
+    "that",
+    "these",
+    "those",  # Demonstratives
+    "my",
+    "your",
+    "his",
+    "her",
+    "its",
+    "our",
+    "their",  # Possessive determiners
+    "some",
+    "any",
+    "no",
+    "every",
+    "each",
+    "either",
+    "neither",  # Quantifiers
+    "much",
+    "many",
+    "more",
+    "most",
+    "few",
+    "fewer",
+    "less",
+    "least",
+    "all",
+    "both",
+    "half",
+    "several",
+    "enough",
 }
 
 # Prepositions (locative, temporal, other)
 PREPOSITIONS = {
-    "in", "on", "at", "by", "for", "with", "from", "to", "of",
-    "about", "above", "across", "after", "against", "along", "among",
-    "around", "as", "before", "behind", "below", "beneath", "beside",
-    "between", "beyond", "but", "concerning", "considering", "despite",
-    "down", "during", "except", "inside", "into", "like", "near",
-    "off", "onto", "out", "outside", "over", "past", "regarding",
-    "since", "through", "throughout", "till", "toward", "under",
-    "underneath", "until", "up", "upon", "via", "within", "without",
+    "in",
+    "on",
+    "at",
+    "by",
+    "for",
+    "with",
+    "from",
+    "to",
+    "of",
+    "about",
+    "above",
+    "across",
+    "after",
+    "against",
+    "along",
+    "among",
+    "around",
+    "as",
+    "before",
+    "behind",
+    "below",
+    "beneath",
+    "beside",
+    "between",
+    "beyond",
+    "but",
+    "concerning",
+    "considering",
+    "despite",
+    "down",
+    "during",
+    "except",
+    "inside",
+    "into",
+    "like",
+    "near",
+    "off",
+    "onto",
+    "out",
+    "outside",
+    "over",
+    "past",
+    "regarding",
+    "since",
+    "through",
+    "throughout",
+    "till",
+    "toward",
+    "under",
+    "underneath",
+    "until",
+    "up",
+    "upon",
+    "via",
+    "within",
+    "without",
 }
 
 # Conjunctions (coordinating, subordinating, correlative)
 CONJUNCTIONS = {
     # Coordinating
-    "and", "but", "or", "nor", "for", "yet", "so",
+    "and",
+    "but",
+    "or",
+    "nor",
+    "for",
+    "yet",
+    "so",
     # Subordinating
-    "although", "because", "since", "unless", "while", "if", "when",
-    "where", "after", "before", "once", "until", "as", "though",
-    "even", "whereas", "wherever", "whenever",
+    "although",
+    "because",
+    "since",
+    "unless",
+    "while",
+    "if",
+    "when",
+    "where",
+    "after",
+    "before",
+    "once",
+    "until",
+    "as",
+    "though",
+    "even",
+    "whereas",
+    "wherever",
+    "whenever",
     # Correlative components
-    "either", "neither", "both", "whether",
+    "either",
+    "neither",
+    "both",
+    "whether",
 }
 
 # Pronouns (personal, possessive, reflexive, demonstrative, relative, indefinite)
 PRONOUNS = {
     # Personal (subject)
-    "i", "you", "he", "she", "it", "we", "they",
+    "i",
+    "you",
+    "he",
+    "she",
+    "it",
+    "we",
+    "they",
     # Personal (object)
-    "me", "him", "her", "us", "them",
+    "me",
+    "him",
+    "her",
+    "us",
+    "them",
     # Possessive
-    "mine", "yours", "his", "hers", "its", "ours", "theirs",
+    "mine",
+    "yours",
+    "his",
+    "hers",
+    "its",
+    "ours",
+    "theirs",
     # Reflexive
-    "myself", "yourself", "himself", "herself", "itself",
-    "ourselves", "yourselves", "themselves",
+    "myself",
+    "yourself",
+    "himself",
+    "herself",
+    "itself",
+    "ourselves",
+    "yourselves",
+    "themselves",
     # Demonstrative
-    "this", "that", "these", "those",
+    "this",
+    "that",
+    "these",
+    "those",
     # Relative
-    "who", "whom", "whose", "which", "that",
+    "who",
+    "whom",
+    "whose",
+    "which",
+    "that",
     # Indefinite
-    "anybody", "anyone", "anything", "everybody", "everyone",
-    "everything", "nobody", "no one", "nothing", "somebody",
-    "someone", "something", "one",
+    "anybody",
+    "anyone",
+    "anything",
+    "everybody",
+    "everyone",
+    "everything",
+    "nobody",
+    "no one",
+    "nothing",
+    "somebody",
+    "someone",
+    "something",
+    "one",
 }
 
 # Auxiliary verbs (modal, primary)
 AUXILIARIES = {
     # Modals
-    "can", "could", "may", "might", "must", "shall", "should",
-    "will", "would", "ought",
+    "can",
+    "could",
+    "may",
+    "might",
+    "must",
+    "shall",
+    "should",
+    "will",
+    "would",
+    "ought",
     # Primary auxiliaries (be, have, do)
-    "am", "is", "are", "was", "were", "be", "being", "been",
-    "have", "has", "had", "having",
-    "do", "does", "did", "doing",
+    "am",
+    "is",
+    "are",
+    "was",
+    "were",
+    "be",
+    "being",
+    "been",
+    "have",
+    "has",
+    "had",
+    "having",
+    "do",
+    "does",
+    "did",
+    "doing",
 }
 
 # Particles (often used with phrasal verbs)
 PARTICLES = {
-    "up", "down", "out", "off", "over", "in", "away",
-    "back", "on", "along", "forth", "apart", "aside",
+    "up",
+    "down",
+    "out",
+    "off",
+    "over",
+    "in",
+    "away",
+    "back",
+    "on",
+    "along",
+    "forth",
+    "apart",
+    "aside",
 }
 
 
@@ -180,13 +350,8 @@ def compute_function_words(text: str, chunk_size: int = 1000) -> FunctionWordRes
           determiner and pronoun) - each category is counted independently
     """
     # Step 1: Create union set of all function words (for total ratio calculation)
-    ALL_FUNCTION_WORDS = (
-        DETERMINERS
-        | PREPOSITIONS
-        | CONJUNCTIONS
-        | PRONOUNS
-        | AUXILIARIES
-        | PARTICLES
+    all_function_words = (
+        DETERMINERS | PREPOSITIONS | CONJUNCTIONS | PRONOUNS | AUXILIARIES | PARTICLES
     )
 
     # Step 2: Tokenize text (lowercase, split on whitespace, strip punctuation)
@@ -250,15 +415,13 @@ def compute_function_words(text: str, chunk_size: int = 1000) -> FunctionWordRes
     raw_tokens = text_lower.split()
 
     # Comprehensive punctuation set for stripping
-    PUNCTUATION = set(
-        ".,!?;:'\"()[]{}/-—–…*&@#$%^~`\\|<>«»„""''‚'"
-    )
+    punctuation_chars = set(".,!?;:'\"()[]{}/-—–…*&@#$%^~`\\|<>«»„''‚'")
 
     # Strip punctuation from each token
     tokens = []
     for token in raw_tokens:
         # Strip leading and trailing punctuation
-        clean_token = token.strip("".join(PUNCTUATION))
+        clean_token = token.strip("".join(punctuation_chars))
         if clean_token:  # Only add non-empty tokens
             tokens.append(clean_token)
 
@@ -290,7 +453,7 @@ def compute_function_words(text: str, chunk_size: int = 1000) -> FunctionWordRes
     # Step 5: Build distribution (count each function word only once per token)
     function_word_counts: dict[str, int] = {}
     for token in tokens:
-        if token in ALL_FUNCTION_WORDS:
+        if token in all_function_words:
             function_word_counts[token] = function_word_counts.get(token, 0) + 1
 
     # Step 6: Calculate ratios
@@ -324,9 +487,7 @@ def compute_function_words(text: str, chunk_size: int = 1000) -> FunctionWordRes
     # Step 8: Find most/least frequent function words
     if function_word_counts:
         # Sort by count descending
-        sorted_by_count = sorted(
-            function_word_counts.items(), key=lambda x: x[1], reverse=True
-        )
+        sorted_by_count = sorted(function_word_counts.items(), key=lambda x: x[1], reverse=True)
 
         # Top 10 most frequent
         most_frequent = sorted_by_count[:10]

@@ -14,15 +14,15 @@ Related GitHub Issue:
 """
 
 import math
+
 import pytest
 
 from pystylometry.lexical import (
-    compute_vocd_d,
-    compute_mattr,
     compute_hdd,
+    compute_mattr,
     compute_msttr,
+    compute_vocd_d,
 )
-
 
 # ============================================================================
 # Fixtures
@@ -53,14 +53,30 @@ def high_diversity_text():
     for p in range(6):
         # Each paragraph has 25 mostly-unique content words
         content_words = [
-            f"magnificent{p}_1", f"eloquent{p}_2", f"profound{p}_3",
-            f"ethereal{p}_4", f"luminous{p}_5", f"enigmatic{p}_6",
-            f"transcendent{p}_7", f"resplendent{p}_8", f"formidable{p}_9",
-            f"exquisite{p}_10", f"pristine{p}_11", f"venerable{p}_12",
-            f"illustrious{p}_13", f"majestic{p}_14", f"sublime{p}_15",
-            f"radiant{p}_16", f"splendid{p}_17", f"grandiose{p}_18",
-            f"opulent{p}_19", f"lavish{p}_20", f"abundant{p}_21",
-            f"copious{p}_22", f"prolific{p}_23", f"verdant{p}_24",
+            f"magnificent{p}_1",
+            f"eloquent{p}_2",
+            f"profound{p}_3",
+            f"ethereal{p}_4",
+            f"luminous{p}_5",
+            f"enigmatic{p}_6",
+            f"transcendent{p}_7",
+            f"resplendent{p}_8",
+            f"formidable{p}_9",
+            f"exquisite{p}_10",
+            f"pristine{p}_11",
+            f"venerable{p}_12",
+            f"illustrious{p}_13",
+            f"majestic{p}_14",
+            f"sublime{p}_15",
+            f"radiant{p}_16",
+            f"splendid{p}_17",
+            f"grandiose{p}_18",
+            f"opulent{p}_19",
+            f"lavish{p}_20",
+            f"abundant{p}_21",
+            f"copious{p}_22",
+            f"prolific{p}_23",
+            f"verdant{p}_24",
             f"lush{p}_25",
         ]
 

@@ -96,7 +96,7 @@ Pattern Signatures:
     parser.add_argument(
         "--jsx",
         metavar="OUTPUT_FILE",
-        help="Export interactive visualization as standalone HTML (uses --plot-type: timeline or report)",
+        help="Export interactive visualization as standalone HTML (uses --plot-type)",
     )
     parser.add_argument(
         "--viz-all",
@@ -154,7 +154,9 @@ Pattern Signatures:
     print("  ───────────────────────────────────────────────────────────────────────")
     print(f"    Window size:       {args.window_size} tokens")
     print(f"    Stride:            {args.stride} tokens")
-    print(f"    Overlap:           {((args.window_size - args.stride) / args.window_size) * 100:.0f}%")
+    print(
+        f"    Overlap:           {((args.window_size - args.stride) / args.window_size) * 100:.0f}%"
+    )
     print(f"    Comparison mode:   {args.mode}")
     print(f"    Top N words:       {args.n_words}")
     print()
@@ -192,11 +194,7 @@ Pattern Signatures:
         chunks_dir = output_dir / "chunks"
         chunks_dir.mkdir(parents=True, exist_ok=True)
 
-        # Re-create windows to get chunk text
-        from pystylometry._utils import tokenize
-
-        tokens = [t for t in tokenize(text) if t.isalpha() or not t.strip()]
-        # Simple tokenization for chunk extraction (preserve spaces for readability)
+        # Re-create windows to get chunk text (simple word-based chunking)
         words = text.split()
         chunk_texts = []
         start = 0
@@ -226,7 +224,8 @@ Pattern Signatures:
         print(f"  Created: {out_path}")
 
         print()
-        print(f"Generated {len(generated)} visualizations + {len(chunk_texts)} chunks to: {output_dir.resolve()}")
+        n_viz, n_chunks = len(generated), len(chunk_texts)
+        print(f"Generated {n_viz} visualizations + {n_chunks} chunks to: {output_dir.resolve()}")
         sys.exit(0)
 
     # Handle JSX export (generates standalone HTML)
@@ -272,16 +271,16 @@ Pattern Signatures:
             )
             sys.exit(1)
 
-        output_path = args.plot if args.plot else None
+        plot_output: str | None = args.plot if args.plot else None
         label = args.file.stem
 
         if args.plot_type == "timeline":
-            plot_drift_timeline(result, output=output_path, title=f"Drift Timeline: {label}")
+            plot_drift_timeline(result, output=plot_output, title=f"Drift Timeline: {label}")
         else:  # report (default)
-            plot_drift_report(result, label=label, output=output_path)
+            plot_drift_report(result, label=label, output=plot_output)
 
-        if output_path:
-            print(f"Visualization saved to: {output_path}")
+        if plot_output:
+            print(f"Visualization saved to: {plot_output}")
         sys.exit(0)
 
     if args.json:

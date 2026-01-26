@@ -118,8 +118,7 @@ def export_drift_report_jsx(
         spike_data = result.pairwise_scores[result.max_location]
         if "top_words" in spike_data and spike_data["top_words"]:
             top_words = [
-                {"word": w[0], "contribution": round(w[1], 2)}
-                for w in spike_data["top_words"][:8]
+                {"word": w[0], "contribution": round(w[1], 2)} for w in spike_data["top_words"][:8]
             ]
 
     # Zone classification
@@ -203,7 +202,7 @@ def export_drift_report_jsx(
 
 def _get_report_styles() -> str:
     """Additional CSS for report layout."""
-    return '''
+    return """
     .report-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -246,19 +245,21 @@ def _get_report_styles() -> str:
       background: #2563eb;
       border-radius: 2px;
     }
-'''
+"""
 
 
 def _get_report_component() -> str:
     """Return the React component code for the report visualization."""
-    return f'''
+    return f"""
     {COLOR_INTERPOLATION_JS}
 
     function DriftReport() {{
       const [hoveredIndex, setHoveredIndex] = React.useState(null);
       const [selectedIndex, setSelectedIndex] = React.useState(null);
 
-      const {{ title, points, hasChunks, histogram, topWords, thresholds, zones, stats, bounds }} = CONFIG;
+      const {{
+        title, points, hasChunks, histogram, topWords, thresholds, zones, stats, bounds
+      }} = CONFIG;
 
       // Active index: selected takes priority, then hovered
       const activeIndex = selectedIndex !== null ? selectedIndex : hoveredIndex;
@@ -308,7 +309,9 @@ def _get_report_component() -> str:
       const binWidth = histPlotWidth / histogram.bins.length;
 
       // Calculate max word contribution for scaling
-      const maxContribution = topWords.length > 0 ? Math.max(...topWords.map(w => w.contribution)) : 1;
+      const maxContribution = topWords.length > 0
+        ? Math.max(...topWords.map(w => w.contribution))
+        : 1;
 
       return (
         <div style={{{{ maxWidth: 1050, margin: '0 auto' }}}}>
@@ -671,4 +674,4 @@ def _get_report_component() -> str:
         </div>
       );
     }}
-'''
+"""

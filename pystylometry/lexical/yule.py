@@ -148,13 +148,17 @@ def compute_yule(text: str, chunk_size: int = 1000) -> YuleResult:
 
     # Build distributions
     yule_k_dist = make_distribution(yule_k_values)
-    yule_i_dist = make_distribution(yule_i_values) if yule_i_values else Distribution(
-        values=[],
-        mean=float("nan"),
-        median=float("nan"),
-        std=0.0,
-        range=0.0,
-        iqr=0.0,
+    yule_i_dist = (
+        make_distribution(yule_i_values)
+        if yule_i_values
+        else Distribution(
+            values=[],
+            mean=float("nan"),
+            median=float("nan"),
+            std=0.0,
+            range=0.0,
+            iqr=0.0,
+        )
     )
 
     return YuleResult(
