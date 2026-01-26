@@ -51,11 +51,76 @@ References:
 
 from __future__ import annotations
 
+import math
 from collections import Counter
 from typing import Any
 
 from .._types import KilgarriffResult
 from .._utils import tokenize
+
+
+def _chi2_cdf(x: float, df: int) -> float:
+    """
+    Compute chi-squared CDF in pure Python (no scipy required).
+
+    P(X ≤ x) for X ~ χ²(df), computed via the regularized lower
+    incomplete gamma function: P(df/2, x/2).
+
+    Uses series expansion for x < a+1, continued fraction otherwise.
+    """
+    if x <= 0 or df <= 0:
+        return 0.0 if x <= 0 else 1.0
+
+    a = df / 2.0
+    z = x / 2.0
+
+    if z < a + 1:
+        # Series expansion for P(a, z)
+        ap = a
+        total = 1.0 / a
+        delta = total
+
+        for _ in range(1000):
+            ap += 1
+            delta *= z / ap
+            total += delta
+            if abs(delta) < abs(total) * 1e-15:
+                break
+
+        try:
+            log_prefix = a * math.log(z) - z - math.lgamma(a)
+            return min(max(total * math.exp(log_prefix), 0.0), 1.0)
+        except (OverflowError, ValueError):
+            return 0.0
+    else:
+        # Continued fraction for Q(a, z) = 1 - P(a, z)
+        try:
+            log_prefix = a * math.log(z) - z - math.lgamma(a)
+        except (OverflowError, ValueError):
+            return 1.0
+
+        b = z + 1 - a
+        c = 1.0 / 1e-30
+        d = 1.0 / b
+        h = d
+
+        for i in range(1, 1000):
+            an = -i * (i - a)
+            b += 2.0
+            d = an * d + b
+            if abs(d) < 1e-30:
+                d = 1e-30
+            c = b + an / c
+            if abs(c) < 1e-30:
+                c = 1e-30
+            d = 1.0 / d
+            delta = d * c
+            h *= delta
+            if abs(delta - 1.0) < 1e-15:
+                break
+
+        q = math.exp(log_prefix) * h
+        return min(max(1.0 - q, 0.0), 1.0)
 
 
 def _kilgarriff_core(
@@ -263,16 +328,11 @@ def compute_kilgarriff(
         tokens1, tokens2, n_words=n_words
     )
 
-    # P-value computation
+    # P-value computation (pure Python, no scipy required)
     # Note: This is provided for completeness but should be used cautiously.
     # The chi-squared test assumes independence, which is violated in text.
     # For authorship attribution, relative chi-squared comparisons are more reliable.
-    try:
-        from scipy import stats
-        p_value = 1 - stats.chi2.cdf(chi_squared, df) if df > 0 else 1.0
-    except ImportError:
-        # scipy not available; p_value is not critical for stylometric use
-        p_value = float("nan")
+    p_value = 1.0 - _chi2_cdf(chi_squared, df) if df > 0 else 1.0
 
     return KilgarriffResult(
         chi_squared=chi_squared,
