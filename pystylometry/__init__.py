@@ -63,18 +63,20 @@ try:
 except ImportError:
     _SYNTACTIC_AVAILABLE = False
 
-# Authorship, ngrams, dialect, and consistency use only stdlib (no external dependencies)
+# Authorship, ngrams, dialect, consistency, and stylistic use only stdlib (no external dependencies)
 from . import (
     authorship,  # noqa: F401
     consistency,  # noqa: F401 - Style drift detection (Issue #36)
     dialect,  # noqa: F401
     ngrams,  # noqa: F401
+    stylistic,  # noqa: F401 - Vocabulary overlap and similarity (Issue #21)
 )
 
 _AUTHORSHIP_AVAILABLE = True
 _NGRAMS_AVAILABLE = True
 _DIALECT_AVAILABLE = True
 _CONSISTENCY_AVAILABLE = True
+_STYLISTIC_AVAILABLE = True
 
 
 def analyze(
@@ -206,6 +208,7 @@ def get_available_modules() -> dict[str, bool]:
         "ngrams": _NGRAMS_AVAILABLE,
         "dialect": _DIALECT_AVAILABLE,
         "consistency": _CONSISTENCY_AVAILABLE,  # Style drift detection (Issue #36)
+        "stylistic": _STYLISTIC_AVAILABLE,  # Vocabulary overlap (Issue #21)
     }
 
 
@@ -229,3 +232,5 @@ if _DIALECT_AVAILABLE:
     __all__.append("dialect")
 if _CONSISTENCY_AVAILABLE:
     __all__.append("consistency")
+if _STYLISTIC_AVAILABLE:
+    __all__.append("stylistic")
