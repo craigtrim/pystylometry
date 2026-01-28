@@ -66,11 +66,21 @@ CONSONANTS = set("bcdfghjklmnpqrstvwxyz")
 
 # ARPAbet vowel phonemes (used in CMU dictionary output)
 ARPABET_VOWELS = {
-    "AA", "AE", "AH", "AO", "AW", "AY",
-    "EH", "ER", "EY",
-    "IH", "IY",
-    "OW", "OY",
-    "UH", "UW",
+    "AA",
+    "AE",
+    "AH",
+    "AO",
+    "AW",
+    "AY",
+    "EH",
+    "ER",
+    "EY",
+    "IH",
+    "IY",
+    "OW",
+    "OY",
+    "UH",
+    "UW",
 }
 
 # Consonant cluster patterns at word boundaries
@@ -725,9 +735,7 @@ def compute_rhythm_prosody(text: str) -> RhythmProsodyResult:
     # =========================================================================
     # SYLLABLE PATTERNS
     # =========================================================================
-    mean_syl, syl_std, poly_ratio, mono_ratio, syl_counts = (
-        _compute_syllable_metrics(words)
-    )
+    mean_syl, syl_std, poly_ratio, mono_ratio, syl_counts = _compute_syllable_metrics(words)
 
     # =========================================================================
     # RHYTHMIC REGULARITY
