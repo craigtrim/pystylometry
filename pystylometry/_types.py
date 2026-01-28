@@ -2137,6 +2137,343 @@ class DialectResult:
     metadata: dict[str, Any]
 
 
+# ===== Expression Results =====
+# Related to GitHub Issue #30: Whonix stylometric features
+# https://github.com/craigtrim/pystylometry/issues/30
+
+
+@dataclass
+class AbbreviationResult:
+    """Result from abbreviation pattern analysis.
+
+    Abbreviation usage is a strong stylometric signal because authors develop
+    consistent, often subconscious habits around contraction usage, acronym
+    formatting, and shorthand preferences. These patterns persist across
+    different topics and are difficult to consciously alter.
+
+    This analyzer detects and quantifies:
+        - Contraction patterns (don't vs. do not, can't vs. cannot)
+        - Acronym frequency and formatting style (USA vs. U.S.A. vs US)
+        - Latin abbreviations (etc., e.g., i.e., vs., approx.)
+        - Informal shortenings (info, intro, photo, phone)
+        - Text-speak patterns (u, ur, thx, pls, bc)
+        - Title abbreviations (Mr., Dr., Prof. vs. full forms)
+
+    Related GitHub Issues:
+        #30 - Whonix stylometric features (abbreviation analysis)
+        https://github.com/craigtrim/pystylometry/issues/30
+
+    Whonix Source:
+        The Whonix Stylometry documentation identifies abbreviation patterns
+        as a key deanonymization vector. Authors develop habitual preferences
+        for contracted vs. expanded forms, acronym formatting conventions,
+        and shorthand usage that serve as reliable stylometric fingerprints.
+        https://www.whonix.org/wiki/Stylometry
+
+    References:
+        Argamon, S., et al. (2007). Stylistic text classification using
+            functional lexical features. JASIST, 58(6), 802-822.
+        Koppel, M., Schler, J., & Argamon, S. (2009). Computational methods
+            in authorship attribution. JASIST, 60(1), 9-26.
+        Pennebaker, J. W. (2011). The secret life of pronouns. Bloomsbury Press.
+
+    Example:
+        >>> result = compute_abbreviations("I can't believe it's already Jan.")
+        >>> print(f"Contraction ratio: {result.contraction_ratio:.2f}")
+        >>> print(f"Informality score: {result.informality_score:.2f}")
+    """
+
+    # Contraction patterns
+    contraction_ratio: float  # Contractions / (contractions + expanded forms)
+    contraction_count: int  # Total contractions detected
+    expanded_form_count: int  # Total expanded forms detected
+    top_contractions: list[tuple[str, int]]  # Most frequent contractions
+
+    # Acronym analysis
+    acronym_count: int  # Total acronyms detected
+    acronym_style: str  # "no_periods", "with_periods", "mixed", "none"
+    top_acronyms: list[tuple[str, int]]  # Most frequent acronyms
+
+    # Latin abbreviations
+    latin_abbreviation_count: int  # Total Latin abbreviations
+    latin_abbreviation_density: float  # Latin abbreviations per 100 words
+    latin_abbreviations: dict[str, int]  # Individual counts (etc., e.g., i.e., etc.)
+
+    # Informal shortenings
+    informal_shortening_count: int  # Total informal shortenings
+    informal_shortening_density: float  # Per 100 words
+    top_informal_shortenings: list[tuple[str, int]]  # Most frequent
+
+    # Text-speak patterns
+    text_speak_count: int  # Total text-speak tokens
+    text_speak_density: float  # Per 100 words
+    top_text_speak: list[tuple[str, int]]  # Most frequent text-speak
+
+    # Title abbreviations
+    title_abbreviation_count: int  # Total title abbreviations (Mr., Dr., etc.)
+    title_abbreviation_density: float  # Per 100 words
+    title_abbreviations: dict[str, int]  # Individual counts
+
+    # Composite metrics
+    informality_score: float  # 0.0 (formal) to 1.0 (informal), weighted composite
+
+    metadata: dict[str, Any]  # Word count, all counts, configuration details
+
+
+@dataclass
+class EmoticonResult:
+    """Result from emoticon and emoji expression analysis.
+
+    Expressive elements — emoji, text emoticons, expressive punctuation, and
+    laughter expressions — are powerful stylometric markers in informal text.
+    Authors develop distinctive patterns in their use of these elements that
+    are highly resistant to conscious alteration.
+
+    This analyzer detects and quantifies:
+        - Unicode emoji (via Unicode ranges, no external library required)
+        - Text emoticons (:), :(, :D, <3, :/, etc.)
+        - Expressive punctuation (!!!, ???, !?)
+        - Emphasis markers (*bold*, _italic_, CAPS FOR EMPHASIS)
+        - Laughter expressions (haha, lol, lmao, hehe, rofl)
+
+    Related GitHub Issues:
+        #30 - Whonix stylometric features (expressive elements)
+        https://github.com/craigtrim/pystylometry/issues/30
+
+    Whonix Source:
+        The Whonix Stylometry documentation lists "emoticons" and "expressive
+        elements" as stylometric features used for deanonymization. The
+        specific emoji an author uses, their frequency, and combination
+        patterns form a reliable behavioral signature.
+        https://www.whonix.org/wiki/Stylometry
+
+    References:
+        Grieve, J. (2007). Quantitative authorship attribution: An evaluation
+            of techniques. LLC, 22(3), 251-270.
+        Stamatatos, E. (2009). A survey of modern authorship attribution
+            methods. JASIST, 60(3), 538-556.
+
+    Example:
+        >>> result = compute_emoticons("Great job!!! :D 🎉")
+        >>> print(f"Emoji count: {result.emoji_count}")
+        >>> print(f"Expressiveness: {result.expressiveness_score:.2f}")
+    """
+
+    # Emoji metrics
+    emoji_count: int  # Total emoji detected
+    emoji_density: float  # Emoji per 100 words
+    emoji_categories: dict[str, int]  # Category → count mapping
+    top_emoji: list[tuple[str, int]]  # Most frequent emoji
+
+    # Text emoticon metrics
+    text_emoticon_count: int  # Total text emoticons detected
+    text_emoticon_density: float  # Per 100 words
+    text_emoticons: dict[str, int]  # Individual emoticon counts
+
+    # Expressive punctuation
+    multiple_exclamation_count: int  # Sequences of 2+ exclamation marks
+    multiple_question_count: int  # Sequences of 2+ question marks
+    interrobang_count: int  # Mixed !? or ?! sequences
+    expressive_punctuation_density: float  # All expressive punctuation per 100 words
+
+    # Emphasis markers
+    caps_emphasis_count: int  # Words in ALL CAPS (excluding acronyms, len >= 2)
+    asterisk_emphasis_count: int  # *emphasis* patterns
+    underscore_emphasis_count: int  # _emphasis_ patterns
+    emphasis_density: float  # All emphasis markers per 100 words
+
+    # Laughter expressions
+    laughter_count: int  # Total laughter expressions
+    laughter_density: float  # Per 100 words
+    laughter_types: dict[str, int]  # Individual laughter expression counts
+
+    # Composite metrics
+    expressiveness_score: float  # 0.0 (neutral) to 1.0 (highly expressive)
+
+    metadata: dict[str, Any]  # Word count, all counts, configuration details
+
+
+# ===== Vocabulary Results =====
+# Related to GitHub Issue #30: Whonix stylometric features
+# https://github.com/craigtrim/pystylometry/issues/30
+
+
+@dataclass
+class SynonymDiversityResult:
+    """Result from synonym diversity analysis.
+
+    Synonym diversity measures how varied an author's word choices are within
+    semantic fields. An author who uses "said", "stated", "remarked",
+    "mentioned", and "noted" shows higher synonym diversity in the
+    communication-verb cluster than one who exclusively uses "said".
+
+    This metric is architecturally designed for data injection: the function
+    accepts an external synonym map (word → cluster ID) so that users can
+    supply data from WordNet, a custom thesaurus, or any other lexical
+    resource. The analysis code is decoupled from any specific data source.
+
+    Expected synonym_map format:
+        A dict[str, str] mapping lowercase words to cluster identifiers.
+        Words mapping to the same cluster ID are treated as synonyms.
+
+        Example:
+            {
+                "said": "communication_verb",
+                "stated": "communication_verb",
+                "mentioned": "communication_verb",
+                "big": "size_adjective",
+                "large": "size_adjective",
+                "huge": "size_adjective",
+            }
+
+    Metrics computed:
+        - Per-cluster diversity (how many distinct synonyms used per cluster)
+        - Repetition avoidance score (inverse of dominant-word concentration)
+        - Thesaurus usage indicator (unusually high synonym variety)
+        - Overall synonym diversity index
+
+    Related GitHub Issues:
+        #30 - Whonix stylometric features (synonym choice)
+        https://github.com/craigtrim/pystylometry/issues/30
+
+    Whonix Source:
+        The Whonix Stylometry documentation identifies "synonym choice" as a
+        deanonymization vector. Authors develop habitual preferences for
+        specific words over their synonyms (e.g., always choosing "start"
+        over "begin" or "commence"), creating reliable stylometric signatures.
+        https://www.whonix.org/wiki/Stylometry
+
+    References:
+        Argamon, S., et al. (2007). Stylistic text classification using
+            functional lexical features. JASIST, 58(6), 802-822.
+        Koppel, M., Schler, J., & Argamon, S. (2009). Computational methods
+            in authorship attribution. JASIST, 60(1), 9-26.
+
+    Example:
+        >>> synonym_map = {"big": "size", "large": "size", "huge": "size"}
+        >>> result = compute_synonym_diversity(text, synonym_map=synonym_map)
+        >>> print(f"Overall diversity: {result.synonym_diversity_score:.2f}")
+        >>> for cluster in result.cluster_details:
+        ...     print(f"  {cluster['cluster_id']}: {cluster['diversity']:.2f}")
+    """
+
+    # Overall metrics
+    synonym_diversity_score: float  # 0.0-1.0, mean diversity across active clusters
+    repetition_avoidance_score: float  # 0.0-1.0, inverse of dominant-word ratio
+    thesaurus_indicator: float  # 0.0-1.0, unusually high variety suggests thesaurus
+    vocabulary_sophistication: float  # 0.0-1.0, based on cluster coverage and diversity
+
+    # Cluster-level details
+    cluster_details: list[dict[str, Any]]  # Per-cluster breakdown
+    # Each dict: {"cluster_id": str, "words_used": list[str],
+    #             "total_occurrences": int, "diversity": float,
+    #             "most_common": str, "dominant_ratio": float}
+
+    # Summary counts
+    active_cluster_count: int  # Clusters with at least one word found in text
+    total_cluster_count: int  # Total clusters in the synonym map
+    mapped_word_count: int  # Words in text that matched the synonym map
+    unmapped_word_count: int  # Words in text not in the synonym map
+
+    metadata: dict[str, Any]  # Word count, synonym map stats, configuration
+
+
+@dataclass
+class StylisticFlourishesResult:
+    """Result from stylistic flourishes and rhetorical device detection.
+
+    Stylistic flourishes are deliberate or habitual writing embellishments
+    that distinguish an author's voice. Unlike function-word frequencies
+    (which are largely subconscious), flourishes often reflect an author's
+    training, literary preferences, and rhetorical habits.
+
+    This module detects patterns that complement the word-level marker
+    counting in stylistic/markers.py. While markers.py uses dictionary
+    lookup for individual tokens, this module analyzes multi-word and
+    structural patterns:
+        - Alliteration (consecutive words sharing initial consonant sounds)
+        - Anaphora (repeated phrase/word at sentence beginnings)
+        - Epistrophe (repeated phrase/word at sentence endings)
+        - Em-dash and en-dash usage (distinguished from each other)
+        - Ellipsis usage
+        - Serial comma (Oxford comma) preference
+        - Quotation/citation style
+        - Rhetorical question frequency
+
+    Related GitHub Issues:
+        #30 - Whonix stylometric features (stylistic flourishes)
+        https://github.com/craigtrim/pystylometry/issues/30
+
+    Whonix Source:
+        The Whonix Stylometry documentation identifies "stylistic flourishes"
+        and "sentence/phrasing patterns" as deanonymization vectors. Rhetorical
+        devices like alliteration, anaphora, and distinctive punctuation habits
+        form stable authorial signatures.
+        https://www.whonix.org/wiki/Stylometry
+
+    References:
+        Stamatatos, E. (2009). A survey of modern authorship attribution
+            methods. JASIST, 60(3), 538-556.
+        Fahnestock, J. (2011). Rhetorical style: The uses of language in
+            persuasion. Oxford University Press.
+        Biber, D. (1988). Variation across speech and writing. Cambridge
+            University Press.
+        Corbett, E. P. J., & Connors, R. J. (1999). Classical rhetoric for
+            the modern student (4th ed.). Oxford University Press.
+
+    Example:
+        >>> result = compute_stylistic_flourishes("Peter Piper picked peppers.")
+        >>> print(f"Alliteration: {result.alliteration_density:.2f}")
+        >>> print(f"Serial comma: {result.serial_comma_preference}")
+        >>> print(f"Flourish score: {result.flourish_score:.2f}")
+    """
+
+    # Alliteration
+    alliteration_count: int  # Total alliterative sequences detected
+    alliteration_density: float  # Alliterative sequences per 100 words
+    alliteration_examples: list[str]  # Sample alliterative sequences found
+
+    # Anaphora (repeated sentence beginnings)
+    anaphora_count: int  # Total anaphoric patterns detected
+    anaphora_density: float  # Anaphoric patterns per 100 sentences
+    anaphora_patterns: list[tuple[str, int]]  # Repeated phrases and their counts
+
+    # Epistrophe (repeated sentence endings)
+    epistrophe_count: int  # Total epistrophe patterns detected
+    epistrophe_density: float  # Epistrophe patterns per 100 sentences
+    epistrophe_patterns: list[tuple[str, int]]  # Repeated endings and their counts
+
+    # Em-dash and en-dash (distinguished)
+    em_dash_count: int  # Em-dash (—) or double hyphen (--) count
+    en_dash_count: int  # En-dash (–) count
+    em_dash_density: float  # Em-dashes per 100 words
+    en_dash_density: float  # En-dashes per 100 words
+
+    # Ellipsis
+    ellipsis_count: int  # Ellipsis (... or …) count
+    ellipsis_density: float  # Ellipses per 100 words
+
+    # Serial comma (Oxford comma)
+    serial_comma_count: int  # Instances where serial comma IS used
+    no_serial_comma_count: int  # Instances where serial comma is NOT used
+    serial_comma_preference: str  # "oxford", "no_oxford", "mixed", "insufficient_data"
+    serial_comma_ratio: float  # serial_comma / (serial + no_serial), 0.0 if none
+
+    # Quotation and citation style
+    double_quote_count: int  # Double quotation marks ("" or "")
+    single_quote_count: int  # Single quotation marks ('' or '')
+    quotation_style: str  # "double", "single", "mixed", "none"
+
+    # Rhetorical questions
+    rhetorical_question_count: int  # Interrogatives detected
+    rhetorical_question_density: float  # Per 100 sentences
+
+    # Composite score
+    flourish_score: float  # 0.0-1.0, composite of all flourish metrics
+
+    metadata: dict[str, Any]  # Sentence count, word count, all raw data
+
+
 # ===== Unified Analysis Result =====
 
 

@@ -5,9 +5,11 @@ Related GitHub Issues:
     #21 - Vocabulary Overlap and Similarity Metrics
     #22 - Cohesion and Coherence Metrics
     #23 - Genre and Register Features
+    #30 - Whonix stylometric features (flourishes)
 """
 
 from .cohesion_coherence import compute_cohesion_coherence
+from .flourishes import compute_stylistic_flourishes
 from .genre_register import compute_genre_register
 from .markers import compute_stylistic_markers
 from .vocabulary_overlap import compute_vocabulary_overlap
@@ -17,4 +19,5 @@ __all__ = [
     "compute_vocabulary_overlap",
     "compute_cohesion_coherence",
     "compute_genre_register",
+    "compute_stylistic_flourishes",
 ]
