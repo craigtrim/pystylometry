@@ -624,9 +624,7 @@ def compute_stylistic_markers(text: str) -> StylisticMarkersResult:
     contraction_counts, expanded_form_count = _count_contractions(text)
     contraction_count = sum(contraction_counts.values())
     total_contractable = contraction_count + expanded_form_count
-    contraction_ratio = (
-        contraction_count / total_contractable if total_contractable > 0 else 0.0
-    )
+    contraction_ratio = contraction_count / total_contractable if total_contractable > 0 else 0.0
     top_contractions = contraction_counts.most_common(10)
 
     # ==========================================================================

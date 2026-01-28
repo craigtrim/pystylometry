@@ -1903,6 +1903,54 @@ class JohnsBurrowsResult:
     metadata: dict[str, Any]  # Method-specific parameters, z-scores, etc.
 
 
+@dataclass
+class CompressionResult:
+    """Result from compression-based authorship attribution.
+
+    Compression-based methods use the Normalized Compression Distance (NCD) to
+    measure similarity between texts. The intuition is that if two texts are
+    similar, compressing them together will yield better compression than
+    compressing separately. This approach is language-independent and captures
+    deep statistical regularities.
+
+    Related GitHub Issue:
+        #24 - Additional Authorship Attribution Methods
+        https://github.com/craigtrim/pystylometry/issues/24
+
+    Formula:
+        NCD(x,y) = (C(xy) - min(C(x), C(y))) / max(C(x), C(y))
+
+        where C(x) is the compressed size of x, and C(xy) is the compressed
+        size of x and y concatenated.
+
+    Interpretation:
+        - NCD ≈ 0: Texts are very similar
+        - NCD ≈ 1: Texts are very different
+        - Typical same-author pairs: 0.3-0.6
+        - Typical different-author pairs: 0.6-0.9
+
+    References:
+        Cilibrasi, R., & Vitányi, P. M. (2005). Clustering by compression.
+            IEEE Transactions on Information Theory, 51(4), 1523-1545.
+
+        Benedetto, D., Caglioti, E., & Loreto, V. (2002). Language trees and
+            zipping. Physical Review Letters, 88(4), 048702.
+
+    Example:
+        >>> result = compute_compression_distance(text1, text2)
+        >>> print(f"NCD: {result.ncd:.3f}")
+        >>> if result.ncd < 0.5:
+        ...     print("Texts likely by same author")
+    """
+
+    ncd: float  # Normalized Compression Distance [0, 1+]
+    compressor: str  # Compression algorithm used (e.g., "gzip", "zlib", "bz2")
+    text1_compressed_size: int  # Compressed size of text1 alone
+    text2_compressed_size: int  # Compressed size of text2 alone
+    combined_compressed_size: int  # Compressed size of concatenated texts
+    metadata: dict[str, Any]  # Raw sizes, compression ratios, etc.
+
+
 # ===== Rhythm and Prosody Results =====
 # Related to GitHub Issue #25: Rhythm and Prosody Metrics
 # https://github.com/craigtrim/pystylometry/issues/25
