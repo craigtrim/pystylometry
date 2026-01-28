@@ -61,7 +61,7 @@ spacy = "^3.8.0"
 # - True neologisms (not in WordNet, not in BNC)
 # - Rare words (in BNC but not WordNet, or vice versa)
 # - Common words (in both lexicons)
-bnc-lookup = "*"
+bnc-lookup = ">=1.3.0"
 wordnet-lookup = "*"
 
 [tool.poetry.group.viz.dependencies]
