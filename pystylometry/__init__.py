@@ -63,6 +63,14 @@ try:
 except ImportError:
     _SYNTACTIC_AVAILABLE = False
 
+# Prosody requires pronouncing (CMU dictionary) - same dependency as readability
+try:
+    from . import prosody  # noqa: F401 - Rhythm and prosody metrics (Issue #25)
+
+    _PROSODY_AVAILABLE = True
+except ImportError:
+    _PROSODY_AVAILABLE = False
+
 # Authorship, ngrams, dialect, consistency, and stylistic use only stdlib (no external dependencies)
 from . import (
     authorship,  # noqa: F401
@@ -209,6 +217,7 @@ def get_available_modules() -> dict[str, bool]:
         "dialect": _DIALECT_AVAILABLE,
         "consistency": _CONSISTENCY_AVAILABLE,  # Style drift detection (Issue #36)
         "stylistic": _STYLISTIC_AVAILABLE,  # Vocabulary overlap (Issue #21)
+        "prosody": _PROSODY_AVAILABLE,  # Rhythm and prosody (Issue #25)
     }
 
 
@@ -234,3 +243,5 @@ if _CONSISTENCY_AVAILABLE:
     __all__.append("consistency")
 if _STYLISTIC_AVAILABLE:
     __all__.append("stylistic")
+if _PROSODY_AVAILABLE:
+    __all__.append("prosody")
