@@ -1,248 +1,106 @@
 # pystylometry
 
-[![Python Version](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![PyPI version](https://badge.fury.io/py/pystylometry.svg)](https://badge.fury.io/py/pystylometry)
 [![Downloads](https://pepy.tech/badge/pystylometry)](https://pepy.tech/project/pystylometry)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Tests](https://img.shields.io/badge/tests-1022%20passed-brightgreen)]()
 
-A comprehensive Python package for stylometric analysis with modular architecture and optional dependencies.
+Stylometric analysis and authorship attribution for Python. 50+ metrics across 11 modules, from vocabulary diversity to AI-generation detection.
 
-## Features
-
-**pystylometry** provides 50+ metrics across five analysis domains:
-
-- **Lexical Diversity**: TTR, MTLD, Yule's K, Hapax ratios, and more
-- **Readability**: Flesch, SMOG, Gunning Fog, Coleman-Liau, ARI
-- **Syntactic Analysis**: POS ratios, sentence statistics (requires spaCy)
-- **Authorship Attribution**: Burrows' Delta, Cosine Delta, Zeta scores
-- **N-gram Analysis**: Character and word bigram entropy, perplexity
-
-## Installation
-
-Install only what you need:
+## Install
 
 ```bash
-# Core package (lexical metrics only)
-pip install pystylometry
-
-# With readability metrics
-pip install pystylometry[readability]
-
-# With syntactic metrics (requires spaCy)
-pip install pystylometry[syntactic]
-
-# With authorship metrics
-pip install pystylometry[authorship]
-
-# With n-gram analysis
-pip install pystylometry[ngrams]
-
-# Everything
-pip install pystylometry[all]
+pip install pystylometry              # Core (lexical metrics)
+pip install pystylometry[all]         # Everything
 ```
 
-## Quick Start
+<details>
+<summary>Individual extras</summary>
 
-### Using Individual Modules
+```bash
+pip install pystylometry[readability]   # Readability formulas (pronouncing, spaCy)
+pip install pystylometry[syntactic]     # POS/parse analysis (spaCy)
+pip install pystylometry[authorship]    # Attribution methods
+pip install pystylometry[ngrams]        # N-gram entropy
+pip install pystylometry[viz]           # Matplotlib visualizations
+```
+</details>
+
+## Usage
 
 ```python
 from pystylometry.lexical import compute_mtld, compute_yule
 from pystylometry.readability import compute_flesch
 
-text = "Your text here..."
+result = compute_mtld(text)
+print(result.mtld_average)       # 72.4
 
-# Lexical diversity
-mtld = compute_mtld(text)
-print(f"MTLD: {mtld.mtld_average:.2f}")
-
-yule = compute_yule(text)
-print(f"Yule's K: {yule.yule_k:.2f}")
-
-# Readability
-flesch = compute_flesch(text)
-print(f"Reading Ease: {flesch.reading_ease:.1f}")
-print(f"Grade Level: {flesch.grade_level:.1f}")
+result = compute_flesch(text)
+print(result.reading_ease)       # 65.2
+print(result.grade_level)        # 8.1
 ```
 
-### Using the Unified API
+Every function returns a typed dataclass with the score, components, and metadata -- never a bare float.
+
+### Unified API
 
 ```python
 from pystylometry import analyze
 
-text = "Your text here..."
-
-# Analyze with multiple metrics at once
-results = analyze(text, lexical=True, readability=True)
-
-# Access results
-print(f"MTLD: {results.lexical['mtld'].mtld_average:.2f}")
-print(f"Flesch: {results.readability['flesch'].reading_ease:.1f}")
+results = analyze(text, lexical=True, readability=True, syntactic=True)
 ```
 
-### Checking Available Modules
+### Style Drift Detection
+
+Detect authorship changes, spliced content, and AI-generated text within a single document.
 
 ```python
-from pystylometry import get_available_modules
+from pystylometry.consistency import compute_kilgarriff_drift
 
-available = get_available_modules()
-print(available)
-# {'lexical': True, 'readability': True, 'syntactic': False, ...}
+result = compute_kilgarriff_drift(document)
+print(result.pattern)             # "sudden_spike"
+print(result.pattern_confidence)  # 0.71
+print(result.max_location)        # Window 23 -- the splice point
 ```
 
-## API Design
+### CLI
 
-### Clean, Consistent Interface
-
-Every metric function:
-- Takes text as input
-- Returns a rich result object (never just a float)
-- Includes metadata about the computation
-- Has comprehensive docstrings with formulas and references
-
-```python
-from pystylometry.lexical import compute_yule
-
-result = compute_yule(text)
-# Returns: YuleResult(yule_k=..., yule_i=..., metadata={...})
-```
-
-## Available Metrics
-
-### Lexical Diversity
-- **TTR** - Type-Token Ratio (via stylometry-ttr)
-- **MTLD** - Measure of Textual Lexical Diversity
-- **Yule's K** - Vocabulary repetitiveness
-- **Hapax Legomena** - Words appearing once/twice
-- **Sichel's S** - Hapax-based richness
-- **Honoré's R** - Vocabulary richness constant
-
-### Readability
-- **Flesch Reading Ease** - 0-100 difficulty scale
-- **Flesch-Kincaid Grade** - US grade level
-- **SMOG Index** - Years of education needed
-- **Gunning Fog** - NLP-enhanced readability complexity (see below)
-- **Coleman-Liau** - Character-based grade level
-- **ARI** - Automated Readability Index
-
-#### Gunning Fog Index - NLP Enhancement
-
-The Gunning Fog Index implementation includes advanced NLP features when spaCy is available:
-
-**Enhanced Mode** (with spaCy):
-- Accurate proper noun detection via POS tagging (PROPN)
-- True morphological analysis via lemmatization
-- Component-based hyphenated word analysis
-- Handles edge cases: acronyms, irregular verbs, compound nouns
-
-**Basic Mode** (without spaCy):
-- Capitalization-based proper noun detection
-- Simple suffix stripping for inflections (-es, -ed, -ing)
-- Component-based hyphenated word analysis
-- Works without external dependencies
-
-```python
-from pystylometry.readability import compute_gunning_fog
-
-text = "Understanding computational linguistics requires significant dedication."
-result = compute_gunning_fog(text)
-
-print(f"Fog Index: {result.fog_index:.1f}")
-print(f"Grade Level: {result.grade_level}")
-print(f"Detection Mode: {result.metadata['mode']}")  # "enhanced" or "basic"
-```
-
-**To enable enhanced mode:**
 ```bash
-pip install pystylometry[readability]
-python -m spacy download en_core_web_sm
+pystylometry-drift manuscript.txt --window-size=500 --stride=250
+pystylometry-viewer report.html
 ```
 
-**Reference:** Gunning, R. (1952). The Technique of Clear Writing. McGraw-Hill.
+## Modules
 
-**Implementation Details:** See [GitHub PR #4](https://github.com/craigtrim/pystylometry/pull/4) for the rationale behind NLP enhancements.
-
-### Syntactic (requires spaCy)
-- **POS Ratios** - Noun/verb/adjective/adverb ratios
-- **Lexical Density** - Content vs function words
-- **Sentence Statistics** - Length, variation, complexity
-
-### Authorship (requires scikit-learn, scipy)
-- **Burrows' Delta** - Author distance measure
-- **Cosine Delta** - Angular distance
-- **Zeta Scores** - Distinctive word usage
-
-### N-grams (requires nltk)
-- **Character Bigram Entropy** - Character predictability
-- **Word Bigram Entropy** - Word sequence predictability
-- **Perplexity** - Language model fit
-
-## Dependencies
-
-**Core (always installed):**
-- stylometry-ttr
-
-**Optional:**
-- `readability`: pronouncing (syllable counting), spacy>=3.8.0 (NLP-enhanced Gunning Fog)
-- `syntactic`: spacy>=3.8.0 (POS tagging and syntactic analysis)
-- `authorship`: None (pure Python + stdlib)
-- `ngrams`: None (pure Python + stdlib)
-
-**Note:** spaCy is shared between `readability` and `syntactic` groups. For enhanced Gunning Fog accuracy, download a language model:
-```bash
-python -m spacy download en_core_web_sm  # Small model (13MB)
-python -m spacy download en_core_web_md  # Medium model (better accuracy)
-```
+| Module | Metrics | Description |
+|--------|---------|-------------|
+| [**lexical**](pystylometry/lexical/) | TTR, MTLD, Yule's K/I, Hapax, MATTR, VocD-D, HD-D, MSTTR, function words, word frequency | Vocabulary diversity and richness |
+| [**readability**](pystylometry/readability/) | Flesch, Flesch-Kincaid, SMOG, Gunning Fog, Coleman-Liau, ARI, Dale-Chall, Fry, FORCAST, Linsear Write, Powers-Sumner-Kearl | Grade-level and difficulty scoring |
+| [**syntactic**](pystylometry/syntactic/) | POS ratios, sentence types, parse tree depth, clausal density, passive voice, T-units, dependency distance | Sentence and parse structure (requires spaCy) |
+| [**authorship**](pystylometry/authorship/) | Burrows' Delta, Cosine Delta, Zeta, Kilgarriff chi-squared, MinMax, John's Delta, NCD | Author attribution and text comparison |
+| [**stylistic**](pystylometry/stylistic/) | Contractions, hedges, intensifiers, modals, punctuation, vocabulary overlap (Jaccard/Dice/Cosine/KL), cohesion, genre/register | Style markers and text similarity |
+| [**character**](pystylometry/character/) | Letter frequencies, digit/uppercase ratios, special characters, whitespace | Character-level fingerprinting |
+| [**ngrams**](pystylometry/ngrams/) | Word/character/POS n-grams, Shannon entropy, skipgrams | N-gram profiles and entropy |
+| [**dialect**](pystylometry/dialect/) | British/American classification, spelling/grammar/vocabulary markers, markedness | Regional dialect detection |
+| [**consistency**](pystylometry/consistency/) | Sliding-window chi-squared drift, pattern classification | Intra-document style analysis |
+| [**prosody**](pystylometry/prosody/) | Syllable stress, rhythm regularity | Prose rhythm (requires spaCy) |
+| [**viz**](pystylometry/viz/) | Timeline, scatter, report (PNG + interactive HTML) | Drift detection visualization |
 
 ## Development
 
 ```bash
-# Clone the repository
-git clone https://github.com/craigtrim/pystylometry
-cd pystylometry
-
-# Install with dev dependencies
+git clone https://github.com/craigtrim/pystylometry && cd pystylometry
 pip install -e ".[dev,all]"
-
-# Run tests
-make test
-
-# Run linters
-make lint
-
-# Format code
-make format
+make test       # 1022 tests
+make lint       # ruff + mypy
+make all        # lint + test + build
 ```
-
-## Project Status
-
-🚧 **Phase 1 - Core Lexical Metrics** (In Progress)
-- [x] Project structure
-- [ ] MTLD implementation
-- [ ] Yule's K implementation
-- [ ] Hapax ratios implementation
-- [ ] Tests
-- [ ] v0.1.0 release
-
-
-## Why pystylometry?
-
-- **Modular**: Install only what you need
-- **Consistent**: Uniform API across all metrics
-- **Rich Results**: Dataclass objects with metadata, not just numbers
-- **Well-Documented**: Formulas, references, and interpretations
-- **Type-Safe**: Full type hints for IDE support
-- **Tested**: Comprehensive test suite
-
 
 ## License
 
-MIT License - see LICENSE file for details.
+MIT
 
 ## Author
 
-Craig Trim (craigtrim@gmail.com)
-
-## Contributing
-
-Contributions welcome! Please open an issue or PR on GitHub.
+Craig Trim -- craigtrim@gmail.com
