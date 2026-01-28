@@ -249,6 +249,7 @@ def compute_kilgarriff(
     text1: str,
     text2: str,
     n_words: int = 500,
+    top_features: int = 20,
 ) -> KilgarriffResult:
     """
     Compute Kilgarriff's chi-squared distance between two texts.
@@ -292,6 +293,8 @@ def compute_kilgarriff(
         text2: Second text for comparison
         n_words: Number of most frequent words to analyze (default: 500).
             Higher values provide finer discrimination but require longer texts.
+        top_features: Number of most distinctive features to return (default: 20).
+            Controls the length of most_distinctive_features in the result.
 
     Returns:
         KilgarriffResult containing:
@@ -318,6 +321,10 @@ def compute_kilgarriff(
         violated in text analysis. The raw chi_squared value is more reliable
         for relative comparisons between text pairs.
     """
+    # Validate top_features
+    if top_features < 1:
+        raise ValueError("top_features must be >= 1")
+
     # Tokenize and lowercase
     # Using lowercase ensures "The" and "the" are counted together
     tokens1 = [t.lower() for t in tokenize(text1) if t.isalpha()]
@@ -337,7 +344,7 @@ def compute_kilgarriff(
         p_value=p_value,
         degrees_of_freedom=df,
         feature_count=len(contributions),
-        most_distinctive_features=contributions[:20],  # Top 20 contributors
+        most_distinctive_features=contributions[:top_features],
         metadata={
             **details,
             "all_contributions": contributions,  # Full list for detailed analysis
