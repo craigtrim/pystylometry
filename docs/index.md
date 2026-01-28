@@ -8,6 +8,7 @@ A Python library for stylometric analysis and authorship attribution.
 - [Extended N-gram Features](algorithms/extended-ngrams.md) - Word, character, and POS n-gram analysis
 - [Stylistic Markers](algorithms/stylistic-markers.md) - Contraction, intensifier, and punctuation analysis
 - [Vocabulary Overlap](algorithms/vocabulary-overlap.md) - Jaccard, Dice, Cosine, and KL divergence metrics
+- [Genre and Register](algorithms/genre-register.md) - Formality scoring, register classification, and genre prediction
 
 ## Additional Resources
 
