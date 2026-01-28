@@ -23,6 +23,7 @@ A Python library for stylometric analysis and authorship attribution.
 - [Function Words](lexical/function_words.md) - Function word frequency and distribution
 - [Advanced Diversity](lexical/advanced_diversity.md) - voc-D, MATTR, HD-D, MSTTR
 - [Word Frequency Sophistication](lexical/word_frequency_sophistication.md) - COCA frequency ranks and Academic Word List
+- [Repetitive Word and N-gram Detection](lexical/repetition.md) - Verbal tics and AI slop detection via BNC baseline
 
 ## Readability
 

@@ -370,6 +370,158 @@ class TTRResult:
     metadata: dict[str, Any]
 
 
+# ===== Repetition Detection Results =====
+# Related to GitHub Issue #28: Verbal tics detection for slop analysis
+# https://github.com/craigtrim/pystylometry/issues/28
+
+
+@dataclass
+class RepetitiveWord:
+    """A single word flagged as abnormally repetitive.
+
+    The repetition_score is the ratio of observed count to expected count
+    based on the word's frequency in the British National Corpus (BNC).
+    Higher scores indicate stronger overrepresentation.
+
+    Related GitHub Issue:
+        #28 - Verbal tics detection for slop analysis
+        https://github.com/craigtrim/pystylometry/issues/28
+
+    Attributes:
+        word: The flagged word (lowercased).
+        count: Observed count in the text.
+        expected_count: Expected count based on BNC relative frequency × text length.
+            0.0 if word not found in BNC.
+        repetition_score: count / expected_count. float('inf') if expected_count is 0.
+        bnc_bucket: BNC frequency bucket (1-100, 1=most frequent). None if not in BNC.
+        chunk_counts: Per-chunk occurrence counts (for distribution analysis).
+        distribution_entropy: Shannon entropy of the word's chunk distribution.
+            Low entropy = suspiciously even spread (model tic).
+            High entropy = clustered usage (human writing about a specific scene).
+        distribution_variance: Variance of per-chunk counts.
+    """
+
+    word: str
+    count: int
+    expected_count: float
+    repetition_score: float
+    bnc_bucket: int | None
+    chunk_counts: list[int]
+    distribution_entropy: float
+    distribution_variance: float
+
+
+@dataclass
+class RepetitiveUnigramsResult:
+    """Result from repetitive unigram detection.
+
+    Identifies content words that appear far more frequently than expected
+    based on their frequency in the British National Corpus (BNC, ~100M tokens).
+    This is a key indicator of AI-generated "slop" where models exhibit verbal
+    tics — repeating certain words with suspicious regularity.
+
+    Related GitHub Issue:
+        #28 - Verbal tics detection for slop analysis
+        https://github.com/craigtrim/pystylometry/issues/28
+
+    The slop_score provides a single aggregate metric:
+        slop_score = flagged_words_per_10k × mean_repetition_score
+
+    Where:
+        - flagged_words_per_10k = count of flagged words / (total content words / 10000)
+        - mean_repetition_score = mean repetition_score across all flagged words
+
+    Higher slop_score = more likely AI-generated verbal tics.
+
+    References:
+        British National Corpus Consortium. (2007). The British National Corpus,
+            version 3 (BNC XML Edition). http://www.natcorp.ox.ac.uk/
+
+    Example:
+        >>> result = compute_repetitive_unigrams(text)
+        >>> for w in result.repetitive_words[:5]:
+        ...     print(f"{w.word}: {w.count}x (expected {w.expected_count:.1f}, "
+        ...           f"score {w.repetition_score:.1f})")
+        shimmered: 23x (expected 0.1, score 266.2)
+        >>> result.slop_score
+        42.7
+    """
+
+    repetitive_words: list[RepetitiveWord]  # Sorted by repetition_score descending
+    total_content_words: int
+    flagged_count: int  # Number of words exceeding threshold
+    flagged_words_per_10k: float  # flagged_count / (total_content_words / 10000)
+    mean_repetition_score: float  # Mean score across flagged words
+    slop_score: float  # Aggregate: flagged_words_per_10k × mean_repetition_score
+    total_content_words_dist: Distribution
+    chunk_size: int
+    chunk_count: int
+    metadata: dict[str, Any]
+
+
+@dataclass
+class RepetitiveNgram:
+    """A single n-gram flagged as abnormally repetitive.
+
+    Content n-grams (bigrams, trigrams, etc.) should rarely repeat verbatim
+    in natural writing. N-grams that repeat beyond a length-scaled threshold
+    are flagged.
+
+    Related GitHub Issue:
+        #28 - Verbal tics detection for slop analysis
+        https://github.com/craigtrim/pystylometry/issues/28
+
+    Attributes:
+        ngram: The flagged n-gram as a tuple of words.
+        count: Observed count in the text.
+        frequency_per_10k: Occurrences per 10,000 n-grams.
+        chunk_counts: Per-chunk occurrence counts.
+        distribution_entropy: Shannon entropy of the n-gram's chunk distribution.
+        distribution_variance: Variance of per-chunk counts.
+    """
+
+    ngram: tuple[str, ...]
+    count: int
+    frequency_per_10k: float
+    chunk_counts: list[int]
+    distribution_entropy: float
+    distribution_variance: float
+
+
+@dataclass
+class RepetitiveNgramsResult:
+    """Result from repetitive n-gram detection.
+
+    Detects bigrams, trigrams, or higher-order n-grams that repeat more than
+    expected within the text. No external corpus is required — content n-grams
+    should not repeat verbatim often in natural writing.
+
+    N-grams composed entirely of function words (e.g., "of the", "in a") are
+    excluded since their repetition is expected.
+
+    Related GitHub Issue:
+        #28 - Verbal tics detection for slop analysis
+        https://github.com/craigtrim/pystylometry/issues/28
+
+    Example:
+        >>> result = compute_repetitive_ngrams(text, n=2)
+        >>> for ng in result.repetitive_ngrams[:5]:
+        ...     print(f"{' '.join(ng.ngram)}: {ng.count}x "
+        ...           f"({ng.frequency_per_10k:.1f} per 10k)")
+        uncomfortable truth: 8x (1.6 per 10k)
+    """
+
+    repetitive_ngrams: list[RepetitiveNgram]  # Sorted by count descending
+    n: int | tuple[int, ...]  # N-gram order(s) analyzed
+    total_ngrams: int
+    flagged_count: int
+    flagged_per_10k: float  # flagged_count / (total_ngrams / 10000)
+    total_ngrams_dist: Distribution
+    chunk_size: int
+    chunk_count: int
+    metadata: dict[str, Any]
+
+
 # ===== Readability Results =====
 
 
