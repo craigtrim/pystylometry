@@ -24,7 +24,7 @@ from pystylometry.authorship import (
     compute_johns_delta,
 )
 
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
+FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
 
 
 # ===== Shared Test Fixtures =====

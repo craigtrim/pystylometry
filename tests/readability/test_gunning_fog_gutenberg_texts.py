@@ -27,7 +27,7 @@ class TestGunningFogGutenbergTexts:
     @pytest.fixture
     def fixtures_dir(self) -> Path:
         """Get path to test fixtures directory."""
-        return Path(__file__).parent / "fixtures"
+        return Path(__file__).parent.parent / "fixtures"
 
     def test_hound_of_baskervilles(self, fixtures_dir: Path):
         """Test with The Hound of the Baskervilles."""
