@@ -1517,6 +1517,7 @@ class VocabularyOverlapResult:
         - Dice coefficient (2 * intersection / sum of sizes)
         - Overlap coefficient (intersection / min(size1, size2))
         - Cosine similarity (using word frequency vectors)
+        - KL divergence (asymmetric distributional difference)
         - Shared vocabulary size and ratio
         - Unique words in each text
         - Most distinctive words for each text
@@ -1526,6 +1527,10 @@ class VocabularyOverlapResult:
             New Phytologist, 11(2), 37-50.
         Salton, G., & McGill, M. J. (1983). Introduction to Modern Information
             Retrieval. McGraw-Hill.
+        Kullback, S., & Leibler, R. A. (1951). On Information and Sufficiency.
+            Annals of Mathematical Statistics, 22(1), 79-86.
+        Manning, C. D., & Schütze, H. (1999). Foundations of Statistical NLP.
+            MIT Press.
 
     Example:
         >>> result = compute_vocabulary_overlap(text1, text2)
@@ -1539,6 +1544,7 @@ class VocabularyOverlapResult:
     dice_coefficient: float  # 2 * intersection / (size1 + size2)
     overlap_coefficient: float  # Intersection / min(size1, size2)
     cosine_similarity: float  # Cosine of frequency vectors
+    kl_divergence: float  # Kullback-Leibler divergence (asymmetric, text1 || text2)
 
     # Vocabulary sizes
     text1_vocab_size: int  # Unique words in text 1
