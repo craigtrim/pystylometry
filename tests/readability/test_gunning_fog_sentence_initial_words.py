@@ -27,9 +27,9 @@ class TestGunningFogSentenceInitialWords:
         result = compute_gunning_fog(text)
 
         # After fix: Sentence-initial complex words should be counted
-        assert result.metadata["complex_word_count"] >= 2, (
-            "Sentence-initial complex words should be counted"
-        )
+        assert (
+            result.metadata["complex_word_count"] >= 2
+        ), "Sentence-initial complex words should be counted"
 
     def test_mid_sentence_proper_noun_excluded(self):
         """Only true proper nouns (mid-sentence caps) should be excluded."""

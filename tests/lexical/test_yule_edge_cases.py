@@ -50,9 +50,9 @@ class TestYuleEdgeCases:
 
         # I = V² / (Σm²×Vm - N) = 5² / (5 - 5) = 25 / 0 = undefined
         # When all words are unique, denominator is zero, so I should be NaN
-        assert math.isnan(result.yule_i), (
-            "Yule's I should be NaN for perfectly unique vocabulary (division by zero)"
-        )
+        assert math.isnan(
+            result.yule_i
+        ), "Yule's I should be NaN for perfectly unique vocabulary (division by zero)"
 
     def test_whitespace_only(self):
         """Test Yule with only whitespace."""
