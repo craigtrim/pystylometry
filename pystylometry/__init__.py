@@ -40,13 +40,12 @@ Usage:
     print(result.pattern_confidence)
 """
 
+from . import lexical  # noqa: E402
 from ._types import AnalysisResult
+from .tokenizer import TokenizationStats, Tokenizer, TokenMetadata
 
 # Version
 __version__ = "0.1.0"
-
-# Core exports - always available
-from . import lexical
 
 # Optional exports - may raise ImportError if dependencies not installed
 try:
@@ -85,6 +84,41 @@ _NGRAMS_AVAILABLE = True
 _DIALECT_AVAILABLE = True
 _CONSISTENCY_AVAILABLE = True
 _STYLISTIC_AVAILABLE = True
+
+
+def tokenize(text: str, **kwargs: object) -> list[str]:
+    """Tokenize text using the stylometric tokenizer.
+
+    Convenience wrapper around Tokenizer.tokenize(). All keyword arguments
+    are forwarded to the Tokenizer constructor.
+
+    Args:
+        text: Input text to tokenize.
+        **kwargs: Options forwarded to Tokenizer (lowercase, strip_numbers,
+            expand_contractions, etc.).
+
+    Returns:
+        List of token strings.
+
+    Example:
+        >>> from pystylometry import tokenize
+        >>> tokenize("Hello, world! It's a test.")
+        ['hello', 'world', "it's", 'a', 'test']
+    """
+    return Tokenizer(**kwargs).tokenize(text)  # type: ignore[arg-type]
+
+
+def tokenize_with_metadata(text: str, **kwargs: object) -> list[TokenMetadata]:
+    """Tokenize text and return tokens with positional and type metadata.
+
+    Args:
+        text: Input text to tokenize.
+        **kwargs: Options forwarded to Tokenizer.
+
+    Returns:
+        List of TokenMetadata objects.
+    """
+    return Tokenizer(**kwargs).tokenize_with_metadata(text)  # type: ignore[arg-type]
 
 
 def analyze(
@@ -225,6 +259,11 @@ __all__ = [
     "__version__",
     "analyze",
     "get_available_modules",
+    "tokenize",
+    "tokenize_with_metadata",
+    "Tokenizer",
+    "TokenMetadata",
+    "TokenizationStats",
     "lexical",
 ]
 

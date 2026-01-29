@@ -3,6 +3,7 @@
 Usage:
     pystylometry-drift <file> [--window-size=N] [--stride=N] [--mode=MODE] [--json]
     pystylometry-drift <file> --plot [output.png]
+    pystylometry-tokenize <file> [--json] [--metadata] [--stats]
 
 Example:
     pystylometry-drift manuscript.txt
@@ -10,6 +11,9 @@ Example:
     pystylometry-drift manuscript.txt --json
     pystylometry-drift manuscript.txt --plot
     pystylometry-drift manuscript.txt --plot drift_report.png
+    pystylometry-tokenize manuscript.txt
+    pystylometry-tokenize manuscript.txt --json --metadata
+    pystylometry-tokenize manuscript.txt --stats
 """
 
 from __future__ import annotations
@@ -421,6 +425,323 @@ The generated viewer includes:
     print("    • View interactive drift timeline")
     print("    • Click points to see chunk comparisons")
     print()
+
+
+def tokenize_cli() -> None:
+    """CLI entry point for stylometric tokenization."""
+    parser = argparse.ArgumentParser(
+        prog="pystylometry-tokenize",
+        description="Tokenize text for stylometric analysis.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  pystylometry-tokenize manuscript.txt
+  pystylometry-tokenize manuscript.txt --json
+  pystylometry-tokenize manuscript.txt --json --metadata
+  pystylometry-tokenize manuscript.txt --stats
+  pystylometry-tokenize manuscript.txt -U --expand-contractions
+  pystylometry-tokenize manuscript.txt --min-length 3 --strip-numbers
+""",
+    )
+
+    parser.add_argument(
+        "file",
+        type=Path,
+        help="Path to text file to tokenize",
+    )
+
+    # Output mode
+    output_group = parser.add_argument_group("output")
+    output_group.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Output as JSON (list of strings, or list of objects with --metadata)",
+    )
+    output_group.add_argument(
+        "-m",
+        "--metadata",
+        action="store_true",
+        help="Include token type and position metadata (implies --json)",
+    )
+    output_group.add_argument(
+        "-s",
+        "--stats",
+        action="store_true",
+        help="Show tokenization statistics instead of tokens",
+    )
+
+    # Core behavior
+    behavior_group = parser.add_argument_group("behavior")
+    behavior_group.add_argument(
+        "-U",
+        "--no-lowercase",
+        action="store_true",
+        help="Preserve original case (default: lowercase)",
+    )
+    behavior_group.add_argument(
+        "-e",
+        "--expand-contractions",
+        action="store_true",
+        help="Expand contractions (it's -> it is)",
+    )
+    behavior_group.add_argument(
+        "-n",
+        "--strip-numbers",
+        action="store_true",
+        help="Remove numeric tokens",
+    )
+    behavior_group.add_argument(
+        "--keep-punctuation",
+        action="store_true",
+        help="Keep punctuation tokens (default: stripped)",
+    )
+
+    # Filtering
+    filter_group = parser.add_argument_group("filtering")
+    filter_group.add_argument(
+        "--min-length",
+        type=int,
+        default=1,
+        metavar="N",
+        help="Minimum token length (default: 1)",
+    )
+    filter_group.add_argument(
+        "--max-length",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Maximum token length (default: unlimited)",
+    )
+    filter_group.add_argument(
+        "--preserve-urls",
+        action="store_true",
+        help="Keep URL tokens",
+    )
+    filter_group.add_argument(
+        "--preserve-emails",
+        action="store_true",
+        help="Keep email tokens",
+    )
+    filter_group.add_argument(
+        "--preserve-hashtags",
+        action="store_true",
+        help="Keep hashtag tokens",
+    )
+    filter_group.add_argument(
+        "--preserve-mentions",
+        action="store_true",
+        help="Keep @mention tokens",
+    )
+
+    # Advanced
+    advanced_group = parser.add_argument_group("advanced")
+    advanced_group.add_argument(
+        "--expand-abbreviations",
+        action="store_true",
+        help="Expand abbreviations (Dr. -> Doctor)",
+    )
+    advanced_group.add_argument(
+        "--strip-accents",
+        action="store_true",
+        help="Remove accents from characters",
+    )
+    advanced_group.add_argument(
+        "--no-clean",
+        action="store_true",
+        help="Skip text cleaning (italics, brackets, page markers)",
+    )
+    advanced_group.add_argument(
+        "--no-unicode-normalize",
+        action="store_true",
+        help="Skip unicode normalization",
+    )
+
+    args = parser.parse_args()
+
+    # --- ANSI colors ---
+    use_color = sys.stderr.isatty()
+
+    def _c(code: str, text: str) -> str:
+        return f"\033[{code}m{text}\033[0m" if use_color else text
+
+    bold = lambda t: _c("1", t)  # noqa: E731
+    dim = lambda t: _c("2", t)  # noqa: E731
+    cyan = lambda t: _c("36", t)  # noqa: E731
+    green = lambda t: _c("32", t)  # noqa: E731
+    yellow = lambda t: _c("33", t)  # noqa: E731
+
+    # --- Validate file ---
+    if not args.file.exists():
+        print(f"Error: File not found: {args.file}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        text = args.file.read_text(encoding="utf-8")
+    except Exception as e:
+        print(f"Error reading file: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    # --- Build Tokenizer kwargs ---
+    tokenizer_kwargs = {
+        "lowercase": not args.no_lowercase,
+        "min_length": args.min_length,
+        "max_length": args.max_length,
+        "strip_numbers": args.strip_numbers,
+        "strip_punctuation": not args.keep_punctuation,
+        "preserve_urls": args.preserve_urls,
+        "preserve_emails": args.preserve_emails,
+        "preserve_hashtags": args.preserve_hashtags,
+        "preserve_mentions": args.preserve_mentions,
+        "expand_contractions": args.expand_contractions,
+        "expand_abbreviations": args.expand_abbreviations,
+        "strip_accents": args.strip_accents,
+        "normalize_unicode": not args.no_unicode_normalize,
+        "clean_text": not args.no_clean,
+    }
+
+    # Collect active options for banner
+    active_opts = []
+    if args.no_lowercase:
+        active_opts.append("preserve case")
+    if args.expand_contractions:
+        active_opts.append("expand contractions")
+    if args.expand_abbreviations:
+        active_opts.append("expand abbreviations")
+    if args.strip_numbers:
+        active_opts.append("strip numbers")
+    if args.keep_punctuation:
+        active_opts.append("keep punctuation")
+    if args.strip_accents:
+        active_opts.append("strip accents")
+    if args.no_clean:
+        active_opts.append("skip cleaning")
+    if args.no_unicode_normalize:
+        active_opts.append("skip unicode normalization")
+    if args.preserve_urls:
+        active_opts.append("preserve URLs")
+    if args.preserve_emails:
+        active_opts.append("preserve emails")
+    if args.preserve_hashtags:
+        active_opts.append("preserve hashtags")
+    if args.preserve_mentions:
+        active_opts.append("preserve mentions")
+    if args.min_length > 1:
+        active_opts.append(f"min length {args.min_length}")
+    if args.max_length is not None:
+        active_opts.append(f"max length {args.max_length}")
+
+    # Determine output format
+    if args.stats:
+        output_format = "Statistics"
+    elif args.metadata:
+        output_format = "JSON (with metadata)"
+    elif args.json:
+        output_format = "JSON"
+    else:
+        output_format = "One token per line"
+
+    # --- Banner (to stderr so stdout stays pipeable) ---
+    char_count = len(text)
+    line_count = text.count("\n") + 1
+
+    banner = sys.stderr
+    print(file=banner)
+    print(f"  {bold('PYSTYLOMETRY')} {dim('—')} {cyan('Stylometric Tokenizer')}", file=banner)
+    print(f"  {dim('═' * 71)}", file=banner)
+    print(file=banner)
+    print(f"  {bold('INPUT')}", file=banner)
+    print(f"  {dim('─' * 71)}", file=banner)
+    print(f"    File:              {args.file}", file=banner)
+    print(f"    Size:              {char_count:,} characters / {line_count:,} lines", file=banner)
+    print(file=banner)
+    print(f"  {bold('CONFIGURATION')}", file=banner)
+    print(f"  {dim('─' * 71)}", file=banner)
+    print(f"    Case:              {'preserve' if args.no_lowercase else 'lowercase'}", file=banner)
+    print(
+        f"    Punctuation:       {'keep' if args.keep_punctuation else 'strip'}",
+        file=banner,
+    )
+    print(
+        f"    Contractions:      {'expand' if args.expand_contractions else 'preserve'}",
+        file=banner,
+    )
+    print(f"    Numbers:           {'strip' if args.strip_numbers else 'keep'}", file=banner)
+    if active_opts:
+        print(f"    Active options:    {', '.join(active_opts)}", file=banner)
+    print(file=banner)
+    print(f"  {bold('OUTPUT')}", file=banner)
+    print(f"  {dim('─' * 71)}", file=banner)
+    print(f"    Format:            {output_format}", file=banner)
+    print(file=banner)
+
+    # --- Tokenize ---
+    from pystylometry.tokenizer import Tokenizer
+
+    tokenizer = Tokenizer(**tokenizer_kwargs)
+
+    if args.stats:
+        stats = tokenizer.get_statistics(text)
+        print(f"  {bold('RESULTS')}", file=banner)
+        print(f"  {dim('─' * 71)}", file=banner)
+        print(f"    Total tokens:      {green(f'{stats.total_tokens:,}')}", file=banner)
+        print(f"    Unique tokens:     {green(f'{stats.unique_tokens:,}')}", file=banner)
+        print(f"    Word tokens:       {stats.word_tokens:,}", file=banner)
+        print(f"    Number tokens:     {stats.number_tokens:,}", file=banner)
+        print(f"    Punctuation:       {stats.punctuation_tokens:,}", file=banner)
+        print(f"    URLs:              {stats.url_tokens:,}", file=banner)
+        print(f"    Emails:            {stats.email_tokens:,}", file=banner)
+        print(f"    Hashtags:          {stats.hashtag_tokens:,}", file=banner)
+        print(f"    Mentions:          {stats.mention_tokens:,}", file=banner)
+        print(f"    Avg length:        {stats.average_token_length:.1f}", file=banner)
+        print(f"    Min length:        {stats.min_token_length}", file=banner)
+        print(f"    Max length:        {stats.max_token_length}", file=banner)
+        print(file=banner)
+
+        if args.json:
+            import dataclasses
+
+            print(json.dumps(dataclasses.asdict(stats), indent=2))
+
+    elif args.metadata or (args.json and args.metadata):
+        metadata_list = tokenizer.tokenize_with_metadata(text)
+        count = len(metadata_list)
+        print(
+            f"  {yellow('Tokenizing...')} {green(f'{count:,}')} tokens extracted",
+            file=banner,
+        )
+        print(file=banner)
+        output = [
+            {
+                "token": m.token,
+                "start": m.start,
+                "end": m.end,
+                "type": m.token_type,
+            }
+            for m in metadata_list
+        ]
+        print(json.dumps(output, indent=2))
+
+    elif args.json:
+        tokens = tokenizer.tokenize(text)
+        count = len(tokens)
+        print(
+            f"  {yellow('Tokenizing...')} {green(f'{count:,}')} tokens extracted",
+            file=banner,
+        )
+        print(file=banner)
+        print(json.dumps(tokens, indent=2))
+
+    else:
+        tokens = tokenizer.tokenize(text)
+        count = len(tokens)
+        print(
+            f"  {yellow('Tokenizing...')} {green(f'{count:,}')} tokens extracted",
+            file=banner,
+        )
+        print(file=banner)
+        for token in tokens:
+            print(token)
 
 
 if __name__ == "__main__":

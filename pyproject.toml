@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pystylometry"
-version = "1.3.1"
+version = "1.3.2"
 description = "Comprehensive Python package for stylometric analysis"
 authors = ["Craig Trim <craigtrim@gmail.com>"]
 readme = "README.md"
@@ -35,6 +35,8 @@ classifiers = [
 pystylometry-drift = "pystylometry.cli:drift_cli"
 # pystylometry-viewer drift_analyzer.html
 pystylometry-viewer = "pystylometry.cli:viewer_cli"
+# pystylometry-tokenize manuscript.txt --json --metadata
+pystylometry-tokenize = "pystylometry.cli:tokenize_cli"
 
 [tool.poetry.urls]
 Homepage = "https://github.com/craigtrim/pystylometry"
@@ -98,6 +100,7 @@ ignore = []
 "pystylometry/viz/jsx/*.py" = ["E501"]
 # Test files may have long assertions and test data
 "tests/*.py" = ["E501"]
+"tests/**/*.py" = ["E501", "E402"]
 
 [tool.mypy]
 python_version = "3.9"
