@@ -47,7 +47,6 @@ from __future__ import annotations
 import math
 import statistics
 from collections import Counter
-from typing import Any
 
 from .._types import (
     Distribution,
@@ -253,14 +252,17 @@ def compute_repetitive_unigrams(
             )
 
     # Sort by repetition_score descending (inf sorts last with key trick)
-    flagged.sort(key=lambda w: (-w.repetition_score if w.repetition_score != float("inf") else -1e18, -w.count))
+    flagged.sort(
+        key=lambda w: (
+            -w.repetition_score if w.repetition_score != float("inf") else -1e18,
+            -w.count,
+        )
+    )
 
     # Compute aggregate metrics
     flagged_count = len(flagged)
     flagged_words_per_10k = (
-        flagged_count / (total_content_words / 10_000)
-        if total_content_words > 0
-        else 0.0
+        flagged_count / (total_content_words / 10_000) if total_content_words > 0 else 0.0
     )
 
     # Mean repetition score (exclude inf for meaningful average)
@@ -273,7 +275,9 @@ def compute_repetitive_unigrams(
     content_dist = (
         make_distribution([float(c) for c in content_words_per_chunk])
         if content_words_per_chunk
-        else Distribution(values=[], mean=float("nan"), median=float("nan"), std=0.0, range=0.0, iqr=0.0)
+        else Distribution(
+            values=[], mean=float("nan"), median=float("nan"), std=0.0, range=0.0, iqr=0.0
+        )
     )
 
     return RepetitiveUnigramsResult(
@@ -307,6 +311,7 @@ def _validate_n(n: int | tuple[int, ...]) -> tuple[int, ...]:
     Raises:
         ValueError: If any value is outside the range [2, 5] or input is empty.
     """
+    values: tuple[int, ...]
     if isinstance(n, int):
         values = (n,)
     else:
@@ -471,16 +476,16 @@ def compute_repetitive_ngrams(
     flagged.sort(key=lambda ng: -ng.count)
 
     flagged_count = len(flagged)
-    flagged_per_10k = (
-        flagged_count / (total_ngram_count / 10_000) if total_ngram_count > 0 else 0.0
-    )
+    flagged_per_10k = flagged_count / (total_ngram_count / 10_000) if total_ngram_count > 0 else 0.0
 
     # N-grams per chunk distribution
     ngrams_per_chunk = [sum(counter.values()) for counter in chunk_ngram_counters]
     ngrams_dist = (
         make_distribution([float(c) for c in ngrams_per_chunk])
         if ngrams_per_chunk
-        else Distribution(values=[], mean=float("nan"), median=float("nan"), std=0.0, range=0.0, iqr=0.0)
+        else Distribution(
+            values=[], mean=float("nan"), median=float("nan"), std=0.0, range=0.0, iqr=0.0
+        )
     )
 
     return RepetitiveNgramsResult(

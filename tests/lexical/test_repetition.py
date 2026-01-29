@@ -16,12 +16,9 @@ This test suite covers:
     - Natural text produces few/no flags
 """
 
-import math
-
 import pytest
 
 from pystylometry.lexical import compute_repetitive_ngrams, compute_repetitive_unigrams
-
 
 # ==============================================================================
 # Fixtures
@@ -250,9 +247,12 @@ class TestRepetitiveNgrams:
         result = compute_repetitive_ngrams(text, n=2, min_count=3)
 
         all_function_ngrams = [
-            ng for ng in result.repetitive_ngrams
-            if all(w in {"of", "the", "a", "in", "on", "to", "and", "is", "it", "for"}
-                   for w in ng.ngram)
+            ng
+            for ng in result.repetitive_ngrams
+            if all(
+                w in {"of", "the", "a", "in", "on", "to", "and", "is", "it", "for"}
+                for w in ng.ngram
+            )
         ]
         assert len(all_function_ngrams) == 0
 
@@ -337,9 +337,9 @@ class TestDistributionMetrics:
         even_parts = []
         for i in range(10):
             even_parts.append(
-                f"The obsidian walls stood firm against the harsh cold wind "
-                f"Birds flew past the old stone tower on a warm sunny day "
-                f"The river flowed gently below the ancient wooden bridge "
+                "The obsidian walls stood firm against the harsh cold wind "
+                "Birds flew past the old stone tower on a warm sunny day "
+                "The river flowed gently below the ancient wooden bridge "
             )
         even_text = " ".join(even_parts)
 
@@ -348,13 +348,13 @@ class TestDistributionMetrics:
         for i in range(10):
             if i < 2:
                 clustered_parts.append(
-                    f"The obsidian obsidian obsidian obsidian obsidian walls "
-                    f"More obsidian dark obsidian structures appeared nearby "
+                    "The obsidian obsidian obsidian obsidian obsidian walls "
+                    "More obsidian dark obsidian structures appeared nearby "
                 )
             else:
                 clustered_parts.append(
-                    f"The sunlight warmed the green valley on this fine day "
-                    f"Flowers bloomed across the wide meadow quite naturally "
+                    "The sunlight warmed the green valley on this fine day "
+                    "Flowers bloomed across the wide meadow quite naturally "
                 )
         clustered_text = " ".join(clustered_parts)
 

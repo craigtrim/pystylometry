@@ -39,6 +39,6 @@ class TestYuleIFormula:
         # Higher I = more diverse (both should have numeric values)
         assert not math.isnan(result_diverse.yule_i), "Diverse text should have numeric I"
         assert not math.isnan(result_repetitive.yule_i), "Repetitive text should have numeric I"
-        assert result_diverse.yule_i > result_repetitive.yule_i, (
-            "Yule's I should be higher for diverse text"
-        )
+        assert (
+            result_diverse.yule_i > result_repetitive.yule_i
+        ), "Yule's I should be higher for diverse text"

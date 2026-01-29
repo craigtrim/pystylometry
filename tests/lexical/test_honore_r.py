@@ -34,9 +34,9 @@ class TestHonoreR:
 
         # V₁ = V = 5, so (1 - V₁/V) = 0
         # Should return infinity to indicate maximal vocabulary richness
-        assert result.honore_r == float("inf"), (
-            "Honoré's R should be infinity when all words are unique"
-        )
+        assert result.honore_r == float(
+            "inf"
+        ), "Honoré's R should be infinity when all words are unique"
 
     def test_honore_r_high_repetition(self):
         """Test Honoré's R with highly repetitive text."""
