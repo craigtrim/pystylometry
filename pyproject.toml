@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pystylometry"
-version = "1.3.2"
+version = "1.3.5"
 description = "Comprehensive Python package for stylometric analysis"
 authors = ["Craig Trim <craigtrim@gmail.com>"]
 readme = "README.md"
@@ -16,7 +16,7 @@ keywords = [
     "readability-metrics",
 ]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Science/Research",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
