@@ -58,7 +58,7 @@ def _compute_chunk_ttrs(tokens: list[str], chunk_size: int) -> list[float]:
     total = len(tokens)
     chunk_ttrs: list[float] = []
     for i in range(0, total - chunk_size + 1, chunk_size):
-        chunk = tokens[i: i + chunk_size]
+        chunk = tokens[i : i + chunk_size]
         chunk_ttrs.append(len(set(chunk)) / chunk_size)
     return chunk_ttrs
 
@@ -161,8 +161,12 @@ def compute_ttr(
     # --- empty / trivial text --------------------------------------------------
     if total_words == 0:
         empty_dist = Distribution(
-            values=[], mean=float("nan"), median=float("nan"),
-            std=0.0, range=0.0, iqr=0.0,
+            values=[],
+            mean=float("nan"),
+            median=float("nan"),
+            std=0.0,
+            range=0.0,
+            iqr=0.0,
         )
         return TTRResult(
             total_words=0,
@@ -217,7 +221,7 @@ def compute_ttr(
         # Root TTR per chunk: for each chunk of chunk_size tokens,
         # root_ttr = unique / sqrt(chunk_size)
         root_ttr_chunks = [
-            len(set(tokens[i: i + chunk_size])) / math.sqrt(chunk_size)
+            len(set(tokens[i : i + chunk_size])) / math.sqrt(chunk_size)
             for i in range(0, total_words - chunk_size + 1, chunk_size)
         ]
         root_ttr_dist = make_distribution(root_ttr_chunks)
@@ -225,7 +229,7 @@ def compute_ttr(
         # Log TTR per chunk
         log_ttr_chunks = []
         for i in range(0, total_words - chunk_size + 1, chunk_size):
-            chunk = tokens[i: i + chunk_size]
+            chunk = tokens[i : i + chunk_size]
             u = len(set(chunk))
             t = len(chunk)
             val = math.log(u) / math.log(t) if t > 1 else 0.0
@@ -233,12 +237,10 @@ def compute_ttr(
         log_ttr_dist = make_distribution(log_ttr_chunks)
 
         sttr_dist = (
-            make_distribution(chunk_ttrs) if sttr_available
-            else make_distribution([sttr_val])
+            make_distribution(chunk_ttrs) if sttr_available else make_distribution([sttr_val])
         )
         delta_std_dist = (
-            make_distribution([delta_std_val]) if delta_std_available
-            else make_distribution([0.0])
+            make_distribution([delta_std_val]) if delta_std_available else make_distribution([0.0])
         )
     else:
         # Not enough text for any chunks — wrap globals in single-value dists
