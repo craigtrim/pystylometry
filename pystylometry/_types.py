@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import statistics
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 # ===== Distribution and Chunking =====
 # Related to GitHub Issue #27: Native chunked analysis with Distribution dataclass
@@ -316,8 +316,8 @@ class HapaxLexiconResult:
 class TTRResult:
     """Result from Type-Token Ratio (TTR) analysis.
 
-    Wraps stylometry-ttr package functionality to measure vocabulary richness
-    through the ratio of unique words (types) to total words (tokens).
+    Measures vocabulary richness through the ratio of unique words (types)
+    to total words (tokens).
 
     All numeric metrics include both a mean value (convenient access) and
     a full distribution with per-chunk values and statistics.
@@ -366,6 +366,56 @@ class TTRResult:
     # Chunking context
     chunk_size: int
     chunk_count: int
+
+    metadata: dict[str, Any]
+
+
+@dataclass
+class TTRAggregateResult:
+    """Aggregated TTR statistics for a collection of texts.
+
+    Computes group-level summary statistics (mean, std, min, max, median)
+    across multiple ``TTRResult`` objects.  Useful for comparative analysis
+    across authors, genres, or time periods.
+
+    Related GitHub Issue:
+        #43 - Inline stylometry-ttr into pystylometry (remove external dependency)
+        https://github.com/craigtrim/pystylometry/issues/43
+
+    Example:
+        >>> from pystylometry.lexical import compute_ttr, TTRAggregator
+        >>> results = [compute_ttr(t) for t in texts]
+        >>> agg = TTRAggregator()
+        >>> stats = agg.aggregate(results, group_id="Austen")
+        >>> stats.ttr_mean
+        0.412
+    """
+
+    group_id: str
+    text_count: int
+    total_words: int
+
+    # Raw TTR statistics
+    ttr_mean: float
+    ttr_std: float
+    ttr_min: float
+    ttr_max: float
+    ttr_median: float
+
+    # Root TTR (Guiraud's index) statistics
+    root_ttr_mean: float
+    root_ttr_std: float
+
+    # Log TTR (Herdan's C) statistics
+    log_ttr_mean: float
+    log_ttr_std: float
+
+    # STTR statistics (None if no texts had enough words for STTR)
+    sttr_mean: Optional[float]
+    sttr_std: Optional[float]
+
+    # Delta std mean (None if no texts had delta metrics)
+    delta_std_mean: Optional[float]
 
     metadata: dict[str, Any]
 

@@ -45,7 +45,6 @@ Issues = "https://github.com/craigtrim/pystylometry/issues"
 
 [tool.poetry.dependencies]
 python = "^3.9"
-stylometry-ttr = "^1.0.3"
 
 [tool.poetry.group.readability.dependencies]
 pronouncing = "^0.2.0"
