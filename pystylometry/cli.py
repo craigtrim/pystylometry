@@ -4,6 +4,7 @@ Usage:
     pystylometry-drift <file> [--window-size=N] [--stride=N] [--mode=MODE] [--json]
     pystylometry-drift <file> --plot [output.png]
     pystylometry-tokenize <file> [--json] [--metadata] [--stats]
+    bnc --input-file <file> [--output-file <file>] [--format csv|html|json]
 
 Example:
     pystylometry-drift manuscript.txt
@@ -14,6 +15,9 @@ Example:
     pystylometry-tokenize manuscript.txt
     pystylometry-tokenize manuscript.txt --json --metadata
     pystylometry-tokenize manuscript.txt --stats
+    bnc --input-file manuscript.txt
+    bnc --input-file manuscript.txt --output-file report.html --format html
+    bnc -i manuscript.txt --format json
 """
 
 from __future__ import annotations
@@ -742,6 +746,357 @@ Examples:
         print(file=banner)
         for token in tokens:
             print(token)
+
+
+def bnc_frequency_cli() -> None:
+    """CLI entry point for BNC word frequency analysis."""
+    parser = argparse.ArgumentParser(
+        prog="bnc",
+        description="Analyze word frequencies against the British National Corpus (BNC).",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  bnc --input-file manuscript.txt
+  bnc --input-file manuscript.txt --output-file report.html
+  bnc --input-file manuscript.txt --format json
+  bnc --input-file manuscript.txt --overuse-threshold 2.0 --min-mentions 3
+  bnc --input-file manuscript.txt --no-wordnet
+
+Output:
+  Generates a report with three sections:
+  - Not in BNC: Words not found in the corpus (with WordNet status, character type)
+  - Most Underused: Words appearing less frequently than expected
+  - Most Overused: Words appearing more frequently than expected
+
+Thresholds:
+  Words with ratio > overuse-threshold are "overused"
+  Words with ratio < underuse-threshold are "underused"
+  Ratio = observed_count / expected_count (based on BNC frequencies)
+""",
+    )
+
+    parser.add_argument(
+        "--input-file",
+        "-i",
+        type=Path,
+        required=True,
+        metavar="FILE",
+        help="Path to text file to analyze",
+    )
+    parser.add_argument(
+        "--output-file",
+        "-o",
+        type=Path,
+        default=None,
+        metavar="FILE",
+        help="Output file (default: <input>_bnc_frequency.<ext> based on --format)",
+    )
+    parser.add_argument(
+        "--overuse-threshold",
+        type=float,
+        default=1.3,
+        metavar="N",
+        help="Ratio above which words are considered overused (default: 1.3)",
+    )
+    parser.add_argument(
+        "--underuse-threshold",
+        type=float,
+        default=0.8,
+        metavar="N",
+        help="Ratio below which words are considered underused (default: 0.8)",
+    )
+    parser.add_argument(
+        "--min-mentions",
+        type=int,
+        default=1,
+        metavar="N",
+        help="Minimum word occurrences to include (default: 1)",
+    )
+    parser.add_argument(
+        "--no-wordnet",
+        action="store_true",
+        help="Skip WordNet lookup for unknown words",
+    )
+    parser.add_argument(
+        "--format",
+        choices=["csv", "html", "json", "excel"],
+        default="csv",
+        help="Output format: csv (tab-delimited), html (interactive), json, excel (default: csv)",
+    )
+
+    args = parser.parse_args()
+
+    # Import rich for colored output
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.table import Table
+    from rich.text import Text
+
+    console = Console(stderr=True)
+
+    # Validate file exists
+    if not args.input_file.exists():
+        console.print(f"[red]Error:[/red] File not found: {args.input_file}")
+        sys.exit(1)
+
+    # Read file
+    try:
+        text = args.input_file.read_text(encoding="utf-8")
+    except Exception as e:
+        console.print(f"[red]Error reading file:[/red] {e}")
+        sys.exit(1)
+
+    # Determine output path (extension based on format)
+    suffix_map = {"csv": ".tsv", "html": ".html", "json": ".json", "excel": ".xlsx"}
+    if args.output_file:
+        output_path = args.output_file
+    else:
+        suffix = suffix_map[args.format]
+        output_path = args.input_file.with_name(f"{args.input_file.stem}_bnc_frequency{suffix}")
+
+    # Calculate file stats
+    token_count = len(text.split())
+    char_count = len(text)
+
+    # Print header
+    console.print()
+    header = Text()
+    header.append("PYSTYLOMETRY", style="bold cyan")
+    header.append(" — ", style="dim")
+    header.append("BNC Word Frequency Analysis", style="bold white")
+    console.print(Panel(header, border_style="cyan"))
+
+    # Input section
+    console.print()
+    console.print("[bold]INPUT[/bold]", style="cyan")
+    console.print("─" * 60, style="dim")
+    console.print(f"  File:    [white]{args.input_file}[/white]")
+    console.print(
+        f"  Size:    [green]{char_count:,}[/green] chars / [green]{token_count:,}[/green] tokens"
+    )
+
+    # Parameters section
+    console.print()
+    console.print("[bold]PARAMETERS[/bold]", style="cyan")
+    console.print("─" * 60, style="dim")
+    console.print(f"  Overuse threshold:   [yellow]{args.overuse_threshold}x[/yellow]")
+    console.print(f"  Underuse threshold:  [yellow]{args.underuse_threshold}x[/yellow]")
+    console.print(f"  Min mentions:        [yellow]{args.min_mentions}[/yellow]")
+    console.print(f"  WordNet lookup:      [yellow]{'no' if args.no_wordnet else 'yes'}[/yellow]")
+
+    # Output section
+    console.print()
+    console.print("[bold]OUTPUT[/bold]", style="cyan")
+    console.print("─" * 60, style="dim")
+    fmt_display = {
+        "csv": "Tab-delimited CSV",
+        "html": "Interactive HTML",
+        "json": "JSON",
+        "excel": "Excel (.xlsx)",
+    }
+    console.print(f"  Format:      [magenta]{fmt_display[args.format]}[/magenta]")
+    console.print(f"  Destination: [white]{output_path}[/white]")
+
+    # Run analysis with spinner
+    console.print()
+    with console.status("[bold cyan]Running analysis...[/bold cyan]", spinner="dots"):
+        from pystylometry.lexical.bnc_frequency import compute_bnc_frequency
+
+        result = compute_bnc_frequency(
+            text,
+            overuse_threshold=args.overuse_threshold,
+            underuse_threshold=args.underuse_threshold,
+            include_wordnet=not args.no_wordnet,
+            min_mentions=args.min_mentions,
+        )
+
+    # Output results
+    if args.format == "json":
+        output = {
+            "stats": {
+                "total_tokens": result.total_tokens,
+                "unique_tokens": result.unique_tokens,
+                "overused_count": len(result.overused),
+                "underused_count": len(result.underused),
+                "not_in_bnc_count": len(result.not_in_bnc),
+            },
+            "overused": [
+                {
+                    "word": w.word,
+                    "observed": w.observed,
+                    "expected": w.expected,
+                    "ratio": w.ratio,
+                    "char_type": w.char_type,
+                }
+                for w in result.overused
+            ],
+            "underused": [
+                {
+                    "word": w.word,
+                    "observed": w.observed,
+                    "expected": w.expected,
+                    "ratio": w.ratio,
+                    "char_type": w.char_type,
+                }
+                for w in result.underused
+            ],
+            "not_in_bnc": [
+                {
+                    "word": w.word,
+                    "observed": w.observed,
+                    "in_wordnet": w.in_wordnet,
+                    "char_type": w.char_type,
+                }
+                for w in result.not_in_bnc
+            ],
+        }
+        output_path.write_text(json.dumps(output, indent=2))
+        console.print(f'[green]✓[/green] JSON saved to: [white]"{output_path}"[/white]')
+
+    elif args.format == "csv":
+        # Tab-delimited output with category column
+        lines = ["category\tword\tobserved\texpected\tratio\tin_wordnet\tchar_type"]
+
+        def fmt_wordnet(val: bool | None) -> str:
+            if val is True:
+                return "yes"
+            elif val is False:
+                return "no"
+            return ""
+
+        for w in result.overused:
+            expected = f"{w.expected:.2f}" if w.expected else ""
+            ratio = f"{w.ratio:.4f}" if w.ratio else ""
+            in_wn = fmt_wordnet(w.in_wordnet)
+            lines.append(f"overused\t{w.word}\t{w.observed}\t{expected}\t{ratio}\t{in_wn}\t{w.char_type}")
+
+        for w in result.underused:
+            expected = f"{w.expected:.2f}" if w.expected else ""
+            ratio = f"{w.ratio:.4f}" if w.ratio else ""
+            in_wn = fmt_wordnet(w.in_wordnet)
+            lines.append(f"underused\t{w.word}\t{w.observed}\t{expected}\t{ratio}\t{in_wn}\t{w.char_type}")
+
+        for w in result.not_in_bnc:
+            in_wn = fmt_wordnet(w.in_wordnet)
+            lines.append(f"not-in-bnc\t{w.word}\t{w.observed}\t\t\t{in_wn}\t{w.char_type}")
+
+        output_path.write_text("\n".join(lines))
+        console.print(f'[green]✓[/green] TSV saved to: [white]"{output_path}"[/white]')
+
+    elif args.format == "excel":
+        try:
+            from openpyxl import Workbook  # type: ignore[import-untyped]
+            from openpyxl.styles import Alignment, PatternFill  # type: ignore[import-untyped]
+        except ImportError:
+            console.print("[red]Error:[/red] Excel export requires openpyxl.")
+            console.print("  Install with: [yellow]pip install pystylometry[excel][/yellow]")
+            console.print("  Or for pipx: [yellow]pipx inject pystylometry openpyxl[/yellow]")
+            sys.exit(1)
+
+        wb = Workbook()
+
+        # Remove default sheet
+        wb.remove(wb.active)
+
+        # Cell style: width 15, centered, vertically centered
+        align = Alignment(horizontal="center", vertical="center")
+
+        def fmt_wordnet_excel(val: bool | None) -> str:
+            if val is True:
+                return "yes"
+            elif val is False:
+                return "no"
+            return ""
+
+        # Overused sheet (sorted by ratio, high to low)
+        ws_over = wb.create_sheet("overused")
+        ws_over.append(["word", "observed", "expected", "ratio", "in_wordnet", "char_type"])
+        for w in sorted(result.overused, key=lambda x: x.ratio or 0, reverse=True):
+            in_wn = fmt_wordnet_excel(w.in_wordnet)
+            ws_over.append([w.word, w.observed, w.expected, w.ratio, in_wn, w.char_type])
+
+        # Underused sheet (sorted by ratio, high to low)
+        ws_under = wb.create_sheet("underused")
+        ws_under.append(["word", "observed", "expected", "ratio", "in_wordnet", "char_type"])
+        for w in sorted(result.underused, key=lambda x: x.ratio or 0, reverse=True):
+            in_wn = fmt_wordnet_excel(w.in_wordnet)
+            ws_under.append([w.word, w.observed, w.expected, w.ratio, in_wn, w.char_type])
+
+        # Not in BNC sheet
+        ws_notbnc = wb.create_sheet("not-in-bnc")
+        ws_notbnc.append(["word", "observed", "in_wordnet", "char_type"])
+        for w in result.not_in_bnc:
+            in_wn = fmt_wordnet_excel(w.in_wordnet)
+            ws_notbnc.append([w.word, w.observed, in_wn, w.char_type])
+
+        # Apply formatting to all sheets
+        for ws in [ws_over, ws_under, ws_notbnc]:
+            for col in ws.columns:
+                col_letter = col[0].column_letter
+                # Word column (A) gets width 30, others get 15
+                ws.column_dimensions[col_letter].width = 30 if col_letter == "A" else 15
+            for row in ws.iter_rows():
+                for cell in row:
+                    cell.alignment = align
+
+        # Apply number formatting to expected (C) and ratio (D) columns
+        for ws in [ws_over, ws_under]:
+            for row in range(2, ws.max_row + 1):  # Skip header row
+                ws[f"C{row}"].number_format = "0.00"
+                ws[f"D{row}"].number_format = "0.00"
+
+        # Apply background colors to in_wordnet column
+        fill_yes = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+        fill_no = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+
+        # in_wordnet is column E for overused/underused, column C for not-in-bnc
+        for ws in [ws_over, ws_under]:
+            for row in range(2, ws.max_row + 1):
+                cell = ws[f"E{row}"]
+                if cell.value == "yes":
+                    cell.fill = fill_yes
+                elif cell.value == "no":
+                    cell.fill = fill_no
+
+        for row in range(2, ws_notbnc.max_row + 1):
+            cell = ws_notbnc[f"C{row}"]
+            if cell.value == "yes":
+                cell.fill = fill_yes
+            elif cell.value == "no":
+                cell.fill = fill_no
+
+        wb.save(output_path)
+        console.print(f'[green]✓[/green] Excel saved to: [white]"{output_path}"[/white]')
+
+    else:  # html
+        from pystylometry.viz.jsx import export_bnc_frequency_jsx
+
+        export_bnc_frequency_jsx(
+            result,
+            output_file=output_path,
+            title=f"BNC Frequency Analysis: {args.input_file.name}",
+            source_file=str(args.input_file),
+        )
+
+        abs_path = output_path.resolve()
+        file_url = f"file://{abs_path}"
+        console.print(f'[green]✓[/green] HTML report saved to: [white]"{output_path}"[/white]')
+        console.print(f"  Open in browser: [link={file_url}]{file_url}[/link]")
+
+    # Summary table
+    console.print()
+    table = Table(title="Summary", border_style="cyan", header_style="bold cyan")
+    table.add_column("Metric", style="white")
+    table.add_column("Count", justify="right", style="green")
+
+    table.add_row("Total tokens", f"{result.total_tokens:,}")
+    table.add_row("Unique words", f"{result.unique_tokens:,}")
+    table.add_row("Not in BNC", f"[dim]{len(result.not_in_bnc):,}[/dim]")
+    table.add_row("Underused", f"[blue]{len(result.underused):,}[/blue]")
+    table.add_row("Overused", f"[red]{len(result.overused):,}[/red]")
+
+    console.print(table)
+    console.print()
 
 
 if __name__ == "__main__":

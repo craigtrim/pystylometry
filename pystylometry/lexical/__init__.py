@@ -2,6 +2,7 @@
 
 # Local implementations
 from .advanced_diversity import compute_hdd, compute_mattr, compute_msttr, compute_vocd_d
+from .bnc_frequency import compute_bnc_frequency
 from .function_words import compute_function_words
 from .hapax import compute_hapax_ratios, compute_hapax_with_lexicon_analysis
 from .mtld import compute_mtld
@@ -17,6 +18,7 @@ __all__ = [
     "compute_yule",
     "compute_hapax_ratios",
     "compute_hapax_with_lexicon_analysis",
+    "compute_bnc_frequency",
     "compute_function_words",
     "compute_vocd_d",
     "compute_mattr",

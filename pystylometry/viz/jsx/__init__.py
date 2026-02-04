@@ -20,6 +20,7 @@ Example:
     >>> export_drift_viewer("drift_analyzer.html")
 """
 
+from .bnc_frequency import export_bnc_frequency_jsx
 from .report import export_drift_report_jsx
 from .timeline import export_drift_timeline_jsx
 from .viewer import export_drift_viewer
@@ -28,4 +29,5 @@ __all__ = [
     "export_drift_timeline_jsx",
     "export_drift_report_jsx",
     "export_drift_viewer",
+    "export_bnc_frequency_jsx",
 ]
