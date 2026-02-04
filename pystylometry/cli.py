@@ -1024,10 +1024,11 @@ Thresholds:
 
         # Not in BNC sheet
         ws_notbnc = wb.create_sheet("not-in-bnc")
-        ws_notbnc.append(["word", "observed", "in_wordnet", "char_type"])
+        ws_notbnc.append(["word", "observed", "in_wordnet", "char_type", "plural_form"])
         for w in result.not_in_bnc:
             in_wn = fmt_wordnet_excel(w.in_wordnet)
-            ws_notbnc.append([w.word, w.observed, in_wn, w.char_type])
+            plural = "yes" if w.word.endswith("s") else "no"
+            ws_notbnc.append([w.word, w.observed, in_wn, w.char_type, plural])
 
         # Apply formatting to all sheets
         for ws in [ws_over, ws_under, ws_notbnc]:
@@ -1064,6 +1065,16 @@ Thresholds:
                 cell.fill = fill_yes
             elif cell.value == "no":
                 cell.fill = fill_no
+
+        # Apply background colors to plural_form column (E) in not-in-bnc
+        fill_plural_yes = PatternFill(start_color="BDD7EE", end_color="BDD7EE", fill_type="solid")  # Light blue
+        fill_plural_no = PatternFill(start_color="FCE4D6", end_color="FCE4D6", fill_type="solid")  # Light peach
+        for row in range(2, ws_notbnc.max_row + 1):
+            cell = ws_notbnc[f"E{row}"]
+            if cell.value == "yes":
+                cell.fill = fill_plural_yes
+            elif cell.value == "no":
+                cell.fill = fill_plural_no
 
         wb.save(output_path)
         console.print(f'[green]✓[/green] Excel saved to: [white]"{output_path}"[/white]')

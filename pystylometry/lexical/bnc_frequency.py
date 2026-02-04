@@ -28,6 +28,54 @@ from typing import Literal
 
 from .._utils import check_optional_dependency
 
+# Unicode apostrophe variants to normalize to ASCII apostrophe (U+0027)
+# See: https://github.com/craigtrim/pystylometry/issues/45
+_APOSTROPHE_VARIANTS = (
+    "\u0060"  # GRAVE ACCENT
+    "\u00B4"  # ACUTE ACCENT
+    "\u2018"  # LEFT SINGLE QUOTATION MARK
+    "\u2019"  # RIGHT SINGLE QUOTATION MARK
+    "\u201B"  # SINGLE HIGH-REVERSED-9 QUOTATION MARK
+    "\u2032"  # PRIME
+    "\u2035"  # REVERSED PRIME
+    "\u02B9"  # MODIFIER LETTER PRIME
+    "\u02BC"  # MODIFIER LETTER APOSTROPHE
+    "\u02C8"  # MODIFIER LETTER VERTICAL LINE
+    "\u0313"  # COMBINING COMMA ABOVE
+    "\u0315"  # COMBINING COMMA ABOVE RIGHT
+    "\u055A"  # ARMENIAN APOSTROPHE
+    "\u05F3"  # HEBREW PUNCTUATION GERESH
+    "\u07F4"  # NKO HIGH TONE APOSTROPHE
+    "\u07F5"  # NKO LOW TONE APOSTROPHE
+    "\uFF07"  # FULLWIDTH APOSTROPHE
+    "\u1FBF"  # GREEK PSILI
+    "\u1FBD"  # GREEK KORONIS
+    "\uA78C"  # LATIN SMALL LETTER SALTILLO
+)
+
+
+def _normalize_apostrophes(text: str) -> str:
+    """Normalize Unicode apostrophe variants to ASCII apostrophe.
+
+    Many texts (especially ebooks, PDFs, and word processor output) use
+    typographic "smart quotes" instead of ASCII apostrophes. This function
+    normalizes all variants to the standard ASCII apostrophe (U+0027) to
+    ensure consistent BNC lookups.
+
+    Args:
+        text: Input text potentially containing apostrophe variants
+
+    Returns:
+        Text with all apostrophe variants normalized to ASCII apostrophe
+
+    Example:
+        >>> _normalize_apostrophes("don't")  # curly apostrophe
+        "don't"  # ASCII apostrophe
+    """
+    for char in _APOSTROPHE_VARIANTS:
+        text = text.replace(char, "'")
+    return text
+
 
 @dataclass
 class WordAnalysis:
@@ -167,7 +215,9 @@ def compute_bnc_frequency(
             pass
 
     # Tokenize text (simple whitespace + punctuation stripping)
-    raw_tokens = text.split()
+    # First normalize apostrophes to ensure consistent BNC lookups (Issue #45)
+    normalized_text = _normalize_apostrophes(text)
+    raw_tokens = normalized_text.split()
     tokens = []
     for raw in raw_tokens:
         # Strip leading/trailing punctuation, lowercase
