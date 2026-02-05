@@ -226,9 +226,9 @@ class TestBNCFrequencyMultipleContractions:
         # All contractions should appear with ASCII apostrophe after normalization
         expected = ["don't", "won't", "it's", "can't", "they're", "i'm"]
         for contraction in expected:
-            assert contraction in all_words, (
-                f"{contraction} should appear in results (normalized from curly apostrophe)"
-            )
+            assert (
+                contraction in all_words
+            ), f"{contraction} should appear in results (normalized from curly apostrophe)"
 
     def test_multiple_contractions_mixed_variants(self):
         """Test multiple contractions with different apostrophe variants."""
@@ -291,9 +291,9 @@ class TestBNCFrequencyRealWorldEbookText:
         all_words = _all_analyzed_words(result)
 
         for contraction in ["it's", "that's", "i'm", "you're", "we've"]:
-            assert contraction in all_words, (
-                f"{contraction} should appear in results (normalized from curly apostrophe)"
-            )
+            assert (
+                contraction in all_words
+            ), f"{contraction} should appear in results (normalized from curly apostrophe)"
 
     def test_pdf_extraction_text(self):
         """Test text extracted from PDF (often has inconsistent quote styles)."""
@@ -325,9 +325,9 @@ class TestBNCFrequencyRealWorldEbookText:
 
         # All contractions should appear with ASCII apostrophe after normalization
         for contraction in ["don't", "that's", "it's", "they've", "where's"]:
-            assert contraction in all_words, (
-                f"{contraction} should appear in results (normalized from curly apostrophe)"
-            )
+            assert (
+                contraction in all_words
+            ), f"{contraction} should appear in results (normalized from curly apostrophe)"
 
 
 class TestBNCFrequencyPossessives:
@@ -414,9 +414,9 @@ class TestBNCFrequencyParameterizedApostropheVariants:
             result = compute_bnc_frequency(text, include_wordnet=False)
 
             all_words = _all_analyzed_words(result)
-            assert expected_normalized in all_words, (
-                f"'{expected_normalized}' should appear in results when using {name} in '{input_word}'"
-            )
+            assert (
+                expected_normalized in all_words
+            ), f"'{expected_normalized}' should appear in results when using {name} in '{input_word}'"
 
 
 class TestBNCFrequencyCountingWithApostrophes:

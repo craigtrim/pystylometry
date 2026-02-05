@@ -33,9 +33,9 @@ class TestHapaxEdgeCases:
 
         # When V₁ = V, Honoré's R returns infinity (maximal richness)
         # Because denominator (1 - V₁/V) = 0
-        assert result.honore_r == float("inf"), (
-            "Honoré's R should be infinity for maximal vocabulary richness"
-        )
+        assert result.honore_r == float(
+            "inf"
+        ), "Honoré's R should be infinity for maximal vocabulary richness"
 
         # Sichel's S should be 0 (no dis-hapax)
         assert result.sichel_s == 0.0
