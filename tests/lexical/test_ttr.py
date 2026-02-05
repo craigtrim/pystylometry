@@ -5,7 +5,6 @@ Related GitHub Issue:
     https://github.com/craigtrim/pystylometry/issues/43
 """
 
-
 import pytest
 
 from pystylometry.lexical import TTRAggregator, compute_ttr

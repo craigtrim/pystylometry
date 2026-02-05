@@ -38,6 +38,6 @@ class TestYuleKFormula:
         result_repetitive = compute_yule(repetitive_text)
 
         # Higher K = more repetitive
-        assert (
-            result_repetitive.yule_k > result_diverse.yule_k
-        ), "Yule's K should be higher for repetitive text"
+        assert result_repetitive.yule_k > result_diverse.yule_k, (
+            "Yule's K should be higher for repetitive text"
+        )
