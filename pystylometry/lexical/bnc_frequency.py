@@ -32,25 +32,25 @@ from .._utils import check_optional_dependency
 # See: https://github.com/craigtrim/pystylometry/issues/45
 _APOSTROPHE_VARIANTS = (
     "\u0060"  # GRAVE ACCENT
-    "\u00B4"  # ACUTE ACCENT
+    "\u00b4"  # ACUTE ACCENT
     "\u2018"  # LEFT SINGLE QUOTATION MARK
     "\u2019"  # RIGHT SINGLE QUOTATION MARK
-    "\u201B"  # SINGLE HIGH-REVERSED-9 QUOTATION MARK
+    "\u201b"  # SINGLE HIGH-REVERSED-9 QUOTATION MARK
     "\u2032"  # PRIME
     "\u2035"  # REVERSED PRIME
-    "\u02B9"  # MODIFIER LETTER PRIME
-    "\u02BC"  # MODIFIER LETTER APOSTROPHE
-    "\u02C8"  # MODIFIER LETTER VERTICAL LINE
+    "\u02b9"  # MODIFIER LETTER PRIME
+    "\u02bc"  # MODIFIER LETTER APOSTROPHE
+    "\u02c8"  # MODIFIER LETTER VERTICAL LINE
     "\u0313"  # COMBINING COMMA ABOVE
     "\u0315"  # COMBINING COMMA ABOVE RIGHT
-    "\u055A"  # ARMENIAN APOSTROPHE
-    "\u05F3"  # HEBREW PUNCTUATION GERESH
-    "\u07F4"  # NKO HIGH TONE APOSTROPHE
-    "\u07F5"  # NKO LOW TONE APOSTROPHE
-    "\uFF07"  # FULLWIDTH APOSTROPHE
-    "\u1FBF"  # GREEK PSILI
-    "\u1FBD"  # GREEK KORONIS
-    "\uA78C"  # LATIN SMALL LETTER SALTILLO
+    "\u055a"  # ARMENIAN APOSTROPHE
+    "\u05f3"  # HEBREW PUNCTUATION GERESH
+    "\u07f4"  # NKO HIGH TONE APOSTROPHE
+    "\u07f5"  # NKO LOW TONE APOSTROPHE
+    "\uff07"  # FULLWIDTH APOSTROPHE
+    "\u1fbf"  # GREEK PSILI
+    "\u1fbd"  # GREEK KORONIS
+    "\ua78c"  # LATIN SMALL LETTER SALTILLO
 )
 
 
@@ -87,7 +87,12 @@ class WordAnalysis:
         expected: Expected count based on BNC relative frequency
         ratio: observed / expected (None if not in BNC)
         in_wordnet: Whether the word exists in WordNet
+        in_gngram: Whether the word exists in Google Books Ngram data
         char_type: Classification of character content
+
+    Related GitHub Issue:
+        #47 - Integrate gngram-lookup into BNC frequency analysis
+        https://github.com/craigtrim/pystylometry/issues/47
     """
 
     word: str
@@ -95,6 +100,7 @@ class WordAnalysis:
     expected: float | None
     ratio: float | None
     in_wordnet: bool | None
+    in_gngram: bool | None
     char_type: Literal["latin", "unicode", "numeric", "mixed", "punctuation"]
 
 
@@ -169,6 +175,7 @@ def compute_bnc_frequency(
     overuse_threshold: float = 1.3,
     underuse_threshold: float = 0.8,
     include_wordnet: bool = True,
+    include_gngram: bool = True,
     min_mentions: int = 1,
 ) -> BNCFrequencyResult:
     """Compute BNC frequency analysis for a text.
@@ -182,6 +189,7 @@ def compute_bnc_frequency(
         overuse_threshold: Ratio above which words are considered overused (default: 1.3)
         underuse_threshold: Ratio below which words are considered underused (default: 0.8)
         include_wordnet: Whether to check WordNet for unknown words (default: True)
+        include_gngram: Whether to check Google Books Ngram data (default: True)
         min_mentions: Minimum number of mentions to include word (default: 1)
 
     Returns:
@@ -189,6 +197,10 @@ def compute_bnc_frequency(
 
     Raises:
         ImportError: If bnc-lookup package is not installed
+
+    Related GitHub Issue:
+        #47 - Integrate gngram-lookup into BNC frequency analysis
+        https://github.com/craigtrim/pystylometry/issues/47
 
     Example:
         >>> result = compute_bnc_frequency("The captain ordered the larboard watch...")
@@ -214,6 +226,19 @@ def compute_bnc_frequency(
             # WordNet lookup is optional
             pass
 
+    # Optional Google Books Ngram lookup (Issue #47)
+    # Uses batch_frequency() for O(1) hash-based lookups grouped by bucket
+    gngram_available = False
+    gngram_results: dict[str, bool] = {}
+    if include_gngram:
+        try:
+            from gngram_counter import batch_frequency  # type: ignore[import-untyped]
+
+            gngram_available = True
+        except ImportError:
+            # gngram-lookup is optional
+            pass
+
     # Tokenize text (simple whitespace + punctuation stripping)
     # First normalize apostrophes to ensure consistent BNC lookups (Issue #45)
     normalized_text = _normalize_apostrophes(text)
@@ -233,6 +258,12 @@ def compute_bnc_frequency(
 
     # Get BNC relative frequencies (one at a time - bnc_lookup doesn't have batch)
     bnc_freqs = {word: relative_frequency(word) for word in unique_words}
+
+    # Batch lookup Google Books Ngram data (Issue #47)
+    # batch_frequency returns dict[str, FrequencyData | None] — None means not found
+    if gngram_available:
+        gngram_batch = batch_frequency(unique_words)  # type: ignore[possibly-undefined]
+        gngram_results = {word: gngram_batch.get(word) is not None for word in unique_words}
 
     # Analyze each word
     overused: list[WordAnalysis] = []
@@ -254,6 +285,11 @@ def compute_bnc_frequency(
         if wordnet_checker is not None:
             in_wordnet = wordnet_checker(word)
 
+        # Check Google Books Ngram if available (Issue #47)
+        in_gngram: bool | None = None
+        if gngram_available:
+            in_gngram = gngram_results.get(word, False)
+
         if rel_freq is None or rel_freq == 0:
             # Word not in BNC
             analysis = WordAnalysis(
@@ -262,6 +298,7 @@ def compute_bnc_frequency(
                 expected=None,
                 ratio=None,
                 in_wordnet=in_wordnet,
+                in_gngram=in_gngram,
                 char_type=char_type,
             )
             not_in_bnc.append(analysis)
@@ -276,6 +313,7 @@ def compute_bnc_frequency(
                 expected=expected,
                 ratio=ratio,
                 in_wordnet=in_wordnet,
+                in_gngram=in_gngram,
                 char_type=char_type,
             )
 
@@ -301,6 +339,8 @@ def compute_bnc_frequency(
         underuse_threshold=underuse_threshold,
         metadata={
             "include_wordnet": include_wordnet,
+            "include_gngram": include_gngram,
+            "gngram_available": gngram_available,
             "min_mentions": min_mentions,
             "overused_count": len(overused),
             "underused_count": len(underused),

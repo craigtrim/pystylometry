@@ -1,4 +1,4 @@
-.PHONY: help install install-dev setup setup-spacy test lint format clean build dist publish-test publish all
+.PHONY: help install install-dev setup setup-spacy test lint format clean build dist publish-test publish all lock
 
 help:
 	@echo "Available targets:"
@@ -15,6 +15,7 @@ help:
 	@echo "  publish-test  Publish to TestPyPI"
 	@echo "  publish       Publish to PyPI (production)"
 	@echo "  all           Complete build: clean, format, lint, test, build"
+	@echo "  lock          Clear Poetry cache and regenerate lock file"
 	@echo ""
 	@echo "Quick start: make setup && make all"
 
@@ -59,6 +60,10 @@ publish-test: build
 
 publish: build
 	python -m twine upload dist/*
+
+lock:
+	poetry cache clear pypi --all -n
+	poetry lock
 
 all: clean format lint test build
 	@echo ""

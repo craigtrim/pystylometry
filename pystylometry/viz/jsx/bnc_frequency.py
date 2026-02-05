@@ -52,13 +52,23 @@ def export_bnc_frequency_jsx(
         >>> result = compute_bnc_frequency(text)
         >>> export_bnc_frequency_jsx(result, "frequency_report.html")
     """
+    import re as _re_html
+
     # Build data for the React component
     not_in_bnc_data = [
         {
             "word": w.word,
             "observed": w.observed,
             "inWordnet": w.in_wordnet,
-            "charType": w.char_type,
+            "inGngram": w.in_gngram,
+            "unicode": w.char_type == "unicode",
+            "numeric": w.char_type == "numeric",
+            "apostrophe": "'" in w.word,
+            "hyphen": "-" in w.word,
+            "other": bool(_re_html.search(r"[^a-z]", w.word))
+            and w.char_type not in ("unicode", "numeric")
+            and "'" not in w.word
+            and "-" not in w.word,
         }
         for w in result.not_in_bnc
     ]
@@ -69,7 +79,16 @@ def export_bnc_frequency_jsx(
             "observed": w.observed,
             "expected": round(w.expected, 2) if w.expected else None,
             "ratio": round(w.ratio, 4) if w.ratio else None,
-            "charType": w.char_type,
+            "inWordnet": w.in_wordnet,
+            "inGngram": w.in_gngram,
+            "unicode": w.char_type == "unicode",
+            "numeric": w.char_type == "numeric",
+            "apostrophe": "'" in w.word,
+            "hyphen": "-" in w.word,
+            "other": bool(_re_html.search(r"[^a-z]", w.word))
+            and w.char_type not in ("unicode", "numeric")
+            and "'" not in w.word
+            and "-" not in w.word,
         }
         for w in result.underused
     ]
@@ -80,7 +99,16 @@ def export_bnc_frequency_jsx(
             "observed": w.observed,
             "expected": round(w.expected, 2) if w.expected else None,
             "ratio": round(w.ratio, 1) if w.ratio else None,
-            "charType": w.char_type,
+            "inWordnet": w.in_wordnet,
+            "inGngram": w.in_gngram,
+            "unicode": w.char_type == "unicode",
+            "numeric": w.char_type == "numeric",
+            "apostrophe": "'" in w.word,
+            "hyphen": "-" in w.word,
+            "other": bool(_re_html.search(r"[^a-z]", w.word))
+            and w.char_type not in ("unicode", "numeric")
+            and "'" not in w.word
+            and "-" not in w.word,
         }
         for w in result.overused
     ]
@@ -103,13 +131,10 @@ def export_bnc_frequency_jsx(
     }
 
     react_component = """
-    // Color mapping for character types
-    const CHAR_TYPE_COLORS = {
-      latin: { bg: '#dcfce7', text: '#166534', label: 'Latin' },
-      unicode: { bg: '#fef3c7', text: '#92400e', label: 'Unicode' },
-      numeric: { bg: '#dbeafe', text: '#1e40af', label: 'Numeric' },
-      mixed: { bg: '#f3e8ff', text: '#6b21a8', label: 'Mixed' },
-      punctuation: { bg: '#f1f5f9', text: '#475569', label: 'Punct' },
+    // Boolean flag badge colors
+    const BOOL_COLORS = {
+      true: { bg: '#BDD7EE', text: '#1e3a5f' },
+      false: { bg: '#FCE4D6', text: '#7c4a2e' },
     };
 
     // Tab configuration
@@ -145,9 +170,9 @@ def export_bnc_frequency_jsx(
       );
     }
 
-    // Character type badge
-    function CharTypeBadge({ charType }) {
-      const config = CHAR_TYPE_COLORS[charType] || CHAR_TYPE_COLORS.mixed;
+    // Boolean flag badge
+    function BoolBadge({ value }) {
+      const config = BOOL_COLORS[String(!!value)];
       return (
         <span style={{
           background: config.bg,
@@ -156,7 +181,7 @@ def export_bnc_frequency_jsx(
           borderRadius: '9999px',
           fontSize: '11px',
           fontWeight: 500,
-        }}>{config.label}</span>
+        }}>{value ? 'true' : 'false'}</span>
       );
     }
 
@@ -386,11 +411,18 @@ def export_bnc_frequency_jsx(
       };
 
       // Column definitions
+      const boolRender = (v) => <BoolBadge value={v} />;
+
       const notInBncColumns = [
         { key: 'word', label: 'Word', render: (v) => <code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>{v}</code> },
         { key: 'observed', label: 'Mentions', align: 'right' },
         { key: 'inWordnet', label: 'In WordNet', align: 'center', render: (v) => <WordnetBadge inWordnet={v} />, sortable: false },
-        { key: 'charType', label: 'Char Type', align: 'center', render: (v) => <CharTypeBadge charType={v} />, sortable: false },
+        { key: 'inGngram', label: 'In Ngram', align: 'center', render: boolRender, sortable: false },
+        { key: 'unicode', label: 'Unicode', align: 'center', render: boolRender, sortable: false },
+        { key: 'numeric', label: 'Numeric', align: 'center', render: boolRender, sortable: false },
+        { key: 'apostrophe', label: 'Apostrophe', align: 'center', render: boolRender, sortable: false },
+        { key: 'hyphen', label: 'Hyphen', align: 'center', render: boolRender, sortable: false },
+        { key: 'other', label: 'Other', align: 'center', render: boolRender, sortable: false },
       ];
 
       const frequencyColumns = (isOverused) => [
@@ -398,7 +430,13 @@ def export_bnc_frequency_jsx(
         { key: 'observed', label: 'Observed', align: 'right' },
         { key: 'expected', label: 'Expected', align: 'right', render: (v) => v !== null ? v.toFixed(2) : '—' },
         { key: 'ratio', label: 'Ratio', align: 'right', render: (v) => <RatioDisplay ratio={v} isOverused={isOverused} /> },
-        { key: 'charType', label: 'Char Type', align: 'center', render: (v) => <CharTypeBadge charType={v} />, sortable: false },
+        { key: 'inWordnet', label: 'In WordNet', align: 'center', render: (v) => <WordnetBadge inWordnet={v} />, sortable: false },
+        { key: 'inGngram', label: 'In Ngram', align: 'center', render: boolRender, sortable: false },
+        { key: 'unicode', label: 'Unicode', align: 'center', render: boolRender, sortable: false },
+        { key: 'numeric', label: 'Numeric', align: 'center', render: boolRender, sortable: false },
+        { key: 'apostrophe', label: 'Apostrophe', align: 'center', render: boolRender, sortable: false },
+        { key: 'hyphen', label: 'Hyphen', align: 'center', render: boolRender, sortable: false },
+        { key: 'other', label: 'Other', align: 'center', render: boolRender, sortable: false },
       ];
 
       const getTabContent = () => {

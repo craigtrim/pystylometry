@@ -761,6 +761,7 @@ Examples:
   bnc --input-file manuscript.txt --format json
   bnc --input-file manuscript.txt --overuse-threshold 2.0 --min-mentions 3
   bnc --input-file manuscript.txt --no-wordnet
+  bnc --input-dir ~/ebooks/Author --format excel --output-file author.xlsx
 
 Output:
   Generates a report with three sections:
@@ -775,13 +776,20 @@ Thresholds:
 """,
     )
 
-    parser.add_argument(
+    input_group = parser.add_mutually_exclusive_group(required=True)
+    input_group.add_argument(
         "--input-file",
         "-i",
         type=Path,
-        required=True,
         metavar="FILE",
         help="Path to text file to analyze",
+    )
+    input_group.add_argument(
+        "--input-dir",
+        "-d",
+        type=Path,
+        metavar="DIR",
+        help="Directory of .txt files to analyze as a single corpus (requires --output-file)",
     )
     parser.add_argument(
         "--output-file",
@@ -834,17 +842,43 @@ Thresholds:
 
     console = Console(stderr=True)
 
-    # Validate file exists
-    if not args.input_file.exists():
-        console.print(f"[red]Error:[/red] File not found: {args.input_file}")
-        sys.exit(1)
+    # ── Input loading ──
+    file_count: int = 1
 
-    # Read file
-    try:
-        text = args.input_file.read_text(encoding="utf-8")
-    except Exception as e:
-        console.print(f"[red]Error reading file:[/red] {e}")
-        sys.exit(1)
+    if args.input_dir:
+        # --input-dir mode: concatenate all .txt files as a single corpus
+        if not args.input_dir.is_dir():
+            console.print(f"[red]Error:[/red] Directory not found: {args.input_dir}")
+            sys.exit(1)
+        if not args.output_file:
+            console.print("[red]Error:[/red] --output-file is required when using --input-dir")
+            sys.exit(1)
+
+        txt_files = sorted(args.input_dir.glob("*.txt"))
+        if not txt_files:
+            console.print(f"[red]Error:[/red] No .txt files found in: {args.input_dir}")
+            sys.exit(1)
+
+        parts: list[str] = []
+        for tf in txt_files:
+            try:
+                parts.append(tf.read_text(encoding="utf-8"))
+            except Exception as e:
+                console.print(f"[red]Error reading {tf.name}:[/red] {e}")
+                sys.exit(1)
+
+        text = "\n".join(parts)
+        file_count = len(txt_files)
+    else:
+        # --input-file mode (existing behavior)
+        if not args.input_file.exists():
+            console.print(f"[red]Error:[/red] File not found: {args.input_file}")
+            sys.exit(1)
+        try:
+            text = args.input_file.read_text(encoding="utf-8")
+        except Exception as e:
+            console.print(f"[red]Error reading file:[/red] {e}")
+            sys.exit(1)
 
     # Determine output path (extension based on format)
     suffix_map = {"csv": ".tsv", "html": ".html", "json": ".json", "excel": ".xlsx"}
@@ -870,10 +904,33 @@ Thresholds:
     console.print()
     console.print("[bold]INPUT[/bold]", style="cyan")
     console.print("─" * 60, style="dim")
-    console.print(f"  File:    [white]{args.input_file}[/white]")
+    if args.input_dir:
+        console.print(f"  Dir:     [white]{args.input_dir}[/white]")
+        console.print(f"  Files:   [green]{file_count}[/green] .txt files")
+    else:
+        console.print(f"  File:    [white]{args.input_file}[/white]")
     console.print(
         f"  Size:    [green]{char_count:,}[/green] chars / [green]{token_count:,}[/green] tokens"
     )
+
+    # Probe optional dependency availability for banner
+    from importlib.metadata import PackageNotFoundError
+    from importlib.metadata import version as _pkg_ver
+
+    try:
+        _bnc_ver: str = _pkg_ver("bnc-lookup")
+    except PackageNotFoundError:
+        _bnc_ver = "[red]not installed[/red]"
+
+    try:
+        _gn_ver: str = _pkg_ver("gngram-lookup")
+    except PackageNotFoundError:
+        _gn_ver = "[dim]not installed[/dim]"
+
+    try:
+        _wn_ver: str = _pkg_ver("wordnet-lookup")
+    except PackageNotFoundError:
+        _wn_ver = "[dim]not installed[/dim]"
 
     # Parameters section
     console.print()
@@ -882,7 +939,10 @@ Thresholds:
     console.print(f"  Overuse threshold:   [yellow]{args.overuse_threshold}x[/yellow]")
     console.print(f"  Underuse threshold:  [yellow]{args.underuse_threshold}x[/yellow]")
     console.print(f"  Min mentions:        [yellow]{args.min_mentions}[/yellow]")
-    console.print(f"  WordNet lookup:      [yellow]{'no' if args.no_wordnet else 'yes'}[/yellow]")
+    console.print(f"  BNC lookup:          [yellow]{_bnc_ver}[/yellow]")
+    _wn_display = "disabled" if args.no_wordnet else _wn_ver
+    console.print(f"  WordNet lookup:      [yellow]{_wn_display}[/yellow]")
+    console.print(f"  Ngram lookup:        [yellow]{_gn_ver}[/yellow]")
 
     # Output section
     console.print()
@@ -912,6 +972,8 @@ Thresholds:
 
     # Output results
     if args.format == "json":
+        import re as _re_json
+
         output = {
             "stats": {
                 "total_tokens": result.total_tokens,
@@ -926,7 +988,16 @@ Thresholds:
                     "observed": w.observed,
                     "expected": w.expected,
                     "ratio": w.ratio,
-                    "char_type": w.char_type,
+                    "in_wordnet": w.in_wordnet,
+                    "in_gngram": w.in_gngram,
+                    "unicode": w.char_type == "unicode",
+                    "numeric": w.char_type == "numeric",
+                    "apostrophe": "'" in w.word,
+                    "hyphen": "-" in w.word,
+                    "other": bool(_re_json.search(r"[^a-z]", w.word))
+                    and w.char_type not in ("unicode", "numeric")
+                    and "'" not in w.word
+                    and "-" not in w.word,
                 }
                 for w in result.overused
             ],
@@ -936,7 +1007,16 @@ Thresholds:
                     "observed": w.observed,
                     "expected": w.expected,
                     "ratio": w.ratio,
-                    "char_type": w.char_type,
+                    "in_wordnet": w.in_wordnet,
+                    "in_gngram": w.in_gngram,
+                    "unicode": w.char_type == "unicode",
+                    "numeric": w.char_type == "numeric",
+                    "apostrophe": "'" in w.word,
+                    "hyphen": "-" in w.word,
+                    "other": bool(_re_json.search(r"[^a-z]", w.word))
+                    and w.char_type not in ("unicode", "numeric")
+                    and "'" not in w.word
+                    and "-" not in w.word,
                 }
                 for w in result.underused
             ],
@@ -945,7 +1025,15 @@ Thresholds:
                     "word": w.word,
                     "observed": w.observed,
                     "in_wordnet": w.in_wordnet,
-                    "char_type": w.char_type,
+                    "in_gngram": w.in_gngram,
+                    "unicode": w.char_type == "unicode",
+                    "numeric": w.char_type == "numeric",
+                    "apostrophe": "'" in w.word,
+                    "hyphen": "-" in w.word,
+                    "other": bool(_re_json.search(r"[^a-z]", w.word))
+                    and w.char_type not in ("unicode", "numeric")
+                    and "'" not in w.word
+                    and "-" not in w.word,
                 }
                 for w in result.not_in_bnc
             ],
@@ -954,10 +1042,25 @@ Thresholds:
         console.print(f'[green]✓[/green] JSON saved to: [white]"{output_path}"[/white]')
 
     elif args.format == "csv":
+        import re as _re_csv
+
         # Tab-delimited output with category column
-        lines = ["category\tword\tobserved\texpected\tratio\tin_wordnet\tchar_type"]
+        lines = [
+            "category\tword\tobserved\texpected\tratio\tin_wordnet\tin_gngram"
+            "\tunicode\tnumeric\tapostrophe\thyphen\tother"
+        ]
 
         def fmt_wordnet(val: bool | None) -> str:
+            if val is True:
+                return "yes"
+            elif val is False:
+                return "no"
+            return ""
+
+        def fmt_flag(val: bool) -> str:
+            return "true" if val else "false"
+
+        def fmt_gngram(val: bool | None) -> str:
             if val is True:
                 return "yes"
             elif val is False:
@@ -968,17 +1071,59 @@ Thresholds:
             expected = f"{w.expected:.2f}" if w.expected else ""
             ratio = f"{w.ratio:.4f}" if w.ratio else ""
             in_wn = fmt_wordnet(w.in_wordnet)
-            lines.append(f"overused\t{w.word}\t{w.observed}\t{expected}\t{ratio}\t{in_wn}\t{w.char_type}")
+            in_gn = fmt_gngram(w.in_gngram)
+            is_uni = fmt_flag(w.char_type == "unicode")
+            is_num = fmt_flag(w.char_type == "numeric")
+            has_apos = fmt_flag("'" in w.word)
+            has_hyph = fmt_flag("-" in w.word)
+            has_other = fmt_flag(
+                bool(_re_csv.search(r"[^a-z]", w.word))
+                and w.char_type not in ("unicode", "numeric")
+                and "'" not in w.word
+                and "-" not in w.word
+            )
+            lines.append(
+                f"overused\t{w.word}\t{w.observed}\t{expected}\t{ratio}\t{in_wn}\t{in_gn}"
+                f"\t{is_uni}\t{is_num}\t{has_apos}\t{has_hyph}\t{has_other}"
+            )
 
         for w in result.underused:
             expected = f"{w.expected:.2f}" if w.expected else ""
             ratio = f"{w.ratio:.4f}" if w.ratio else ""
             in_wn = fmt_wordnet(w.in_wordnet)
-            lines.append(f"underused\t{w.word}\t{w.observed}\t{expected}\t{ratio}\t{in_wn}\t{w.char_type}")
+            in_gn = fmt_gngram(w.in_gngram)
+            is_uni = fmt_flag(w.char_type == "unicode")
+            is_num = fmt_flag(w.char_type == "numeric")
+            has_apos = fmt_flag("'" in w.word)
+            has_hyph = fmt_flag("-" in w.word)
+            has_other = fmt_flag(
+                bool(_re_csv.search(r"[^a-z]", w.word))
+                and w.char_type not in ("unicode", "numeric")
+                and "'" not in w.word
+                and "-" not in w.word
+            )
+            lines.append(
+                f"underused\t{w.word}\t{w.observed}\t{expected}\t{ratio}\t{in_wn}\t{in_gn}"
+                f"\t{is_uni}\t{is_num}\t{has_apos}\t{has_hyph}\t{has_other}"
+            )
 
         for w in result.not_in_bnc:
             in_wn = fmt_wordnet(w.in_wordnet)
-            lines.append(f"not-in-bnc\t{w.word}\t{w.observed}\t\t\t{in_wn}\t{w.char_type}")
+            in_gn = fmt_gngram(w.in_gngram)
+            is_uni = fmt_flag(w.char_type == "unicode")
+            is_num = fmt_flag(w.char_type == "numeric")
+            has_apos = fmt_flag("'" in w.word)
+            has_hyph = fmt_flag("-" in w.word)
+            has_other = fmt_flag(
+                bool(_re_csv.search(r"[^a-z]", w.word))
+                and w.char_type not in ("unicode", "numeric")
+                and "'" not in w.word
+                and "-" not in w.word
+            )
+            lines.append(
+                f"not-in-bnc\t{w.word}\t{w.observed}\t\t\t{in_wn}\t{in_gn}"
+                f"\t{is_uni}\t{is_num}\t{has_apos}\t{has_hyph}\t{has_other}"
+            )
 
         output_path.write_text("\n".join(lines))
         console.print(f'[green]✓[/green] TSV saved to: [white]"{output_path}"[/white]')
@@ -986,7 +1131,11 @@ Thresholds:
     elif args.format == "excel":
         try:
             from openpyxl import Workbook  # type: ignore[import-untyped]
-            from openpyxl.styles import Alignment, PatternFill  # type: ignore[import-untyped]
+            from openpyxl.styles import (  # type: ignore[import-untyped]
+                Alignment,
+                Font,
+                PatternFill,
+            )
         except ImportError:
             console.print("[red]Error:[/red] Excel export requires openpyxl.")
             console.print("  Install with: [yellow]pip install pystylometry[excel][/yellow]")
@@ -998,37 +1147,229 @@ Thresholds:
         # Remove default sheet
         wb.remove(wb.active)
 
-        # Cell style: width 15, centered, vertically centered
+        # Cell styles
         align = Alignment(horizontal="center", vertical="center")
+        font_header = Font(bold=True, size=14)
+        fill_header = PatternFill(
+            start_color="D9E2F3", end_color="D9E2F3", fill_type="solid"
+        )  # Soft blue-gray
+
+        # ── Summary sheet (first tab) ──
+        ws_summary = wb.create_sheet("summary")
+
+        # Headers: 3 columns side by side
+        headers = ["Top 10 Overused", "Top 10 Underused", "Top 10 Not in BNC"]
+        for ci, hdr in enumerate(headers, start=1):
+            c = ws_summary.cell(row=1, column=ci, value=hdr)
+            c.font = font_header
+            c.fill = fill_header
+
+        # Top 10 words from each category (words only, no numbers)
+        top_overused = [w.word for w in result.overused[:10]]
+        top_underused = [w.word for w in result.underused[:10]]
+        top_not_in_bnc = [w.word for w in result.not_in_bnc[:10]]
+
+        for i in range(10):
+            row = i + 2
+            if i < len(top_overused):
+                ws_summary.cell(row=row, column=1, value=top_overused[i])
+            if i < len(top_underused):
+                ws_summary.cell(row=row, column=2, value=top_underused[i])
+            if i < len(top_not_in_bnc):
+                ws_summary.cell(row=row, column=3, value=top_not_in_bnc[i])
+
+        # ── Descriptive stats below the top-10 table ──
+        stats_start = 14  # row 12 = last word row, 13 = blank, 14 = header
+        stat_headers = ["Metric", "Count", "% of Total Tokens"]
+        for ci, hdr in enumerate(stat_headers, start=1):
+            c = ws_summary.cell(row=stats_start, column=ci, value=hdr)
+            c.font = font_header
+            c.fill = fill_header
+
+        total = result.total_tokens or 1  # avoid division by zero
+        stats_rows = [
+            ("Total Tokens", f"{result.total_tokens:,}", ""),
+            (
+                "Unique Tokens",
+                f"{result.unique_tokens:,}",
+                f"{result.unique_tokens / total * 100:.2f}%",
+            ),
+            ("Overused", f"{len(result.overused):,}", f"{len(result.overused) / total * 100:.2f}%"),
+            (
+                "Underused",
+                f"{len(result.underused):,}",
+                f"{len(result.underused) / total * 100:.2f}%",
+            ),
+            (
+                "Not in BNC",
+                f"{len(result.not_in_bnc):,}",
+                f"{len(result.not_in_bnc) / total * 100:.2f}%",
+            ),
+        ]
+        for ri, (label, count, pct) in enumerate(stats_rows, start=stats_start + 1):
+            ws_summary.cell(row=ri, column=1, value=label)
+            ws_summary.cell(row=ri, column=2, value=count)
+            ws_summary.cell(row=ri, column=3, value=pct)
+
+        # Format summary sheet
+        for col_letter in ("A", "B", "C"):
+            ws_summary.column_dimensions[col_letter].width = 25
+        for r in ws_summary.iter_rows():
+            for cell in r:
+                cell.alignment = align
 
         def fmt_wordnet_excel(val: bool | None) -> str:
             if val is True:
-                return "yes"
+                return "true"
             elif val is False:
-                return "no"
+                return "false"
             return ""
+
+        def fmt_bool_flag(char_type: str, target: str) -> str:
+            return "true" if char_type == target else "false"
+
+        def fmt_gngram_excel(val: bool | None) -> str:
+            if val is True:
+                return "true"
+            elif val is False:
+                return "false"
+            return ""
+
+        import re as _re
 
         # Overused sheet (sorted by ratio, high to low)
         ws_over = wb.create_sheet("overused")
-        ws_over.append(["word", "observed", "expected", "ratio", "in_wordnet", "char_type"])
+        ws_over.append(
+            [
+                "word",
+                "observed",
+                "expected",
+                "ratio",
+                "in_wordnet",
+                "in_gngram",
+                "unicode",
+                "numeric",
+                "apostrophe",
+                "hyphen",
+                "other",
+            ]
+        )
         for w in sorted(result.overused, key=lambda x: x.ratio or 0, reverse=True):
             in_wn = fmt_wordnet_excel(w.in_wordnet)
-            ws_over.append([w.word, w.observed, w.expected, w.ratio, in_wn, w.char_type])
+            in_gn = fmt_gngram_excel(w.in_gngram)
+            is_apos = "'" in w.word
+            is_hyph = "-" in w.word
+            is_other = (
+                bool(_re.search(r"[^a-z]", w.word))
+                and w.char_type not in ("unicode", "numeric")
+                and "'" not in w.word
+                and "-" not in w.word
+            )
+            ws_over.append(
+                [
+                    w.word,
+                    w.observed,
+                    w.expected,
+                    w.ratio,
+                    in_wn,
+                    in_gn,
+                    fmt_bool_flag(w.char_type, "unicode"),
+                    fmt_bool_flag(w.char_type, "numeric"),
+                    "true" if is_apos else "false",
+                    "true" if is_hyph else "false",
+                    "true" if is_other else "false",
+                ]
+            )
 
         # Underused sheet (sorted by ratio, high to low)
         ws_under = wb.create_sheet("underused")
-        ws_under.append(["word", "observed", "expected", "ratio", "in_wordnet", "char_type"])
+        ws_under.append(
+            [
+                "word",
+                "observed",
+                "expected",
+                "ratio",
+                "in_wordnet",
+                "in_gngram",
+                "unicode",
+                "numeric",
+                "apostrophe",
+                "hyphen",
+                "other",
+            ]
+        )
         for w in sorted(result.underused, key=lambda x: x.ratio or 0, reverse=True):
             in_wn = fmt_wordnet_excel(w.in_wordnet)
-            ws_under.append([w.word, w.observed, w.expected, w.ratio, in_wn, w.char_type])
+            in_gn = fmt_gngram_excel(w.in_gngram)
+            is_apos = "'" in w.word
+            is_hyph = "-" in w.word
+            is_other = (
+                bool(_re.search(r"[^a-z]", w.word))
+                and w.char_type not in ("unicode", "numeric")
+                and "'" not in w.word
+                and "-" not in w.word
+            )
+            ws_under.append(
+                [
+                    w.word,
+                    w.observed,
+                    w.expected,
+                    w.ratio,
+                    in_wn,
+                    in_gn,
+                    fmt_bool_flag(w.char_type, "unicode"),
+                    fmt_bool_flag(w.char_type, "numeric"),
+                    "true" if is_apos else "false",
+                    "true" if is_hyph else "false",
+                    "true" if is_other else "false",
+                ]
+            )
 
         # Not in BNC sheet
         ws_notbnc = wb.create_sheet("not-in-bnc")
-        ws_notbnc.append(["word", "observed", "in_wordnet", "char_type", "plural_form"])
+        notbnc_headers = [
+            "word",
+            "observed",
+            "in_wordnet",
+            "in_gngram",
+            "unicode",
+            "numeric",
+            "apostrophe",
+            "hyphen",
+            "other",
+        ]
+        ws_notbnc.append(notbnc_headers)
+
         for w in result.not_in_bnc:
             in_wn = fmt_wordnet_excel(w.in_wordnet)
-            plural = "yes" if w.word.endswith("s") else "no"
-            ws_notbnc.append([w.word, w.observed, in_wn, w.char_type, plural])
+            in_gn = fmt_gngram_excel(w.in_gngram)
+            is_apos = "'" in w.word
+            is_hyph = "-" in w.word
+            is_other = (
+                bool(_re.search(r"[^a-z]", w.word))
+                and w.char_type not in ("unicode", "numeric")
+                and "'" not in w.word
+                and "-" not in w.word
+            )
+            ws_notbnc.append(
+                [
+                    w.word,
+                    w.observed,
+                    in_wn,
+                    in_gn,
+                    fmt_bool_flag(w.char_type, "unicode"),
+                    fmt_bool_flag(w.char_type, "numeric"),
+                    "true" if is_apos else "false",
+                    "true" if is_hyph else "false",
+                    "true" if is_other else "false",
+                ]
+            )
+
+        # Apply header styling to data sheets (match summary headers)
+        for ws in [ws_over, ws_under, ws_notbnc]:
+            for cell in ws[1]:
+                cell.font = font_header
+                cell.fill = fill_header
 
         # Apply formatting to all sheets
         for ws in [ws_over, ws_under, ws_notbnc]:
@@ -1046,35 +1387,43 @@ Thresholds:
                 ws[f"C{row}"].number_format = "0.00"
                 ws[f"D{row}"].number_format = "0.00"
 
-        # Apply background colors to in_wordnet column
-        fill_yes = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
-        fill_no = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+        # Boolean flag colors (true/false) - used for in_wordnet, apostrophe, hyphen, other
+        fill_flag_true = PatternFill(
+            start_color="BDD7EE", end_color="BDD7EE", fill_type="solid"
+        )  # Light blue
+        fill_flag_false = PatternFill(
+            start_color="FCE4D6", end_color="FCE4D6", fill_type="solid"
+        )  # Light peach
 
-        # in_wordnet is column E for overused/underused, column C for not-in-bnc
+        # Apply to in_wordnet (E), in_gngram (F), unicode (G), numeric (H),
+        # apostrophe (I), hyphen (J), other (K) for overused/underused
         for ws in [ws_over, ws_under]:
             for row in range(2, ws.max_row + 1):
-                cell = ws[f"E{row}"]
-                if cell.value == "yes":
-                    cell.fill = fill_yes
-                elif cell.value == "no":
-                    cell.fill = fill_no
+                for col_letter in ("E", "F", "G", "H", "I", "J", "K"):
+                    cell = ws[f"{col_letter}{row}"]
+                    if cell.value == "true":
+                        cell.fill = fill_flag_true
+                    elif cell.value == "false":
+                        cell.fill = fill_flag_false
 
+        # Apply to in_wordnet (C), in_gngram (D), unicode (E), numeric (F),
+        # apostrophe (G), hyphen (H), other (I) in not-in-bnc
         for row in range(2, ws_notbnc.max_row + 1):
-            cell = ws_notbnc[f"C{row}"]
-            if cell.value == "yes":
-                cell.fill = fill_yes
-            elif cell.value == "no":
-                cell.fill = fill_no
+            for col_letter in ("C", "D", "E", "F", "G", "H", "I"):
+                cell = ws_notbnc[f"{col_letter}{row}"]
+                if cell.value == "true":
+                    cell.fill = fill_flag_true
+                elif cell.value == "false":
+                    cell.fill = fill_flag_false
 
-        # Apply background colors to plural_form column (E) in not-in-bnc
-        fill_plural_yes = PatternFill(start_color="BDD7EE", end_color="BDD7EE", fill_type="solid")  # Light blue
-        fill_plural_no = PatternFill(start_color="FCE4D6", end_color="FCE4D6", fill_type="solid")  # Light peach
-        for row in range(2, ws_notbnc.max_row + 1):
-            cell = ws_notbnc[f"E{row}"]
-            if cell.value == "yes":
-                cell.fill = fill_plural_yes
-            elif cell.value == "no":
-                cell.fill = fill_plural_no
+        # Row heights: 25 for headers, 20 for data rows — all sheets
+        for ws in [ws_summary, ws_over, ws_under, ws_notbnc]:
+            for row_num in range(1, ws.max_row + 1):
+                ws.row_dimensions[row_num].height = 20
+            # Header rows get 25
+            ws.row_dimensions[1].height = 25
+        # Summary has a second header row for stats
+        ws_summary.row_dimensions[stats_start].height = 25
 
         wb.save(output_path)
         console.print(f'[green]✓[/green] Excel saved to: [white]"{output_path}"[/white]')
@@ -1082,11 +1431,18 @@ Thresholds:
     else:  # html
         from pystylometry.viz.jsx import export_bnc_frequency_jsx
 
+        if args.input_dir:
+            html_title = f"BNC Frequency Analysis: {args.input_dir.name} ({file_count} files)"
+            html_source = str(args.input_dir)
+        else:
+            html_title = f"BNC Frequency Analysis: {args.input_file.name}"
+            html_source = str(args.input_file)
+
         export_bnc_frequency_jsx(
             result,
             output_file=output_path,
-            title=f"BNC Frequency Analysis: {args.input_file.name}",
-            source_file=str(args.input_file),
+            title=html_title,
+            source_file=html_source,
         )
 
         abs_path = output_path.resolve()
