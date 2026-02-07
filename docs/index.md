@@ -24,6 +24,7 @@ A Python library for stylometric analysis and authorship attribution.
 - [Advanced Diversity](lexical/advanced_diversity.md) - voc-D, MATTR, HD-D, MSTTR
 - [Word Frequency Sophistication](lexical/word_frequency_sophistication.md) - COCA frequency ranks and Academic Word List
 - [Repetitive Word and N-gram Detection](lexical/repetition.md) - Verbal tics and AI slop detection via BNC baseline
+- [Word Morphological Classification](lexical/word_class.md) - Three-layer surface-form taxonomy for corpus frequency analysis
 
 ## Readability
 
