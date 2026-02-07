@@ -1013,7 +1013,10 @@ Thresholds:
 
     # Output results
     if args.format == "json":
-        import re as _re_json
+        # classify_word provides the three-layer morphological taxonomy label
+        # that replaces the five boolean flag columns.
+        # See: https://github.com/craigtrim/pystylometry/issues/53
+        from pystylometry.lexical.word_class import classify_word as _classify_json
 
         def _json_word(w_obj: object, cat_counts: dict[str, int]) -> dict[str, object]:
             """Build a JSON-serializable dict for a WordAnalysis."""
@@ -1030,16 +1033,7 @@ Thresholds:
             d["ratio"] = w_obj.ratio
             d["in_wordnet"] = w_obj.in_wordnet
             d["in_gngram"] = w_obj.in_gngram
-            d["unicode"] = w_obj.char_type == "unicode"
-            d["numeric"] = w_obj.char_type == "numeric"
-            d["apostrophe"] = "'" in w_obj.word
-            d["hyphen"] = "-" in w_obj.word
-            d["other"] = (
-                bool(_re_json.search(r"[^a-z]", w_obj.word))
-                and w_obj.char_type not in ("unicode", "numeric")
-                and "'" not in w_obj.word
-                and "-" not in w_obj.word
-            )
+            d["classification"] = _classify_json(w_obj.word).label
             return d
 
         stats: dict[str, object] = {
@@ -1080,18 +1074,21 @@ Thresholds:
         console.print(f'[green]✓[/green] JSON saved to: [white]"{output_path}"[/white]')
 
     elif args.format == "csv":
-        import re as _re_csv
+        # classify_word provides the three-layer morphological taxonomy label
+        # that replaces the five boolean flag columns.
+        # See: https://github.com/craigtrim/pystylometry/issues/53
+        from pystylometry.lexical.word_class import classify_word as _classify_csv
 
         # Tab-delimited output with category column
         if works_total:
             _hdr = (
                 "category\tword\tobserved\texpected\tworks\tratio\tin_wordnet\tin_gngram"
-                "\tunicode\tnumeric\tapostrophe\thyphen\tother"
+                "\tclassification"
             )
         else:
             _hdr = (
                 "category\tword\tobserved\texpected\tratio\tin_wordnet\tin_gngram"
-                "\tunicode\tnumeric\tapostrophe\thyphen\tother"
+                "\tclassification"
             )
         lines = [_hdr]
 
@@ -1101,9 +1098,6 @@ Thresholds:
             elif val is False:
                 return "no"
             return ""
-
-        def fmt_flag(val: bool) -> str:
-            return "true" if val else "false"
 
         def fmt_gngram(val: bool | None) -> str:
             if val is True:
@@ -1122,28 +1116,17 @@ Thresholds:
             ratio = f"{w.ratio:.4f}" if w.ratio else ""
             in_wn = fmt_wordnet(w.in_wordnet)
             in_gn = fmt_gngram(w.in_gngram)
-            is_uni = fmt_flag(w.char_type == "unicode")
-            is_num = fmt_flag(w.char_type == "numeric")
-            has_apos = fmt_flag("'" in w.word)
-            has_hyph = fmt_flag("-" in w.word)
-            has_other = fmt_flag(
-                bool(_re_csv.search(r"[^a-z]", w.word))
-                and w.char_type not in ("unicode", "numeric")
-                and "'" not in w.word
-                and "-" not in w.word
-            )
+            cls = _classify_csv(w.word).label
             if works_total:
                 wk = f"{works_overused.get(w.word, 0)}/{works_total}"
                 line = (
                     f"overused\t{w.word}\t{w.observed}\t{expected}\t{wk}\t{ratio}"
-                    f"\t{in_wn}\t{in_gn}"
-                    f"\t{is_uni}\t{is_num}\t{has_apos}\t{has_hyph}\t{has_other}"
+                    f"\t{in_wn}\t{in_gn}\t{cls}"
                 )
             else:
                 line = (
                     f"overused\t{w.word}\t{w.observed}\t{expected}\t{ratio}"
-                    f"\t{in_wn}\t{in_gn}"
-                    f"\t{is_uni}\t{is_num}\t{has_apos}\t{has_hyph}\t{has_other}"
+                    f"\t{in_wn}\t{in_gn}\t{cls}"
                 )
             lines.append(line)
 
@@ -1157,28 +1140,17 @@ Thresholds:
             ratio = f"{w.ratio:.4f}" if w.ratio else ""
             in_wn = fmt_wordnet(w.in_wordnet)
             in_gn = fmt_gngram(w.in_gngram)
-            is_uni = fmt_flag(w.char_type == "unicode")
-            is_num = fmt_flag(w.char_type == "numeric")
-            has_apos = fmt_flag("'" in w.word)
-            has_hyph = fmt_flag("-" in w.word)
-            has_other = fmt_flag(
-                bool(_re_csv.search(r"[^a-z]", w.word))
-                and w.char_type not in ("unicode", "numeric")
-                and "'" not in w.word
-                and "-" not in w.word
-            )
+            cls = _classify_csv(w.word).label
             if works_total:
                 wk = f"{works_underused.get(w.word, 0)}/{works_total}"
                 line = (
                     f"underused\t{w.word}\t{w.observed}\t{expected}\t{wk}\t{ratio}"
-                    f"\t{in_wn}\t{in_gn}"
-                    f"\t{is_uni}\t{is_num}\t{has_apos}\t{has_hyph}\t{has_other}"
+                    f"\t{in_wn}\t{in_gn}\t{cls}"
                 )
             else:
                 line = (
                     f"underused\t{w.word}\t{w.observed}\t{expected}\t{ratio}"
-                    f"\t{in_wn}\t{in_gn}"
-                    f"\t{is_uni}\t{is_num}\t{has_apos}\t{has_hyph}\t{has_other}"
+                    f"\t{in_wn}\t{in_gn}\t{cls}"
                 )
             lines.append(line)
 
@@ -1190,27 +1162,17 @@ Thresholds:
         for w in _csv_notbnc:
             in_wn = fmt_wordnet(w.in_wordnet)
             in_gn = fmt_gngram(w.in_gngram)
-            is_uni = fmt_flag(w.char_type == "unicode")
-            is_num = fmt_flag(w.char_type == "numeric")
-            has_apos = fmt_flag("'" in w.word)
-            has_hyph = fmt_flag("-" in w.word)
-            has_other = fmt_flag(
-                bool(_re_csv.search(r"[^a-z]", w.word))
-                and w.char_type not in ("unicode", "numeric")
-                and "'" not in w.word
-                and "-" not in w.word
-            )
+            cls = _classify_csv(w.word).label
             if works_total:
                 wk = f"{works_notbnc.get(w.word, 0)}/{works_total}"
                 line = (
                     f"not-in-bnc\t{w.word}\t{w.observed}\t\t{wk}\t"
-                    f"\t{in_wn}\t{in_gn}"
-                    f"\t{is_uni}\t{is_num}\t{has_apos}\t{has_hyph}\t{has_other}"
+                    f"\t{in_wn}\t{in_gn}\t{cls}"
                 )
             else:
                 line = (
                     f"not-in-bnc\t{w.word}\t{w.observed}\t\t\t{in_wn}\t{in_gn}"
-                    f"\t{is_uni}\t{is_num}\t{has_apos}\t{has_hyph}\t{has_other}"
+                    f"\t{cls}"
                 )
             lines.append(line)
 
@@ -1314,9 +1276,6 @@ Thresholds:
                 return "false"
             return ""
 
-        def fmt_bool_flag(char_type: str, target: str) -> str:
-            return "true" if char_type == target else "false"
-
         def fmt_gngram_excel(val: bool | None) -> str:
             if val is True:
                 return "true"
@@ -1324,19 +1283,22 @@ Thresholds:
                 return "false"
             return ""
 
-        import re as _re
+        # classify_word provides the three-layer morphological taxonomy label
+        # that replaces the five boolean flag columns.
+        # See: https://github.com/craigtrim/pystylometry/issues/53
+        from pystylometry.lexical.word_class import classify_word as _classify_xl
 
         # Overused sheet (sorted by works desc, ratio desc when combinatoric)
         ws_over = wb.create_sheet("overused")
         if works_total:
             _over_hdr = [
                 "word", "observed", "expected", "works", "ratio", "in_wordnet",
-                "in_gngram", "unicode", "numeric", "apostrophe", "hyphen", "other",
+                "in_gngram", "classification",
             ]
         else:
             _over_hdr = [
                 "word", "observed", "expected", "ratio", "in_wordnet", "in_gngram",
-                "unicode", "numeric", "apostrophe", "hyphen", "other",
+                "classification",
             ]
         ws_over.append(_over_hdr)
         _xl_over = sorted(
@@ -1347,33 +1309,16 @@ Thresholds:
         for w in _xl_over:
             in_wn = fmt_wordnet_excel(w.in_wordnet)
             in_gn = fmt_gngram_excel(w.in_gngram)
-            is_apos = "'" in w.word
-            is_hyph = "-" in w.word
-            is_other = (
-                bool(_re.search(r"[^a-z]", w.word))
-                and w.char_type not in ("unicode", "numeric")
-                and "'" not in w.word
-                and "-" not in w.word
-            )
+            cls = _classify_xl(w.word).label
             if works_total:
                 row_data = [
                     w.word, w.observed, w.expected,
                     f"{works_overused.get(w.word, 0)}/{works_total}",
-                    w.ratio, in_wn, in_gn,
-                    fmt_bool_flag(w.char_type, "unicode"),
-                    fmt_bool_flag(w.char_type, "numeric"),
-                    "true" if is_apos else "false",
-                    "true" if is_hyph else "false",
-                    "true" if is_other else "false",
+                    w.ratio, in_wn, in_gn, cls,
                 ]
             else:
                 row_data = [
-                    w.word, w.observed, w.expected, w.ratio, in_wn, in_gn,
-                    fmt_bool_flag(w.char_type, "unicode"),
-                    fmt_bool_flag(w.char_type, "numeric"),
-                    "true" if is_apos else "false",
-                    "true" if is_hyph else "false",
-                    "true" if is_other else "false",
+                    w.word, w.observed, w.expected, w.ratio, in_wn, in_gn, cls,
                 ]
             ws_over.append(row_data)
 
@@ -1382,12 +1327,12 @@ Thresholds:
         if works_total:
             _under_hdr = [
                 "word", "observed", "expected", "works", "ratio", "in_wordnet",
-                "in_gngram", "unicode", "numeric", "apostrophe", "hyphen", "other",
+                "in_gngram", "classification",
             ]
         else:
             _under_hdr = [
                 "word", "observed", "expected", "ratio", "in_wordnet", "in_gngram",
-                "unicode", "numeric", "apostrophe", "hyphen", "other",
+                "classification",
             ]
         ws_under.append(_under_hdr)
         _xl_under = sorted(
@@ -1398,33 +1343,16 @@ Thresholds:
         for w in _xl_under:
             in_wn = fmt_wordnet_excel(w.in_wordnet)
             in_gn = fmt_gngram_excel(w.in_gngram)
-            is_apos = "'" in w.word
-            is_hyph = "-" in w.word
-            is_other = (
-                bool(_re.search(r"[^a-z]", w.word))
-                and w.char_type not in ("unicode", "numeric")
-                and "'" not in w.word
-                and "-" not in w.word
-            )
+            cls = _classify_xl(w.word).label
             if works_total:
                 row_data = [
                     w.word, w.observed, w.expected,
                     f"{works_underused.get(w.word, 0)}/{works_total}",
-                    w.ratio, in_wn, in_gn,
-                    fmt_bool_flag(w.char_type, "unicode"),
-                    fmt_bool_flag(w.char_type, "numeric"),
-                    "true" if is_apos else "false",
-                    "true" if is_hyph else "false",
-                    "true" if is_other else "false",
+                    w.ratio, in_wn, in_gn, cls,
                 ]
             else:
                 row_data = [
-                    w.word, w.observed, w.expected, w.ratio, in_wn, in_gn,
-                    fmt_bool_flag(w.char_type, "unicode"),
-                    fmt_bool_flag(w.char_type, "numeric"),
-                    "true" if is_apos else "false",
-                    "true" if is_hyph else "false",
-                    "true" if is_other else "false",
+                    w.word, w.observed, w.expected, w.ratio, in_wn, in_gn, cls,
                 ]
             ws_under.append(row_data)
 
@@ -1433,12 +1361,12 @@ Thresholds:
         if works_total:
             _notbnc_hdr = [
                 "word", "observed", "works", "in_wordnet", "in_gngram",
-                "unicode", "numeric", "apostrophe", "hyphen", "other",
+                "classification",
             ]
         else:
             _notbnc_hdr = [
                 "word", "observed", "in_wordnet", "in_gngram",
-                "unicode", "numeric", "apostrophe", "hyphen", "other",
+                "classification",
             ]
         ws_notbnc.append(_notbnc_hdr)
 
@@ -1450,33 +1378,16 @@ Thresholds:
         for w in _xl_notbnc:
             in_wn = fmt_wordnet_excel(w.in_wordnet)
             in_gn = fmt_gngram_excel(w.in_gngram)
-            is_apos = "'" in w.word
-            is_hyph = "-" in w.word
-            is_other = (
-                bool(_re.search(r"[^a-z]", w.word))
-                and w.char_type not in ("unicode", "numeric")
-                and "'" not in w.word
-                and "-" not in w.word
-            )
+            cls = _classify_xl(w.word).label
             if works_total:
                 row_data = [
                     w.word, w.observed,
                     f"{works_notbnc.get(w.word, 0)}/{works_total}",
-                    in_wn, in_gn,
-                    fmt_bool_flag(w.char_type, "unicode"),
-                    fmt_bool_flag(w.char_type, "numeric"),
-                    "true" if is_apos else "false",
-                    "true" if is_hyph else "false",
-                    "true" if is_other else "false",
+                    in_wn, in_gn, cls,
                 ]
             else:
                 row_data = [
-                    w.word, w.observed, in_wn, in_gn,
-                    fmt_bool_flag(w.char_type, "unicode"),
-                    fmt_bool_flag(w.char_type, "numeric"),
-                    "true" if is_apos else "false",
-                    "true" if is_hyph else "false",
-                    "true" if is_other else "false",
+                    w.word, w.observed, in_wn, in_gn, cls,
                 ]
             ws_notbnc.append(row_data)
 
@@ -1490,11 +1401,21 @@ Thresholds:
         for ws in [ws_over, ws_under, ws_notbnc]:
             for col in ws.columns:
                 col_letter = col[0].column_letter
-                # Word column (A) gets width 30, others get 15
+                # Word column (A) and classification (last col) get 30, others 15
                 ws.column_dimensions[col_letter].width = 30 if col_letter == "A" else 15
             for row in ws.iter_rows():
                 for cell in row:
                     cell.alignment = align
+
+        # Classification column is wider to accommodate dot-separated labels
+        # like "apostrophe.contraction.negative"
+        # Overused/underused: col H (with works) or G (without)
+        _cls_col_freq = "H" if works_total else "G"
+        for ws in [ws_over, ws_under]:
+            ws.column_dimensions[_cls_col_freq].width = 35
+        # Not-in-BNC: col F (with works) or E (without)
+        _cls_col_notbnc = "F" if works_total else "E"
+        ws_notbnc.column_dimensions[_cls_col_notbnc].width = 35
 
         # Apply number formatting to expected and ratio columns
         # With works: C=expected, E=ratio; without works: C=expected, D=ratio
@@ -1504,7 +1425,9 @@ Thresholds:
                 ws[f"C{row}"].number_format = "0.00"
                 ws[f"{_ratio_col}{row}"].number_format = "0.00"
 
-        # Boolean flag colors (true/false)
+        # Boolean flag colors (true/false) for in_wordnet and in_gngram columns.
+        # The old five boolean columns (unicode, numeric, apostrophe, hyphen,
+        # other) have been replaced by the classification string column (#53).
         fill_flag_true = PatternFill(
             start_color="BDD7EE", end_color="BDD7EE", fill_type="solid"
         )  # Light blue
@@ -1512,12 +1435,9 @@ Thresholds:
             start_color="FCE4D6", end_color="FCE4D6", fill_type="solid"
         )  # Light peach
 
-        # Boolean flag columns shift when works column is present
-        # With works: F-L (in_wordnet..other); without: E-K
-        _over_flags = (
-            ("F", "G", "H", "I", "J", "K", "L") if works_total
-            else ("E", "F", "G", "H", "I", "J", "K")
-        )
+        # Boolean columns: in_wordnet and in_gngram only
+        # Overused/underused: with works F,G; without E,F
+        _over_flags = ("F", "G") if works_total else ("E", "F")
         for ws in [ws_over, ws_under]:
             for row in range(2, ws.max_row + 1):
                 for col_letter in _over_flags:
@@ -1527,11 +1447,8 @@ Thresholds:
                     elif cell.value == "false":
                         cell.fill = fill_flag_false
 
-        # Not-in-bnc: with works: D-J; without: C-I
-        _notbnc_flags = (
-            ("D", "E", "F", "G", "H", "I", "J") if works_total
-            else ("C", "D", "E", "F", "G", "H", "I")
-        )
+        # Not-in-bnc: with works D,E; without C,D
+        _notbnc_flags = ("D", "E") if works_total else ("C", "D")
         for row in range(2, ws_notbnc.max_row + 1):
             for col_letter in _notbnc_flags:
                 cell = ws_notbnc[f"{col_letter}{row}"]

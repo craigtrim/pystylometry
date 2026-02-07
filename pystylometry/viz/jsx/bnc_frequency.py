@@ -8,9 +8,18 @@ The report has three sections:
 2. Most Underused - Words appearing less frequently than expected
 3. Most Overused - Words appearing more frequently than expected
 
-Related GitHub Issue:
-    #TBD - BNC frequency analysis CLI
-    https://github.com/craigtrim/pystylometry/issues/TBD
+Each word receives a morphological classification label from the word_class
+module (e.g. ``apostrophe.contraction.negative``, ``hyphenated.reduplicated.ablaut``)
+instead of raw boolean flag columns.  This was introduced in #53 to replace
+the five boolean columns (unicode, numeric, apostrophe, hyphen, other) with
+a single, more informative classification column.
+
+Related GitHub Issues:
+    #53 -- Replace boolean flag columns with word_class classification label
+    https://github.com/craigtrim/pystylometry/issues/53
+
+    #51 -- Word morphological classification taxonomy (provides classify_word)
+    https://github.com/craigtrim/pystylometry/issues/51
 """
 
 from __future__ import annotations
@@ -52,7 +61,11 @@ def export_bnc_frequency_jsx(
         >>> result = compute_bnc_frequency(text)
         >>> export_bnc_frequency_jsx(result, "frequency_report.html")
     """
-    import re as _re_html
+    # classify_word provides the three-layer morphological taxonomy label
+    # (e.g. "apostrophe.contraction.negative") that replaces the five boolean
+    # flag columns (unicode, numeric, apostrophe, hyphen, other).
+    # See: https://github.com/craigtrim/pystylometry/issues/53
+    from pystylometry.lexical.word_class import classify_word
 
     # Build data for the React component
     not_in_bnc_data = [
@@ -61,14 +74,7 @@ def export_bnc_frequency_jsx(
             "observed": w.observed,
             "inWordnet": w.in_wordnet,
             "inGngram": w.in_gngram,
-            "unicode": w.char_type == "unicode",
-            "numeric": w.char_type == "numeric",
-            "apostrophe": "'" in w.word,
-            "hyphen": "-" in w.word,
-            "other": bool(_re_html.search(r"[^a-z]", w.word))
-            and w.char_type not in ("unicode", "numeric")
-            and "'" not in w.word
-            and "-" not in w.word,
+            "classification": classify_word(w.word).label,
         }
         for w in result.not_in_bnc
     ]
@@ -81,14 +87,7 @@ def export_bnc_frequency_jsx(
             "ratio": round(w.ratio, 4) if w.ratio else None,
             "inWordnet": w.in_wordnet,
             "inGngram": w.in_gngram,
-            "unicode": w.char_type == "unicode",
-            "numeric": w.char_type == "numeric",
-            "apostrophe": "'" in w.word,
-            "hyphen": "-" in w.word,
-            "other": bool(_re_html.search(r"[^a-z]", w.word))
-            and w.char_type not in ("unicode", "numeric")
-            and "'" not in w.word
-            and "-" not in w.word,
+            "classification": classify_word(w.word).label,
         }
         for w in result.underused
     ]
@@ -101,14 +100,7 @@ def export_bnc_frequency_jsx(
             "ratio": round(w.ratio, 1) if w.ratio else None,
             "inWordnet": w.in_wordnet,
             "inGngram": w.in_gngram,
-            "unicode": w.char_type == "unicode",
-            "numeric": w.char_type == "numeric",
-            "apostrophe": "'" in w.word,
-            "hyphen": "-" in w.word,
-            "other": bool(_re_html.search(r"[^a-z]", w.word))
-            and w.char_type not in ("unicode", "numeric")
-            and "'" not in w.word
-            and "-" not in w.word,
+            "classification": classify_word(w.word).label,
         }
         for w in result.overused
     ]
@@ -413,16 +405,31 @@ def export_bnc_frequency_jsx(
       // Column definitions
       const boolRender = (v) => <BoolBadge value={v} />;
 
+      // Classification label render -- dot-separated taxonomy path from
+      // classify_word(), e.g. "apostrophe.contraction.negative".
+      // See: https://github.com/craigtrim/pystylometry/issues/51
+      const classificationRender = (v) => {
+        if (!v || v === 'lexical') {
+          return <span style={{ color: '#9ca3af', fontSize: '12px' }}>lexical</span>;
+        }
+        return (
+          <code style={{
+            background: '#f0f9ff',
+            color: '#0369a1',
+            padding: '2px 6px',
+            borderRadius: '4px',
+            fontSize: '11px',
+            whiteSpace: 'nowrap',
+          }}>{v}</code>
+        );
+      };
+
       const notInBncColumns = [
         { key: 'word', label: 'Word', render: (v) => <code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>{v}</code> },
         { key: 'observed', label: 'Mentions', align: 'right' },
         { key: 'inWordnet', label: 'In WordNet', align: 'center', render: (v) => <WordnetBadge inWordnet={v} />, sortable: false },
         { key: 'inGngram', label: 'In Ngram', align: 'center', render: boolRender, sortable: false },
-        { key: 'unicode', label: 'Unicode', align: 'center', render: boolRender, sortable: false },
-        { key: 'numeric', label: 'Numeric', align: 'center', render: boolRender, sortable: false },
-        { key: 'apostrophe', label: 'Apostrophe', align: 'center', render: boolRender, sortable: false },
-        { key: 'hyphen', label: 'Hyphen', align: 'center', render: boolRender, sortable: false },
-        { key: 'other', label: 'Other', align: 'center', render: boolRender, sortable: false },
+        { key: 'classification', label: 'Classification', render: classificationRender },
       ];
 
       const frequencyColumns = (isOverused) => [
@@ -432,11 +439,7 @@ def export_bnc_frequency_jsx(
         { key: 'ratio', label: 'Ratio', align: 'right', render: (v) => <RatioDisplay ratio={v} isOverused={isOverused} /> },
         { key: 'inWordnet', label: 'In WordNet', align: 'center', render: (v) => <WordnetBadge inWordnet={v} />, sortable: false },
         { key: 'inGngram', label: 'In Ngram', align: 'center', render: boolRender, sortable: false },
-        { key: 'unicode', label: 'Unicode', align: 'center', render: boolRender, sortable: false },
-        { key: 'numeric', label: 'Numeric', align: 'center', render: boolRender, sortable: false },
-        { key: 'apostrophe', label: 'Apostrophe', align: 'center', render: boolRender, sortable: false },
-        { key: 'hyphen', label: 'Hyphen', align: 'center', render: boolRender, sortable: false },
-        { key: 'other', label: 'Other', align: 'center', render: boolRender, sortable: false },
+        { key: 'classification', label: 'Classification', render: classificationRender },
       ];
 
       const getTabContent = () => {
