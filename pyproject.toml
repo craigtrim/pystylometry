@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pystylometry"
-version = "1.4.2"
+version = "1.4.3"
 description = "Comprehensive Python package for stylometric analysis"
 authors = ["Craig Trim <craigtrim@gmail.com>"]
 readme = "README.md"

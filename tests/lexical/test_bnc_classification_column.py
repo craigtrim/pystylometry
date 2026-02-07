@@ -14,12 +14,10 @@ Related GitHub Issues:
 
 import json
 from dataclasses import dataclass
-from unittest.mock import MagicMock, patch
 
 import pytest
 
 from pystylometry.lexical.word_class import classify_word
-
 
 # ===================================================================
 # Fixtures: minimal BNC result stubs
@@ -257,8 +255,7 @@ class TestJSONFormat:
         for w in _TEST_WORDS:
             d = self._build_json_word(w)
             assert old_keys.isdisjoint(d.keys()), (
-                f"Word '{w.word}' still has old boolean keys: "
-                f"{old_keys & d.keys()}"
+                f"Word '{w.word}' still has old boolean keys: " f"{old_keys & d.keys()}"
             )
 
     def test_json_classification_value_is_string(self):
@@ -310,8 +307,7 @@ class TestCSVFormat:
     def test_csv_header_has_classification(self):
         """The TSV header should include 'classification', not boolean flags."""
         header = (
-            "category\tword\tobserved\texpected\tratio\tin_wordnet\tin_gngram"
-            "\tclassification"
+            "category\tword\tobserved\texpected\tratio\tin_wordnet\tin_gngram" "\tclassification"
         )
         assert "classification" in header
         assert "unicode" not in header
@@ -367,10 +363,7 @@ class TestCSVFormat:
         # classification
         w = _WordStub("don't", 47, 0.5, 94.0, True, True)
         cls = classify_word(w.word).label
-        line = (
-            f"overused\t{w.word}\t{w.observed}\t0.50\t94.0000"
-            f"\tyes\tyes\t{cls}"
-        )
+        line = f"overused\t{w.word}\t{w.observed}\t0.50\t94.0000" f"\tyes\tyes\t{cls}"
         fields = line.split("\t")
         assert len(fields) == 8
 
@@ -380,10 +373,7 @@ class TestCSVFormat:
         # in_gngram, classification
         w = _WordStub("don't", 47, 0.5, 94.0, True, True)
         cls = classify_word(w.word).label
-        line = (
-            f"overused\t{w.word}\t{w.observed}\t0.50\t3/5\t94.0000"
-            f"\tyes\tyes\t{cls}"
-        )
+        line = f"overused\t{w.word}\t{w.observed}\t0.50\t3/5\t94.0000" f"\tyes\tyes\t{cls}"
         fields = line.split("\t")
         assert len(fields) == 9
 
@@ -399,7 +389,12 @@ class TestExcelFormat:
     def test_excel_overused_header_without_works(self):
         """Overused sheet header should have classification, not boolean flags."""
         expected = [
-            "word", "observed", "expected", "ratio", "in_wordnet", "in_gngram",
+            "word",
+            "observed",
+            "expected",
+            "ratio",
+            "in_wordnet",
+            "in_gngram",
             "classification",
         ]
         # 7 columns total (was 11 with the 5 booleans)
@@ -411,8 +406,14 @@ class TestExcelFormat:
     def test_excel_overused_header_with_works(self):
         """Overused sheet header with works should have classification."""
         expected = [
-            "word", "observed", "expected", "works", "ratio", "in_wordnet",
-            "in_gngram", "classification",
+            "word",
+            "observed",
+            "expected",
+            "works",
+            "ratio",
+            "in_wordnet",
+            "in_gngram",
+            "classification",
         ]
         assert len(expected) == 8
         assert "works" in expected
@@ -421,7 +422,11 @@ class TestExcelFormat:
     def test_excel_notbnc_header_without_works(self):
         """Not-in-BNC header should have classification, not boolean flags."""
         expected = [
-            "word", "observed", "in_wordnet", "in_gngram", "classification",
+            "word",
+            "observed",
+            "in_wordnet",
+            "in_gngram",
+            "classification",
         ]
         assert len(expected) == 5
         assert "classification" in expected
@@ -429,7 +434,11 @@ class TestExcelFormat:
     def test_excel_notbnc_header_with_works(self):
         """Not-in-BNC header with works should have classification."""
         expected = [
-            "word", "observed", "works", "in_wordnet", "in_gngram",
+            "word",
+            "observed",
+            "works",
+            "in_wordnet",
+            "in_gngram",
             "classification",
         ]
         assert len(expected) == 6
@@ -521,7 +530,13 @@ class TestNoBooleanFlagRegression:
         """Read the bnc_frequency.py source for inspection."""
         from pathlib import Path
 
-        src = Path(__file__).resolve().parents[2] / "pystylometry" / "viz" / "jsx" / "bnc_frequency.py"
+        src = (
+            Path(__file__).resolve().parents[2]
+            / "pystylometry"
+            / "viz"
+            / "jsx"
+            / "bnc_frequency.py"
+        )
         return src.read_text()
 
     def test_no_unicode_bool_in_html_data(self):
@@ -538,7 +553,7 @@ class TestNoBooleanFlagRegression:
     def test_no_apostrophe_bool_in_html_data(self):
         """bnc_frequency.py should not compute 'apostrophe' as a boolean data key."""
         src = self._read_bnc_frequency_source()
-        assert "\"apostrophe\": \"'\" in w.word" not in src
+        assert '"apostrophe": "\'" in w.word' not in src
 
     def test_no_hyphen_bool_in_html_data(self):
         """bnc_frequency.py should not compute 'hyphen' as a boolean data key."""
@@ -687,8 +702,13 @@ class TestBulkL1Categories:
     def test_all_l1_categories_covered(self):
         """Every defined L1 category should be testable."""
         expected_l1s = {
-            "lexical", "apostrophe", "hyphenated", "apostrophe_hyphenated",
-            "unicode", "numeric", "other",
+            "lexical",
+            "apostrophe",
+            "hyphenated",
+            "apostrophe_hyphenated",
+            "unicode",
+            "numeric",
+            "other",
         }
         # We have test words for all except "other" -- verify "other" works too
         # A word with non-az chars that isn't apostrophe/hyphen/unicode/numeric
@@ -697,7 +717,16 @@ class TestBulkL1Categories:
         assert result.label == "other.unclassified"
 
         # Collect all L1s from test words
-        test_l1s = {classify_word(w).l1 for w in
-                     ["house", "don't", "zig-zag", "jack-o'-lantern",
-                      "cafe\u0301", "1st", "foo@bar"]}
+        test_l1s = {
+            classify_word(w).l1
+            for w in [
+                "house",
+                "don't",
+                "zig-zag",
+                "jack-o'-lantern",
+                "cafe\u0301",
+                "1st",
+                "foo@bar",
+            ]
+        }
         assert test_l1s == expected_l1s
