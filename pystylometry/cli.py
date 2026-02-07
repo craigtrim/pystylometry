@@ -831,6 +831,11 @@ Thresholds:
         default="csv",
         help="Output format: csv (tab-delimited), html (interactive), json, excel (default: csv)",
     )
+    parser.add_argument(
+        "--combinatoric",
+        action="store_true",
+        help="Pairwise comparison of all files in --input-dir (requires --input-dir)",
+    )
 
     args = parser.parse_args()
 
@@ -842,11 +847,16 @@ Thresholds:
 
     console = Console(stderr=True)
 
+    # ── Validation ──
+    if args.combinatoric and not args.input_dir:
+        console.print("[red]Error:[/red] --combinatoric requires --input-dir")
+        sys.exit(1)
+
     # ── Input loading ──
     file_count: int = 1
+    txt_files: list[Path] = []
 
     if args.input_dir:
-        # --input-dir mode: concatenate all .txt files as a single corpus
         if not args.input_dir.is_dir():
             console.print(f"[red]Error:[/red] Directory not found: {args.input_dir}")
             sys.exit(1)
@@ -859,6 +869,7 @@ Thresholds:
             console.print(f"[red]Error:[/red] No .txt files found in: {args.input_dir}")
             sys.exit(1)
 
+        # Read all files (used for both standard and combinatoric modes)
         parts: list[str] = []
         for tf in txt_files:
             try:
@@ -866,7 +877,6 @@ Thresholds:
             except Exception as e:
                 console.print(f"[red]Error reading {tf.name}:[/red] {e}")
                 sys.exit(1)
-
         text = "\n".join(parts)
         file_count = len(txt_files)
     else:
@@ -909,9 +919,8 @@ Thresholds:
         console.print(f"  Files:   [green]{file_count}[/green] .txt files")
     else:
         console.print(f"  File:    [white]{args.input_file}[/white]")
-    console.print(
-        f"  Size:    [green]{char_count:,}[/green] chars / [green]{token_count:,}[/green] tokens"
-    )
+    _sz = f"[green]{char_count:,}[/green] chars / [green]{token_count:,}[/green] tokens"
+    console.print(f"  Size:    {_sz}")
 
     # Probe optional dependency availability for banner
     from importlib.metadata import PackageNotFoundError
@@ -943,6 +952,8 @@ Thresholds:
     _wn_display = "disabled" if args.no_wordnet else _wn_ver
     console.print(f"  WordNet lookup:      [yellow]{_wn_display}[/yellow]")
     console.print(f"  Ngram lookup:        [yellow]{_gn_ver}[/yellow]")
+    if args.combinatoric:
+        console.print(f"  Combinatoric:        [yellow]yes ({file_count} files)[/yellow]")
 
     # Output section
     console.print()
@@ -970,72 +981,99 @@ Thresholds:
             min_mentions=args.min_mentions,
         )
 
+    # ── Combinatoric: per-file works counts ──
+    works_overused: dict[str, int] = {}
+    works_underused: dict[str, int] = {}
+    works_notbnc: dict[str, int] = {}
+    works_total: int = 0
+
+    if args.combinatoric:
+        works_total = len(txt_files)
+        console.print()
+        for tf in txt_files:
+            console.print(
+                f"  [dim]Scanning[/dim] [white]{tf.name}[/white]...",
+                end="",
+            )
+            file_text = tf.read_text(encoding="utf-8")
+            fr = compute_bnc_frequency(
+                file_text,
+                overuse_threshold=args.overuse_threshold,
+                underuse_threshold=args.underuse_threshold,
+                include_wordnet=not args.no_wordnet,
+                min_mentions=args.min_mentions,
+            )
+            for w in fr.overused:
+                works_overused[w.word] = works_overused.get(w.word, 0) + 1
+            for w in fr.underused:
+                works_underused[w.word] = works_underused.get(w.word, 0) + 1
+            for w in fr.not_in_bnc:
+                works_notbnc[w.word] = works_notbnc.get(w.word, 0) + 1
+            console.print(" [green]✓[/green]")
+
     # Output results
     if args.format == "json":
         import re as _re_json
 
+        def _json_word(w_obj: object, cat_counts: dict[str, int]) -> dict[str, object]:
+            """Build a JSON-serializable dict for a WordAnalysis."""
+            from pystylometry.lexical.bnc_frequency import WordAnalysis
+
+            assert isinstance(w_obj, WordAnalysis)
+            d: dict[str, object] = {
+                "word": w_obj.word,
+                "observed": w_obj.observed,
+                "expected": w_obj.expected,
+            }
+            if cat_counts:
+                d["works"] = f"{cat_counts.get(w_obj.word, 0)}/{works_total}"
+            d["ratio"] = w_obj.ratio
+            d["in_wordnet"] = w_obj.in_wordnet
+            d["in_gngram"] = w_obj.in_gngram
+            d["unicode"] = w_obj.char_type == "unicode"
+            d["numeric"] = w_obj.char_type == "numeric"
+            d["apostrophe"] = "'" in w_obj.word
+            d["hyphen"] = "-" in w_obj.word
+            d["other"] = (
+                bool(_re_json.search(r"[^a-z]", w_obj.word))
+                and w_obj.char_type not in ("unicode", "numeric")
+                and "'" not in w_obj.word
+                and "-" not in w_obj.word
+            )
+            return d
+
+        stats: dict[str, object] = {
+            "total_tokens": result.total_tokens,
+            "unique_tokens": result.unique_tokens,
+            "overused_count": len(result.overused),
+            "underused_count": len(result.underused),
+            "not_in_bnc_count": len(result.not_in_bnc),
+        }
+        if works_total:
+            stats["works_total"] = works_total
+
+        def _sort_key(w_obj: object, cat_counts: dict[str, int]) -> tuple[int, float]:
+            from pystylometry.lexical.bnc_frequency import WordAnalysis
+
+            assert isinstance(w_obj, WordAnalysis)
+            return (cat_counts.get(w_obj.word, 0), w_obj.ratio or 0)
+
+        _over_sorted = sorted(
+            result.overused, key=lambda x: _sort_key(x, works_overused), reverse=True
+        ) if works_total else result.overused
+        _under_sorted = sorted(
+            result.underused, key=lambda x: _sort_key(x, works_underused), reverse=True
+        ) if works_total else result.underused
+        _notbnc_sorted = sorted(
+            result.not_in_bnc, key=lambda x: _sort_key(x, works_notbnc), reverse=True
+        ) if works_total else result.not_in_bnc
+
         output = {
-            "stats": {
-                "total_tokens": result.total_tokens,
-                "unique_tokens": result.unique_tokens,
-                "overused_count": len(result.overused),
-                "underused_count": len(result.underused),
-                "not_in_bnc_count": len(result.not_in_bnc),
-            },
-            "overused": [
-                {
-                    "word": w.word,
-                    "observed": w.observed,
-                    "expected": w.expected,
-                    "ratio": w.ratio,
-                    "in_wordnet": w.in_wordnet,
-                    "in_gngram": w.in_gngram,
-                    "unicode": w.char_type == "unicode",
-                    "numeric": w.char_type == "numeric",
-                    "apostrophe": "'" in w.word,
-                    "hyphen": "-" in w.word,
-                    "other": bool(_re_json.search(r"[^a-z]", w.word))
-                    and w.char_type not in ("unicode", "numeric")
-                    and "'" not in w.word
-                    and "-" not in w.word,
-                }
-                for w in result.overused
-            ],
-            "underused": [
-                {
-                    "word": w.word,
-                    "observed": w.observed,
-                    "expected": w.expected,
-                    "ratio": w.ratio,
-                    "in_wordnet": w.in_wordnet,
-                    "in_gngram": w.in_gngram,
-                    "unicode": w.char_type == "unicode",
-                    "numeric": w.char_type == "numeric",
-                    "apostrophe": "'" in w.word,
-                    "hyphen": "-" in w.word,
-                    "other": bool(_re_json.search(r"[^a-z]", w.word))
-                    and w.char_type not in ("unicode", "numeric")
-                    and "'" not in w.word
-                    and "-" not in w.word,
-                }
-                for w in result.underused
-            ],
+            "stats": stats,
+            "overused": [_json_word(w, works_overused) for w in _over_sorted],
+            "underused": [_json_word(w, works_underused) for w in _under_sorted],
             "not_in_bnc": [
-                {
-                    "word": w.word,
-                    "observed": w.observed,
-                    "in_wordnet": w.in_wordnet,
-                    "in_gngram": w.in_gngram,
-                    "unicode": w.char_type == "unicode",
-                    "numeric": w.char_type == "numeric",
-                    "apostrophe": "'" in w.word,
-                    "hyphen": "-" in w.word,
-                    "other": bool(_re_json.search(r"[^a-z]", w.word))
-                    and w.char_type not in ("unicode", "numeric")
-                    and "'" not in w.word
-                    and "-" not in w.word,
-                }
-                for w in result.not_in_bnc
+                _json_word(w, works_notbnc) for w in _notbnc_sorted
             ],
         }
         output_path.write_text(json.dumps(output, indent=2))
@@ -1045,10 +1083,17 @@ Thresholds:
         import re as _re_csv
 
         # Tab-delimited output with category column
-        lines = [
-            "category\tword\tobserved\texpected\tratio\tin_wordnet\tin_gngram"
-            "\tunicode\tnumeric\tapostrophe\thyphen\tother"
-        ]
+        if works_total:
+            _hdr = (
+                "category\tword\tobserved\texpected\tworks\tratio\tin_wordnet\tin_gngram"
+                "\tunicode\tnumeric\tapostrophe\thyphen\tother"
+            )
+        else:
+            _hdr = (
+                "category\tword\tobserved\texpected\tratio\tin_wordnet\tin_gngram"
+                "\tunicode\tnumeric\tapostrophe\thyphen\tother"
+            )
+        lines = [_hdr]
 
         def fmt_wordnet(val: bool | None) -> str:
             if val is True:
@@ -1067,7 +1112,12 @@ Thresholds:
                 return "no"
             return ""
 
-        for w in result.overused:
+        _csv_over = sorted(
+            result.overused,
+            key=lambda x: (works_overused.get(x.word, 0), x.ratio or 0),
+            reverse=True,
+        ) if works_total else result.overused
+        for w in _csv_over:
             expected = f"{w.expected:.2f}" if w.expected else ""
             ratio = f"{w.ratio:.4f}" if w.ratio else ""
             in_wn = fmt_wordnet(w.in_wordnet)
@@ -1082,12 +1132,27 @@ Thresholds:
                 and "'" not in w.word
                 and "-" not in w.word
             )
-            lines.append(
-                f"overused\t{w.word}\t{w.observed}\t{expected}\t{ratio}\t{in_wn}\t{in_gn}"
-                f"\t{is_uni}\t{is_num}\t{has_apos}\t{has_hyph}\t{has_other}"
-            )
+            if works_total:
+                wk = f"{works_overused.get(w.word, 0)}/{works_total}"
+                line = (
+                    f"overused\t{w.word}\t{w.observed}\t{expected}\t{wk}\t{ratio}"
+                    f"\t{in_wn}\t{in_gn}"
+                    f"\t{is_uni}\t{is_num}\t{has_apos}\t{has_hyph}\t{has_other}"
+                )
+            else:
+                line = (
+                    f"overused\t{w.word}\t{w.observed}\t{expected}\t{ratio}"
+                    f"\t{in_wn}\t{in_gn}"
+                    f"\t{is_uni}\t{is_num}\t{has_apos}\t{has_hyph}\t{has_other}"
+                )
+            lines.append(line)
 
-        for w in result.underused:
+        _csv_under = sorted(
+            result.underused,
+            key=lambda x: (works_underused.get(x.word, 0), x.ratio or 0),
+            reverse=True,
+        ) if works_total else result.underused
+        for w in _csv_under:
             expected = f"{w.expected:.2f}" if w.expected else ""
             ratio = f"{w.ratio:.4f}" if w.ratio else ""
             in_wn = fmt_wordnet(w.in_wordnet)
@@ -1102,12 +1167,27 @@ Thresholds:
                 and "'" not in w.word
                 and "-" not in w.word
             )
-            lines.append(
-                f"underused\t{w.word}\t{w.observed}\t{expected}\t{ratio}\t{in_wn}\t{in_gn}"
-                f"\t{is_uni}\t{is_num}\t{has_apos}\t{has_hyph}\t{has_other}"
-            )
+            if works_total:
+                wk = f"{works_underused.get(w.word, 0)}/{works_total}"
+                line = (
+                    f"underused\t{w.word}\t{w.observed}\t{expected}\t{wk}\t{ratio}"
+                    f"\t{in_wn}\t{in_gn}"
+                    f"\t{is_uni}\t{is_num}\t{has_apos}\t{has_hyph}\t{has_other}"
+                )
+            else:
+                line = (
+                    f"underused\t{w.word}\t{w.observed}\t{expected}\t{ratio}"
+                    f"\t{in_wn}\t{in_gn}"
+                    f"\t{is_uni}\t{is_num}\t{has_apos}\t{has_hyph}\t{has_other}"
+                )
+            lines.append(line)
 
-        for w in result.not_in_bnc:
+        _csv_notbnc = sorted(
+            result.not_in_bnc,
+            key=lambda x: (works_notbnc.get(x.word, 0), x.observed or 0),
+            reverse=True,
+        ) if works_total else result.not_in_bnc
+        for w in _csv_notbnc:
             in_wn = fmt_wordnet(w.in_wordnet)
             in_gn = fmt_gngram(w.in_gngram)
             is_uni = fmt_flag(w.char_type == "unicode")
@@ -1120,10 +1200,19 @@ Thresholds:
                 and "'" not in w.word
                 and "-" not in w.word
             )
-            lines.append(
-                f"not-in-bnc\t{w.word}\t{w.observed}\t\t\t{in_wn}\t{in_gn}"
-                f"\t{is_uni}\t{is_num}\t{has_apos}\t{has_hyph}\t{has_other}"
-            )
+            if works_total:
+                wk = f"{works_notbnc.get(w.word, 0)}/{works_total}"
+                line = (
+                    f"not-in-bnc\t{w.word}\t{w.observed}\t\t{wk}\t"
+                    f"\t{in_wn}\t{in_gn}"
+                    f"\t{is_uni}\t{is_num}\t{has_apos}\t{has_hyph}\t{has_other}"
+                )
+            else:
+                line = (
+                    f"not-in-bnc\t{w.word}\t{w.observed}\t\t\t{in_wn}\t{in_gn}"
+                    f"\t{is_uni}\t{is_num}\t{has_apos}\t{has_hyph}\t{has_other}"
+                )
+            lines.append(line)
 
         output_path.write_text("\n".join(lines))
         console.print(f'[green]✓[/green] TSV saved to: [white]"{output_path}"[/white]')
@@ -1237,24 +1326,25 @@ Thresholds:
 
         import re as _re
 
-        # Overused sheet (sorted by ratio, high to low)
+        # Overused sheet (sorted by works desc, ratio desc when combinatoric)
         ws_over = wb.create_sheet("overused")
-        ws_over.append(
-            [
-                "word",
-                "observed",
-                "expected",
-                "ratio",
-                "in_wordnet",
-                "in_gngram",
-                "unicode",
-                "numeric",
-                "apostrophe",
-                "hyphen",
-                "other",
+        if works_total:
+            _over_hdr = [
+                "word", "observed", "expected", "works", "ratio", "in_wordnet",
+                "in_gngram", "unicode", "numeric", "apostrophe", "hyphen", "other",
             ]
-        )
-        for w in sorted(result.overused, key=lambda x: x.ratio or 0, reverse=True):
+        else:
+            _over_hdr = [
+                "word", "observed", "expected", "ratio", "in_wordnet", "in_gngram",
+                "unicode", "numeric", "apostrophe", "hyphen", "other",
+            ]
+        ws_over.append(_over_hdr)
+        _xl_over = sorted(
+            result.overused,
+            key=lambda x: (works_overused.get(x.word, 0), x.ratio or 0),
+            reverse=True,
+        ) if works_total else sorted(result.overused, key=lambda x: x.ratio or 0, reverse=True)
+        for w in _xl_over:
             in_wn = fmt_wordnet_excel(w.in_wordnet)
             in_gn = fmt_gngram_excel(w.in_gngram)
             is_apos = "'" in w.word
@@ -1265,40 +1355,47 @@ Thresholds:
                 and "'" not in w.word
                 and "-" not in w.word
             )
-            ws_over.append(
-                [
-                    w.word,
-                    w.observed,
-                    w.expected,
-                    w.ratio,
-                    in_wn,
-                    in_gn,
+            if works_total:
+                row_data = [
+                    w.word, w.observed, w.expected,
+                    f"{works_overused.get(w.word, 0)}/{works_total}",
+                    w.ratio, in_wn, in_gn,
                     fmt_bool_flag(w.char_type, "unicode"),
                     fmt_bool_flag(w.char_type, "numeric"),
                     "true" if is_apos else "false",
                     "true" if is_hyph else "false",
                     "true" if is_other else "false",
                 ]
-            )
+            else:
+                row_data = [
+                    w.word, w.observed, w.expected, w.ratio, in_wn, in_gn,
+                    fmt_bool_flag(w.char_type, "unicode"),
+                    fmt_bool_flag(w.char_type, "numeric"),
+                    "true" if is_apos else "false",
+                    "true" if is_hyph else "false",
+                    "true" if is_other else "false",
+                ]
+            ws_over.append(row_data)
 
-        # Underused sheet (sorted by ratio, high to low)
+        # Underused sheet (sorted by works desc, ratio desc when combinatoric)
         ws_under = wb.create_sheet("underused")
-        ws_under.append(
-            [
-                "word",
-                "observed",
-                "expected",
-                "ratio",
-                "in_wordnet",
-                "in_gngram",
-                "unicode",
-                "numeric",
-                "apostrophe",
-                "hyphen",
-                "other",
+        if works_total:
+            _under_hdr = [
+                "word", "observed", "expected", "works", "ratio", "in_wordnet",
+                "in_gngram", "unicode", "numeric", "apostrophe", "hyphen", "other",
             ]
-        )
-        for w in sorted(result.underused, key=lambda x: x.ratio or 0, reverse=True):
+        else:
+            _under_hdr = [
+                "word", "observed", "expected", "ratio", "in_wordnet", "in_gngram",
+                "unicode", "numeric", "apostrophe", "hyphen", "other",
+            ]
+        ws_under.append(_under_hdr)
+        _xl_under = sorted(
+            result.underused,
+            key=lambda x: (works_underused.get(x.word, 0), x.ratio or 0),
+            reverse=True,
+        ) if works_total else sorted(result.underused, key=lambda x: x.ratio or 0, reverse=True)
+        for w in _xl_under:
             in_wn = fmt_wordnet_excel(w.in_wordnet)
             in_gn = fmt_gngram_excel(w.in_gngram)
             is_apos = "'" in w.word
@@ -1309,38 +1406,48 @@ Thresholds:
                 and "'" not in w.word
                 and "-" not in w.word
             )
-            ws_under.append(
-                [
-                    w.word,
-                    w.observed,
-                    w.expected,
-                    w.ratio,
-                    in_wn,
-                    in_gn,
+            if works_total:
+                row_data = [
+                    w.word, w.observed, w.expected,
+                    f"{works_underused.get(w.word, 0)}/{works_total}",
+                    w.ratio, in_wn, in_gn,
                     fmt_bool_flag(w.char_type, "unicode"),
                     fmt_bool_flag(w.char_type, "numeric"),
                     "true" if is_apos else "false",
                     "true" if is_hyph else "false",
                     "true" if is_other else "false",
                 ]
-            )
+            else:
+                row_data = [
+                    w.word, w.observed, w.expected, w.ratio, in_wn, in_gn,
+                    fmt_bool_flag(w.char_type, "unicode"),
+                    fmt_bool_flag(w.char_type, "numeric"),
+                    "true" if is_apos else "false",
+                    "true" if is_hyph else "false",
+                    "true" if is_other else "false",
+                ]
+            ws_under.append(row_data)
 
         # Not in BNC sheet
         ws_notbnc = wb.create_sheet("not-in-bnc")
-        notbnc_headers = [
-            "word",
-            "observed",
-            "in_wordnet",
-            "in_gngram",
-            "unicode",
-            "numeric",
-            "apostrophe",
-            "hyphen",
-            "other",
-        ]
-        ws_notbnc.append(notbnc_headers)
+        if works_total:
+            _notbnc_hdr = [
+                "word", "observed", "works", "in_wordnet", "in_gngram",
+                "unicode", "numeric", "apostrophe", "hyphen", "other",
+            ]
+        else:
+            _notbnc_hdr = [
+                "word", "observed", "in_wordnet", "in_gngram",
+                "unicode", "numeric", "apostrophe", "hyphen", "other",
+            ]
+        ws_notbnc.append(_notbnc_hdr)
 
-        for w in result.not_in_bnc:
+        _xl_notbnc = sorted(
+            result.not_in_bnc,
+            key=lambda x: (works_notbnc.get(x.word, 0), x.observed or 0),
+            reverse=True,
+        ) if works_total else result.not_in_bnc
+        for w in _xl_notbnc:
             in_wn = fmt_wordnet_excel(w.in_wordnet)
             in_gn = fmt_gngram_excel(w.in_gngram)
             is_apos = "'" in w.word
@@ -1351,19 +1458,27 @@ Thresholds:
                 and "'" not in w.word
                 and "-" not in w.word
             )
-            ws_notbnc.append(
-                [
-                    w.word,
-                    w.observed,
-                    in_wn,
-                    in_gn,
+            if works_total:
+                row_data = [
+                    w.word, w.observed,
+                    f"{works_notbnc.get(w.word, 0)}/{works_total}",
+                    in_wn, in_gn,
                     fmt_bool_flag(w.char_type, "unicode"),
                     fmt_bool_flag(w.char_type, "numeric"),
                     "true" if is_apos else "false",
                     "true" if is_hyph else "false",
                     "true" if is_other else "false",
                 ]
-            )
+            else:
+                row_data = [
+                    w.word, w.observed, in_wn, in_gn,
+                    fmt_bool_flag(w.char_type, "unicode"),
+                    fmt_bool_flag(w.char_type, "numeric"),
+                    "true" if is_apos else "false",
+                    "true" if is_hyph else "false",
+                    "true" if is_other else "false",
+                ]
+            ws_notbnc.append(row_data)
 
         # Apply header styling to data sheets (match summary headers)
         for ws in [ws_over, ws_under, ws_notbnc]:
@@ -1381,13 +1496,15 @@ Thresholds:
                 for cell in row:
                     cell.alignment = align
 
-        # Apply number formatting to expected (C) and ratio (D) columns
+        # Apply number formatting to expected and ratio columns
+        # With works: C=expected, E=ratio; without works: C=expected, D=ratio
+        _ratio_col = "E" if works_total else "D"
         for ws in [ws_over, ws_under]:
             for row in range(2, ws.max_row + 1):  # Skip header row
                 ws[f"C{row}"].number_format = "0.00"
-                ws[f"D{row}"].number_format = "0.00"
+                ws[f"{_ratio_col}{row}"].number_format = "0.00"
 
-        # Boolean flag colors (true/false) - used for in_wordnet, apostrophe, hyphen, other
+        # Boolean flag colors (true/false)
         fill_flag_true = PatternFill(
             start_color="BDD7EE", end_color="BDD7EE", fill_type="solid"
         )  # Light blue
@@ -1395,21 +1512,28 @@ Thresholds:
             start_color="FCE4D6", end_color="FCE4D6", fill_type="solid"
         )  # Light peach
 
-        # Apply to in_wordnet (E), in_gngram (F), unicode (G), numeric (H),
-        # apostrophe (I), hyphen (J), other (K) for overused/underused
+        # Boolean flag columns shift when works column is present
+        # With works: F-L (in_wordnet..other); without: E-K
+        _over_flags = (
+            ("F", "G", "H", "I", "J", "K", "L") if works_total
+            else ("E", "F", "G", "H", "I", "J", "K")
+        )
         for ws in [ws_over, ws_under]:
             for row in range(2, ws.max_row + 1):
-                for col_letter in ("E", "F", "G", "H", "I", "J", "K"):
+                for col_letter in _over_flags:
                     cell = ws[f"{col_letter}{row}"]
                     if cell.value == "true":
                         cell.fill = fill_flag_true
                     elif cell.value == "false":
                         cell.fill = fill_flag_false
 
-        # Apply to in_wordnet (C), in_gngram (D), unicode (E), numeric (F),
-        # apostrophe (G), hyphen (H), other (I) in not-in-bnc
+        # Not-in-bnc: with works: D-J; without: C-I
+        _notbnc_flags = (
+            ("D", "E", "F", "G", "H", "I", "J") if works_total
+            else ("C", "D", "E", "F", "G", "H", "I")
+        )
         for row in range(2, ws_notbnc.max_row + 1):
-            for col_letter in ("C", "D", "E", "F", "G", "H", "I"):
+            for col_letter in _notbnc_flags:
                 cell = ws_notbnc[f"{col_letter}{row}"]
                 if cell.value == "true":
                     cell.fill = fill_flag_true
