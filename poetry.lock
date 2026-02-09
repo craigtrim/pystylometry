@@ -61,13 +61,13 @@ numpy = ">=2.0.0,<3.0.0"
 
 [[package]]
 name = "bnc-lookup"
-version = "1.4.2"
+version = "1.4.3"
 description = "Static Hash-Based Lookup for BNC Terms"
 optional = false
 python-versions = "<4.0,>=3.7"
 files = [
-    {file = "bnc_lookup-1.4.2-py3-none-any.whl", hash = "sha256:33fb065c870891bfdbe9b2e1459ef8e9b84131b73f29e6e617f480571127173d"},
-    {file = "bnc_lookup-1.4.2.tar.gz", hash = "sha256:6f7f8612d71770111e52f49e39fd0b692550869ff7e0c2ec4499dffd21aa27ff"},
+    {file = "bnc_lookup-1.4.3-py3-none-any.whl", hash = "sha256:34a83083e84f7e601c386f22c31384c8baf6637a0e3e55ba09102f6884bfe782"},
+    {file = "bnc_lookup-1.4.3.tar.gz", hash = "sha256:d87999fe2d3eff28e56d443d8914e890bbd7fdfcaac93f56ec2c354274007a61"},
 ]
 
 [[package]]
@@ -1741,19 +1741,6 @@ cymem = ">=2.0.2,<2.1.0"
 murmurhash = ">=0.28.0,<1.1.0"
 
 [[package]]
-name = "pronouncing"
-version = "0.2.0"
-description = "A simple interface for the CMU pronouncing dictionary"
-optional = false
-python-versions = "*"
-files = [
-    {file = "pronouncing-0.2.0.tar.gz", hash = "sha256:ff7856e1d973b3e16ff490c5cf1abdb52f08f45e2c35e463249b75741331e7c4"},
-]
-
-[package.dependencies]
-cmudict = ">=0.4.0"
-
-[[package]]
 name = "pyarrow"
 version = "18.1.0"
 description = "Python library for Apache Arrow"
@@ -2144,23 +2131,23 @@ stats = ["scipy (>=1.7)", "statsmodels (>=0.12)"]
 
 [[package]]
 name = "setuptools"
-version = "80.10.2"
+version = "82.0.0"
 description = "Easily download, build, install, upgrade, and uninstall Python packages"
 optional = false
 python-versions = ">=3.9"
 files = [
-    {file = "setuptools-80.10.2-py3-none-any.whl", hash = "sha256:95b30ddfb717250edb492926c92b5221f7ef3fbcc2b07579bcd4a27da21d0173"},
-    {file = "setuptools-80.10.2.tar.gz", hash = "sha256:8b0e9d10c784bf7d262c4e5ec5d4ec94127ce206e8738f29a437945fbc219b70"},
+    {file = "setuptools-82.0.0-py3-none-any.whl", hash = "sha256:70b18734b607bd1da571d097d236cfcfacaf01de45717d59e6e04b96877532e0"},
+    {file = "setuptools-82.0.0.tar.gz", hash = "sha256:22e0a2d69474c6ae4feb01951cb69d515ed23728cf96d05513d36e42b62b37cb"},
 ]
 
 [package.extras]
-check = ["pytest-checkdocs (>=2.4)", "pytest-ruff (>=0.2.1)", "ruff (>=0.8.0)"]
+check = ["pytest-checkdocs (>=2.4)", "pytest-ruff (>=0.2.1)", "ruff (>=0.13.0)"]
 core = ["importlib_metadata (>=6)", "jaraco.functools (>=4)", "jaraco.text (>=3.7)", "more_itertools", "more_itertools (>=8.8)", "packaging (>=24.2)", "platformdirs (>=4.2.2)", "tomli (>=2.0.1)", "wheel (>=0.43.0)"]
 cover = ["pytest-cov"]
 doc = ["furo", "jaraco.packaging (>=9.3)", "jaraco.tidelift (>=1.4)", "pygments-github-lexers (==0.0.5)", "pyproject-hooks (!=1.1)", "rst.linker (>=1.9)", "sphinx (>=3.5)", "sphinx-favicon", "sphinx-inline-tabs", "sphinx-lint", "sphinx-notfound-page (>=1,<2)", "sphinx-reredirects", "sphinxcontrib-towncrier", "towncrier (<24.7)"]
 enabler = ["pytest-enabler (>=2.2)"]
 test = ["build[virtualenv] (>=1.0.3)", "filelock (>=3.4.0)", "ini2toml[lite] (>=0.14)", "jaraco.develop (>=7.21)", "jaraco.envs (>=2.2)", "jaraco.path (>=3.7.2)", "jaraco.test (>=5.5)", "packaging (>=24.2)", "pip (>=19.1)", "pyproject-hooks (!=1.1)", "pytest (>=6,!=8.1.*)", "pytest-home (>=0.5)", "pytest-perf", "pytest-subprocess", "pytest-timeout", "pytest-xdist (>=3)", "tomli-w (>=1.0.0)", "virtualenv (>=13.0.0)", "wheel (>=0.44.0)"]
-type = ["importlib_metadata (>=7.0.2)", "jaraco.develop (>=7.21)", "mypy (==1.14.*)", "pytest-mypy"]
+type = ["importlib_metadata (>=7.0.2)", "jaraco.develop (>=7.21)", "mypy (==1.18.*)", "pytest-mypy"]
 
 [[package]]
 name = "shellingham"
@@ -2743,14 +2730,14 @@ test = ["big-O", "jaraco.functools", "jaraco.itertools", "jaraco.test", "more_it
 type = ["pytest-mypy"]
 
 [extras]
-all = ["bnc-lookup", "gngram-lookup", "matplotlib", "openpyxl", "pronouncing", "seaborn", "spacy", "wordnet-lookup"]
+all = ["bnc-lookup", "cmudict", "gngram-lookup", "matplotlib", "openpyxl", "seaborn", "spacy", "wordnet-lookup"]
 excel = ["openpyxl"]
 lexical = ["bnc-lookup", "gngram-lookup", "openpyxl", "wordnet-lookup"]
-readability = ["pronouncing", "spacy"]
+readability = ["cmudict", "spacy"]
 syntactic = ["spacy"]
 viz = ["matplotlib", "seaborn"]
 
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9"
-content-hash = "fb68bc881270a81921c1a8df9422222dc96eb9aff2e929afa1afcfb5e671f800"
+content-hash = "6b9e26a42e3340ee60907a573a6b8f4a5e2d7a4b0696b78b45b5ef38b3311977"

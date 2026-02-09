@@ -39,6 +39,12 @@ pystylometry-viewer = "pystylometry.cli:viewer_cli"
 pystylometry-tokenize = "pystylometry.cli:tokenize_cli"
 # bnc manuscript.txt -o report.html
 bnc = "pystylometry.cli:bnc_frequency_cli"
+# mega --input-dir ~/ebooks/Author --output-file /tmp/author.xlsx
+mega = "pystylometry.cli:mega_cli"
+# word-class --input-file manuscript.txt -o report.tsv
+word-class = "pystylometry.cli:classify_cli"
+# bnc-meta --input-dir /tmp --output-file /tmp/bnc-comparison.xlsx
+bnc-meta = "pystylometry.cli:bnc_meta_cli"
 
 [tool.poetry.urls]
 Homepage = "https://github.com/craigtrim/pystylometry"
@@ -49,7 +55,8 @@ Issues = "https://github.com/craigtrim/pystylometry/issues"
 python = "^3.9"
 rich = "^13.0"
 # Optional dependencies for extras
-pronouncing = { version = "^0.2.0", optional = true }
+# Issue #60: replaced dead ``pronouncing`` package with direct ``cmudict`` access
+cmudict = { version = "^1.0.0", optional = true }
 spacy = { version = "^3.8.0", optional = true }
 bnc-lookup = { version = ">=1.4.3", optional = true }
 wordnet-lookup = { version = ">=1.2.4", optional = true }
@@ -60,7 +67,7 @@ seaborn = { version = "^0.13.0", optional = true }
 
 [tool.poetry.extras]
 # pip install pystylometry[readability]
-readability = ["pronouncing", "spacy"]
+readability = ["cmudict", "spacy"]
 # pip install pystylometry[syntactic]
 syntactic = ["spacy"]
 # pip install pystylometry[lexical]
@@ -70,10 +77,11 @@ excel = ["openpyxl"]
 # pip install pystylometry[viz]
 viz = ["matplotlib", "seaborn"]
 # pip install pystylometry[all]
-all = ["pronouncing", "spacy", "bnc-lookup", "wordnet-lookup", "gngram-lookup", "openpyxl", "matplotlib", "seaborn"]
+all = ["cmudict", "spacy", "bnc-lookup", "wordnet-lookup", "gngram-lookup", "openpyxl", "matplotlib", "seaborn"]
 
 [tool.poetry.group.readability.dependencies]
-pronouncing = "^0.2.0"
+# Issue #60: replaced dead ``pronouncing`` package with direct ``cmudict`` access
+cmudict = "^1.0.0"
 # spaCy added for NLP-enhanced Gunning Fog Index (PR #4)
 # Enables accurate proper noun detection (POS tagging) and inflection handling (lemmatization)
 # See: https://github.com/craigtrim/pystylometry/pull/4

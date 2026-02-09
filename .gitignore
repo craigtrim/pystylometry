@@ -54,3 +54,4 @@ dmypy.json
 settings.local.json
 pypi.key
 sandbox/
+scripts/
