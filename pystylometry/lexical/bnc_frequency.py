@@ -26,31 +26,57 @@ from collections import Counter
 from dataclasses import dataclass
 from typing import Literal
 
-from .._utils import check_optional_dependency
+from .._utils import advanced_tokenize, check_optional_dependency
 
-# Unicode apostrophe variants to normalize to ASCII apostrophe (U+0027)
+# Unicode apostrophe variants to normalize to ASCII apostrophe (U+0027).
 # See: https://github.com/craigtrim/pystylometry/issues/45
+#      https://github.com/craigtrim/pystylometry/issues/58
 _APOSTROPHE_VARIANTS = (
+    # Spacing clones of diacritics commonly used as quotes
     "\u0060"  # GRAVE ACCENT
     "\u00b4"  # ACUTE ACCENT
+    # General punctuation — single quotation marks
     "\u2018"  # LEFT SINGLE QUOTATION MARK
     "\u2019"  # RIGHT SINGLE QUOTATION MARK
+    "\u201a"  # SINGLE LOW-9 QUOTATION MARK
     "\u201b"  # SINGLE HIGH-REVERSED-9 QUOTATION MARK
+    # General punctuation — prime family
     "\u2032"  # PRIME
     "\u2035"  # REVERSED PRIME
+    # Single-pointing angle quotation marks (guillemets)
+    # Left out: structural quote marks, not apostrophes. See Issue #58.
+    # Modifier letter apostrophe / prime variants
     "\u02b9"  # MODIFIER LETTER PRIME
+    "\u02bb"  # MODIFIER LETTER TURNED COMMA (Hawaiʻian ʻokina)
     "\u02bc"  # MODIFIER LETTER APOSTROPHE
+    "\u02bd"  # MODIFIER LETTER REVERSED COMMA
+    "\u02be"  # MODIFIER LETTER RIGHT HALF RING (Arabic hamza transliteration)
+    "\u02bf"  # MODIFIER LETTER LEFT HALF RING (Arabic ʿayn transliteration)
     "\u02c8"  # MODIFIER LETTER VERTICAL LINE
+    "\u02ca"  # MODIFIER LETTER ACUTE ACCENT
+    "\u02cb"  # MODIFIER LETTER GRAVE ACCENT
+    "\u02dd"  # DOUBLE ACUTE ACCENT (occasionally misused as quote)
+    "\u02f4"  # MODIFIER LETTER MIDDLE GRAVE ACCENT
+    # Combining marks used as apostrophes
     "\u0313"  # COMBINING COMMA ABOVE
     "\u0315"  # COMBINING COMMA ABOVE RIGHT
+    # Script-specific apostrophe marks
     "\u055a"  # ARMENIAN APOSTROPHE
     "\u05f3"  # HEBREW PUNCTUATION GERESH
     "\u07f4"  # NKO HIGH TONE APOSTROPHE
     "\u07f5"  # NKO LOW TONE APOSTROPHE
+    # Fullwidth / compatibility forms
     "\uff07"  # FULLWIDTH APOSTROPHE
+    "\uff40"  # FULLWIDTH GRAVE ACCENT
+    # Greek breathing marks
     "\u1fbf"  # GREEK PSILI
     "\u1fbd"  # GREEK KORONIS
+    # Latin extended
     "\ua78c"  # LATIN SMALL LETTER SALTILLO
+    # Ornamental single quotation marks
+    "\u275b"  # HEAVY SINGLE TURNED COMMA QUOTATION MARK ORNAMENT
+    "\u275c"  # HEAVY SINGLE COMMA QUOTATION MARK ORNAMENT
+    "\u275f"  # HEAVY LOW SINGLE COMMA QUOTATION MARK ORNAMENT
 )
 
 
@@ -74,6 +100,106 @@ def _normalize_apostrophes(text: str) -> str:
     """
     for char in _APOSTROPHE_VARIANTS:
         text = text.replace(char, "'")
+    return text
+
+
+# Unicode dash / hyphen variants to normalize.
+# See: https://github.com/craigtrim/pystylometry/issues/58
+#
+# Category 1 — em-dashes and long dashes: join words without whitespace.
+# These are replaced with a SPACE so that "and—and" becomes two tokens.
+_EM_DASH_CHARS = (
+    # General punctuation dashes (word-joining)
+    "\u2013"  # EN DASH (often used as em-dash in ebooks)
+    "\u2014"  # EM DASH
+    "\u2015"  # HORIZONTAL BAR
+    # Additional dash-like punctuation
+    "\u2e17"  # DOUBLE OBLIQUE HYPHEN
+    "\u2e1a"  # HYPHEN WITH DIAERESIS
+    "\u2e3a"  # TWO-EM DASH
+    "\u2e3b"  # THREE-EM DASH
+)
+
+# Category 2 — hyphen variants: part of compound words.
+# These are replaced with ASCII HYPHEN-MINUS (U+002D) so that
+# "re‑enter" (U+2011) correctly matches the hyphenated.prefixed pattern.
+_HYPHEN_VARIANTS = (
+    # General punctuation hyphens
+    "\u2010"  # HYPHEN
+    "\u2011"  # NON-BREAKING HYPHEN
+    "\u2012"  # FIGURE DASH
+    # Mathematical minus / dash-like operators
+    "\u2212"  # MINUS SIGN
+    "\u2796"  # HEAVY MINUS SIGN
+    # Compatibility / presentation forms
+    "\ufe58"  # SMALL EM DASH
+    "\ufe63"  # SMALL HYPHEN-MINUS
+    "\uff0d"  # FULLWIDTH HYPHEN-MINUS
+    # Script-specific hyphenation marks
+    "\u058a"  # ARMENIAN HYPHEN
+    "\u05be"  # HEBREW MAQAF
+    "\u1400"  # CANADIAN SYLLABICS HYPHEN
+    "\u30a0"  # KATAKANA-HIRAGANA DOUBLE HYPHEN
+)
+
+# Category 3 — invisible / soft hyphens and variation selectors: removed entirely.
+_SOFT_HYPHENS = (
+    "\u00ad"  # SOFT HYPHEN
+    "\u1806"  # MONGOLIAN TODO SOFT HYPHEN
+    "\u2063"  # INVISIBLE SEPARATOR
+    # Mongolian free variation selectors (invisible formatting; appear in
+    # apostrophe-like shaping contexts but carry no glyph of their own).
+    "\u180b"  # MONGOLIAN FREE VARIATION SELECTOR ONE
+    "\u180c"  # MONGOLIAN FREE VARIATION SELECTOR TWO
+    "\u180d"  # MONGOLIAN FREE VARIATION SELECTOR THREE
+)
+
+
+def _normalize_dashes(text: str) -> str:
+    """Normalize Unicode dash and hyphen variants for consistent tokenization.
+
+    Performs three operations in order:
+
+    1. **Em-dash splitting** — replace em-dashes, horizontal bars, two/three-em
+       dashes, and other long dash punctuation with a space so that joined
+       words like ``and—and`` become separate tokens.
+    2. **Hyphen normalization** — replace Unicode hyphen variants (general
+       punctuation, mathematical, compatibility forms, script-specific) with
+       ASCII hyphen-minus (U+002D) so that compound words like ``re‑enter``
+       classify correctly as ``hyphenated.prefixed``.
+    3. **Soft-hyphen removal** — delete invisible line-break hints (U+00AD,
+       U+1806, U+2063).
+
+    Args:
+        text: Input text potentially containing Unicode dash/hyphen variants.
+
+    Returns:
+        Text with dashes and hyphens normalized.
+
+    Related GitHub Issue:
+        #58 -- Add centralized Unicode dash & hyphen normalization
+        https://github.com/craigtrim/pystylometry/issues/58
+
+    Example:
+        >>> _normalize_dashes("and\u2014and")      # em-dash → space
+        'and and'
+        >>> _normalize_dashes("re\u2011enter")      # non-breaking hyphen → ASCII -
+        're-enter'
+        >>> _normalize_dashes("beau\u00adtiful")    # soft hyphen → removed
+        'beautiful'
+    """
+    # 1. Em-dashes → space (must happen before whitespace split)
+    for char in _EM_DASH_CHARS:
+        text = text.replace(char, " ")
+
+    # 2. Hyphen variants → ASCII hyphen-minus
+    for char in _HYPHEN_VARIANTS:
+        text = text.replace(char, "-")
+
+    # 3. Soft / invisible hyphens → removed
+    for char in _SOFT_HYPHENS:
+        text = text.replace(char, "")
+
     return text
 
 
@@ -239,16 +365,54 @@ def compute_bnc_frequency(
             # gngram-lookup is optional
             pass
 
-    # Tokenize text (simple whitespace + punctuation stripping)
-    # First normalize apostrophes to ensure consistent BNC lookups (Issue #45)
-    normalized_text = _normalize_apostrophes(text)
-    raw_tokens = normalized_text.split()
-    tokens = []
-    for raw in raw_tokens:
-        # Strip leading/trailing punctuation, lowercase
-        cleaned = re.sub(r"^[^\w]+|[^\w]+$", "", raw).lower()
-        if cleaned:
-            tokens.append(cleaned)
+    # ── Tokenization ─────────────────────────────────────────────────────
+    #
+    # Use the central tokenizer (advanced_tokenize) instead of a naive
+    # whitespace split.  This was a deliberate decision to begin
+    # standardizing tokenization across all analysis modules.
+    #
+    # Related GitHub Issue:
+    #     #56 — Standardize tokenization across all analysis modules
+    #     https://github.com/craigtrim/pystylometry/issues/56
+    #
+    # Why advanced_tokenize and not raw .split()?
+    #   • The central tokenizer normalizes Unicode (smart quotes, curly
+    #     apostrophes, ligatures, zero-width chars) via _UNICODE_REPLACEMENTS
+    #     in tokenizer.py.  This supersedes the narrower _normalize_apostrophes()
+    #     call that was here before — except for a handful of exotic codepoints
+    #     (Armenian apostrophe, Hebrew geresh, etc.) that the central tokenizer
+    #     does not cover.  We keep _normalize_apostrophes() as a pre-pass for
+    #     those edge cases.
+    #   • Punctuation tokens are stripped (strip_punctuation=True), giving us
+    #     clean word tokens without a manual regex pass.
+    #   • Contractions like "don't" are preserved as single tokens, which is
+    #     what BNC lookups expect.
+    #
+    # Em-dash / en-dash handling:
+    #   The central tokenizer normalizes em/en dashes to ASCII hyphens, but
+    #   its regex then captures "acted-loud" as a single hyphenated compound
+    #   token.  For BNC lookups we need these as separate words, so we
+    #   pre-split on em/en dashes by inserting spaces before tokenizing.
+    #   The central tokenizer is not modified — this is BNC-side pre-processing.
+    #
+    # ──────────────────────────────────────────────────────────────────────
+
+    # Pre-pass 1: normalize exotic apostrophe variants (Issue #45)
+    # Covers codepoints not in the central tokenizer's _UNICODE_REPLACEMENTS.
+    prepared_text = _normalize_apostrophes(text)
+
+    # Pre-pass 2: normalize dashes and hyphens (Issue #58).
+    # Splits em-dashes into spaces, normalizes Unicode hyphens to ASCII,
+    # and removes soft hyphens.
+    prepared_text = _normalize_dashes(prepared_text)
+
+    # Central tokenizer: lowercase, strip punctuation, preserve contractions.
+    tokens = advanced_tokenize(
+        prepared_text,
+        lowercase=True,
+        strip_punctuation=True,
+        expand_contractions=False,
+    )
 
     total_tokens = len(tokens)
 

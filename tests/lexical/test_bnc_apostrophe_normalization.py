@@ -13,27 +13,52 @@ from pystylometry.lexical.bnc_frequency import compute_bnc_frequency
 
 # Define the expected apostrophe variants for testing purposes
 # These should match _APOSTROPHE_VARIANTS in bnc_frequency.py
+# See: https://github.com/craigtrim/pystylometry/issues/45
+#      https://github.com/craigtrim/pystylometry/issues/58
 EXPECTED_APOSTROPHE_VARIANTS = [
+    # Spacing clones of diacritics
     ("\u0060", "GRAVE ACCENT"),
     ("\u00b4", "ACUTE ACCENT"),
+    # General punctuation — single quotation marks
     ("\u2018", "LEFT SINGLE QUOTATION MARK"),
     ("\u2019", "RIGHT SINGLE QUOTATION MARK"),
+    ("\u201a", "SINGLE LOW-9 QUOTATION MARK"),
     ("\u201b", "SINGLE HIGH-REVERSED-9 QUOTATION MARK"),
+    # Prime family
     ("\u2032", "PRIME"),
     ("\u2035", "REVERSED PRIME"),
+    # Modifier letter variants
     ("\u02b9", "MODIFIER LETTER PRIME"),
+    ("\u02bb", "MODIFIER LETTER TURNED COMMA"),
     ("\u02bc", "MODIFIER LETTER APOSTROPHE"),
+    ("\u02bd", "MODIFIER LETTER REVERSED COMMA"),
+    ("\u02be", "MODIFIER LETTER RIGHT HALF RING"),
+    ("\u02bf", "MODIFIER LETTER LEFT HALF RING"),
     ("\u02c8", "MODIFIER LETTER VERTICAL LINE"),
+    ("\u02ca", "MODIFIER LETTER ACUTE ACCENT"),
+    ("\u02cb", "MODIFIER LETTER GRAVE ACCENT"),
+    ("\u02dd", "DOUBLE ACUTE ACCENT"),
+    ("\u02f4", "MODIFIER LETTER MIDDLE GRAVE ACCENT"),
+    # Combining marks
     ("\u0313", "COMBINING COMMA ABOVE"),
     ("\u0315", "COMBINING COMMA ABOVE RIGHT"),
+    # Script-specific
     ("\u055a", "ARMENIAN APOSTROPHE"),
     ("\u05f3", "HEBREW PUNCTUATION GERESH"),
     ("\u07f4", "NKO HIGH TONE APOSTROPHE"),
     ("\u07f5", "NKO LOW TONE APOSTROPHE"),
+    # Fullwidth / compatibility
     ("\uff07", "FULLWIDTH APOSTROPHE"),
+    ("\uff40", "FULLWIDTH GRAVE ACCENT"),
+    # Greek breathing marks
     ("\u1fbf", "GREEK PSILI"),
     ("\u1fbd", "GREEK KORONIS"),
+    # Latin extended
     ("\ua78c", "LATIN SMALL LETTER SALTILLO"),
+    # Ornamental
+    ("\u275b", "HEAVY SINGLE TURNED COMMA QUOTATION MARK ORNAMENT"),
+    ("\u275c", "HEAVY SINGLE COMMA QUOTATION MARK ORNAMENT"),
+    ("\u275f", "HEAVY LOW SINGLE COMMA QUOTATION MARK ORNAMENT"),
 ]
 
 
