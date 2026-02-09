@@ -1,18 +1,24 @@
 """
 Syllable counting using CMU Pronouncing Dictionary.
 
-Uses the pronouncing library which provides access to the CMU Pronouncing
-Dictionary for high-accuracy syllable counting based on phonetic transcriptions.
+Uses a local cmudict wrapper (``pystylometry.prosody.pronouncing``) for
+high-accuracy syllable counting based on phonetic transcriptions.
+
+Related GitHub Issue:
+    #60 - Replace pronouncing with direct cmudict access
+    https://github.com/craigtrim/pystylometry/issues/60
 """
 
 import re
 from functools import lru_cache
 
 try:
-    import pronouncing  # type: ignore[import-untyped]
+    # Issue #60: replaced third-party ``pronouncing`` package with local
+    # cmudict wrapper to avoid deprecated pkg_resources dependency.
+    from pystylometry.prosody.pronouncing import phones_for_word, syllable_count
 except ImportError:
     raise ImportError(
-        "The 'pronouncing' library is required for syllable counting. "
+        "The 'cmudict' library is required for syllable counting. "
         "Install it with: pip install pystylometry[readability]"
     )
 
@@ -57,14 +63,14 @@ def count_syllables(word: str) -> int:
     if "-" in word:
         return sum(count_syllables(part) for part in word.split("-") if part)
 
-    # Get pronunciations from CMU dictionary
-    phones_list = pronouncing.phones_for_word(word)
+    # Get pronunciations from CMU dictionary (Issue #60: direct cmudict access)
+    phones_list = phones_for_word(word)
 
     if phones_list:
         # Use first pronunciation (most common)
         # Count stress markers (0, 1, 2) in phoneme representation
         phones = phones_list[0]
-        return pronouncing.syllable_count(phones)  # type: ignore[no-any-return]
+        return syllable_count(phones)
 
     # Fallback for words not in dictionary: simple vowel counting
     return _fallback_count(word)

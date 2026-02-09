@@ -62,7 +62,7 @@ try:
 except ImportError:
     _SYNTACTIC_AVAILABLE = False
 
-# Prosody requires pronouncing (CMU dictionary) - same dependency as readability
+# Prosody requires cmudict (CMU dictionary) - same dependency as readability (Issue #60)
 try:
     from . import prosody  # noqa: F401 - Rhythm and prosody metrics (Issue #25)
 

@@ -18,8 +18,8 @@ Features analyzed:
     - Metrical foot estimation (iambic, trochaic, dactylic, anapestic)
 
 Dependencies:
-    - CMU Pronouncing Dictionary (via pronouncing package)
-    - pronouncing is already a dependency for pystylometry[readability]
+    - CMU Pronouncing Dictionary (via cmudict package)
+    - Issue #60: replaced third-party ``pronouncing`` with local cmudict wrapper
 
 References:
     Fabb, N., & Halle, M. (2008). Meter in Poetry: A New Theory. Cambridge
@@ -44,15 +44,18 @@ from .._types import RhythmProsodyResult
 # =============================================================================
 # DEPENDENCY: CMU PRONOUNCING DICTIONARY
 # =============================================================================
-# The pronouncing package provides access to the CMU Pronouncing Dictionary,
-# which maps English words to ARPAbet phoneme sequences with stress markers.
-# Stress markers: 0 = no stress, 1 = primary stress, 2 = secondary stress.
+# Issue #60: replaced third-party ``pronouncing`` package (dead since 2015,
+# uses deprecated pkg_resources) with a local cmudict wrapper that talks to
+# the ``cmudict`` package directly via importlib.resources.
+#
+# The CMU dictionary maps English words to ARPAbet phoneme sequences with
+# stress markers: 0 = no stress, 1 = primary stress, 2 = secondary stress.
 
 try:
-    import pronouncing  # type: ignore[import-untyped]
+    from .pronouncing import phones_for_word, syllable_count
 except ImportError:
     raise ImportError(
-        "The 'pronouncing' library is required for rhythm and prosody analysis. "
+        "The 'cmudict' library is required for rhythm and prosody analysis. "
         "Install it with: pip install pystylometry[readability]"
     )
 
@@ -112,9 +115,9 @@ def _get_phones(word: str) -> str | None:
     Returns the ARPAbet phoneme string, or None if the word is not found.
     CMU stress markers: 0 = no stress, 1 = primary, 2 = secondary.
     """
-    phones_list = pronouncing.phones_for_word(word.lower())
+    phones_list = phones_for_word(word.lower())
     if phones_list:
-        return phones_list[0]  # type: ignore[no-any-return]
+        return phones_list[0]
     return None
 
 
@@ -127,7 +130,7 @@ def _count_syllables(word: str) -> int:
     """
     phones = _get_phones(word)
     if phones:
-        return pronouncing.syllable_count(phones)  # type: ignore[no-any-return]
+        return syllable_count(phones)
     return _fallback_syllable_count(word)
 
 
@@ -654,7 +657,7 @@ def compute_rhythm_prosody(text: str) -> RhythmProsodyResult:
         - anapestic_ratio: Unstressed-unstressed-stressed trigrams / total feet.
 
     Dependencies:
-        Requires the ``pronouncing`` package for CMU dictionary access.
+        Requires the ``cmudict`` package for CMU dictionary access.
         Install with: ``pip install pystylometry[readability]``
 
     References:
