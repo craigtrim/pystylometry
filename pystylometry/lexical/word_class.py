@@ -211,8 +211,17 @@ _COPULA_ENCLITICS: set[str] = {
     "who's",
     "why's",
     # 're (= are)
+    # Gap identified via Bradbury corpus analysis — Issue #56
+    # https://github.com/craigtrim/pystylometry/issues/56
+    "how're",
     "they're",
+    "there're",
     "we're",
+    "what're",
+    "when're",
+    "where're",
+    "who're",
+    "why're",
     "you're",
     # 'm (= am)
     "i'm",
@@ -224,7 +233,10 @@ _COPULA_ENCLITICS: set[str] = {
 # auxiliary reductions and classify identically here.
 _AUXILIARY_ENCLITICS: set[str] = {
     # 'll (= will / shall)
+    # Filled interrogative gaps — Issue #56
+    # https://github.com/craigtrim/pystylometry/issues/56
     "he'll",
+    "how'll",
     "i'll",
     "it'll",
     "she'll",
@@ -233,9 +245,14 @@ _AUXILIARY_ENCLITICS: set[str] = {
     "they'll",
     "we'll",
     "what'll",
+    "when'll",
+    "where'll",
     "who'll",
+    "why'll",
     "you'll",
     # 'd (= would / had)
+    # Filled interrogative gaps — Issue #56
+    # https://github.com/craigtrim/pystylometry/issues/56
     "he'd",
     "how'd",
     "i'd",
@@ -246,16 +263,26 @@ _AUXILIARY_ENCLITICS: set[str] = {
     "they'd",
     "we'd",
     "what'd",
+    "when'd",
+    "where'd",
     "who'd",
+    "why'd",
     "you'd",
     # 've (= have)
+    # Filled interrogative gaps — Issue #56
+    # https://github.com/craigtrim/pystylometry/issues/56
     "could've",
+    "how've",
     "i've",
     "might've",
     "must've",
     "should've",
+    "that've",
+    "there've",
     "they've",
     "we've",
+    "what've",
+    "where've",
     "who've",
     "would've",
     "you've",
@@ -300,15 +327,48 @@ _DIALECTAL_PRONOUN_REDUCTION: set[str] = {
     "'is",
 }
 
-_DIALECTAL_MEDIAL: set[str] = {
-    "ma'am",
-    "o'clock",
-    "fo'c'sle",
-    "ne'er",
-    "e'er",
-    "o'er",
-    "ha'penny",
-    "jack-o'-lantern",  # also apostrophe_hyphenated, handled separately
+# -- Elision: interior (sounds dropped from inside a single word) ----------
+# Syncope (Greek synkopē, "a cutting short") is the loss of one or more
+# sounds from the interior of a word.  The apostrophe marks where the
+# omitted letters were.  These are NOT dialectal — most are standard
+# English or established literary/poetic forms.
+#
+# Distinct from:
+#   - aphaeresis/aphesis (initial elision): 'twas, 'tis → _APHETIC_*
+#   - apocope (final elision): runnin', singin' → _G_DROPPING regex
+#   - elision.of / elision.and: elided prepositions inside compounds
+#
+# Related GitHub Issues:
+#     #57 — Reclassify apostrophe.dialectal.medial as apostrophe.syncopated
+#     https://github.com/craigtrim/pystylometry/issues/57
+#     #59 — Introduce elision top-level category
+#     https://github.com/craigtrim/pystylometry/issues/59
+#
+# Previously _DIALECTAL_MEDIAL (#57), then _SYNCOPATED, now _ELISION_INTERIOR (#59).
+_ELISION_INTERIOR: set[str] = {
+    # Time & calendar
+    "o'clock",       # of the clock
+    "hallowe'en",    # All Hallows' Even(ing)
+    # Poetic/archaic syncope (vowel elision)
+    "ne'er",         # never
+    "e'er",          # ever
+    "o'er",          # over
+    "whe'er",        # whether
+    "whate'er",      # whatever
+    "whene'er",      # whenever
+    "where'er",      # wherever
+    "howe'er",       # however
+    "whoe'er",       # whoever
+    "fore'er",       # forever
+    # Nautical syncope
+    "fo'c'sle",      # forecastle
+    "bo's'n",        # boatswain
+    "bos'n",         # boatswain (variant)
+    "cap'n",         # captain
+    # Address & social
+    "ma'am",         # madam
+    "ha'penny",      # halfpenny
+    "ha'p'orth",     # halfpennyworth
 }
 
 _DIALECTAL_INITIAL: set[str] = {
@@ -415,11 +475,23 @@ _DIRECTIONAL: set[str] = {
 }
 
 # -- Apostrophe + Hyphen: compound reductions --------------------------------
-_APOSTROPHE_HYPHENATED: set[str] = {
-    "cat-o'-nine-tails",
-    "jack-o'-lantern",
-    "tam-o'-shanter",
-    "will-o'-the-wisp",
+# -- Elision: of (o' = elided "of" inside a hyphenated compound) -----------
+# Established forms.  The productive *-o'-* pattern is also matched by
+# the _ELISION_OF_PATTERN regex below, so literary coinages like
+# cloak-o'-shadows are caught without being enumerated here.
+#
+# Related GitHub Issues:
+#     #57 — https://github.com/craigtrim/pystylometry/issues/57
+#     #59 — Introduce elision top-level category
+#     https://github.com/craigtrim/pystylometry/issues/59
+#
+# Previously _APOSTROPHE_HYPHENATED — renamed in Issue #59.
+_ELISION_OF: set[str] = {
+    "cat-o'-nine-tails",   # cat of nine tails
+    "jack-o'-lantern",     # jack of the lantern
+    "man-o'-war",          # man of war
+    "tam-o'-shanter",      # tam of shanter
+    "will-o'-the-wisp",    # will of the wisp
 }
 
 # ---------------------------------------------------------------------------
@@ -432,6 +504,33 @@ _APOSTROPHE_HYPHENATED: set[str] = {
 # as a systematic orthographic signal of compound type.
 # https://github.com/craigtrim/pystylometry/issues/52#issuecomment-2640070893
 # ---------------------------------------------------------------------------
+
+# Elision of "of": *-o'-*(-*)+ pattern
+# Productive — catches literary coinages (cloak-o'-shadows, road-o'-bones)
+# without enumerating them.  Established forms are also in _ELISION_OF.
+#
+# Related GitHub Issues:
+#     #57 — https://github.com/craigtrim/pystylometry/issues/57
+#     #59 — Introduce elision top-level category
+#     https://github.com/craigtrim/pystylometry/issues/59
+#
+# Previously _PREPOSITIONAL_CLITIC — renamed in Issue #59.
+_ELISION_OF_PATTERN = re.compile(
+    r"^[a-z]+-o'-[a-z]+(-[a-z]+)*$",
+    re.IGNORECASE,
+)
+
+# Elision of "and": *-'n'-* pattern
+# The 'n' is an elided "and" fused into a hyphenated compound.
+# rock-'n'-roll, fish-'n'-chips, pick-'n'-mix, drum-'n'-bass, etc.
+#
+# Related GitHub Issue:
+#     #59 — Introduce elision top-level category
+#     https://github.com/craigtrim/pystylometry/issues/59
+_ELISION_AND_PATTERN = re.compile(
+    r"^[a-z]+-'n'-[a-z]+(-[a-z]+)*$",
+    re.IGNORECASE,
+)
 
 # Hyphenated prefixes -- productive English prefixes that often appear with
 # a hyphen before the root word.
@@ -449,9 +548,7 @@ _SELF_COMPOUND = re.compile(r"^self-[a-z]", re.IGNORECASE)
 _TENS = r"(?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)"
 _ONES = r"(?:one|two|three|four|five|six|seven|eight|nine)"
 _ORDINAL_ONES = r"(?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth)"
-_NUMBER_WORD = re.compile(
-    rf"^{_TENS}-(?:{_ONES}|{_ORDINAL_ONES})$", re.IGNORECASE
-)
+_NUMBER_WORD = re.compile(rf"^{_TENS}-(?:{_ONES}|{_ORDINAL_ONES})$", re.IGNORECASE)
 
 # Numeric ordinals: 1st, 2nd, 3rd, 4th, 21st, 100th, etc.
 _NUMERIC_ORDINAL = re.compile(r"^\d+(?:st|nd|rd|th)$", re.IGNORECASE)
@@ -459,9 +556,17 @@ _NUMERIC_ORDINAL = re.compile(r"^\d+(?:st|nd|rd|th)$", re.IGNORECASE)
 # g-dropping: words ending in in' (runnin', jumpin', somethin')
 _G_DROPPING = re.compile(r"^[a-z]{2,}in'$", re.IGNORECASE)
 
-# Phrasal modifiers: multi-hyphen chains with small connecting words
-_PHRASAL_MODIFIER = re.compile(
-    r"^[a-z]+-(?:of|the|to|a|an|in|on|at|for|and|or|than|as)-[a-z]",
+# Prepositional compounds: hyphenated chains with full (non-elided)
+# prepositions or articles.  jack-in-the-box, mother-in-law, coat-of-arms,
+# state-of-the-art, back-to-back, hand-to-hand, out-of-the-way, etc.
+#
+# Related GitHub Issue:
+#     #59 — Introduce elision top-level category
+#     https://github.com/craigtrim/pystylometry/issues/59
+#
+# Previously _PHRASAL_MODIFIER — renamed in Issue #59.
+_PREPOSITIONAL_COMPOUND = re.compile(
+    r"^[a-z]+(-[a-z]+)*-(?:of|the|to|a|an|in|on|at|by|for|and|or|than|as)-[a-z]+(-[a-z]+)*$",
     re.IGNORECASE,
 )
 
@@ -502,8 +607,16 @@ def classify_word(word: str) -> WordClass:
     Examples:
         >>> classify_word("don't").label
         'apostrophe.contraction.negative'
+        >>> classify_word("ne'er").label
+        'elision.interior'
+        >>> classify_word("jack-o'-lantern").label
+        'elision.of'
+        >>> classify_word("rock-'n'-roll").label
+        'elision.and'
         >>> classify_word("self-esteem").label
         'hyphenated.compound.self'
+        >>> classify_word("mother-in-law").label
+        'hyphenated.compound.prepositional'
         >>> classify_word("trembling").label
         'lexical'
         >>> classify_word("café").label
@@ -518,25 +631,34 @@ def classify_word(word: str) -> WordClass:
 
     # -----------------------------------------------------------------------
     # L1: Determine orthographic class from flags
+    #
+    # Related GitHub Issue:
+    #     #59 — Introduce elision top-level category
+    #     https://github.com/craigtrim/pystylometry/issues/59
     # -----------------------------------------------------------------------
 
-    # Apostrophe + Hyphen (check first — more specific than either alone)
-    if has_apostrophe and has_hyphen:
-        result = _classify_apostrophe_hyphenated(lower, word)
+    # Elision check (apostrophe present — may or may not have hyphen).
+    # Elision is checked first because it is the most specific category:
+    # a word like jack-o'-lantern has both apostrophe and hyphen, but the
+    # apostrophe marks an elision, not a contraction or possessive.
+    if has_apostrophe:
+        result = _classify_elision(lower, word)
         if result:
             return result
-        # If not a known apostrophe-hyphenated form, fall through to
-        # whichever flag dominates.  Apostrophe patterns are richer,
-        # so try apostrophe first, then hyphenated.
+
+    # Apostrophe + Hyphen (elision already tried above)
+    if has_apostrophe and has_hyphen:
+        # Try apostrophe patterns (contractions, possessives, etc.)
         result = _classify_apostrophe(lower, word)
         if result:
             return result
+        # Try hyphenated patterns (reduplicated, prefixed, etc.)
         result = _classify_hyphenated(lower, word)
         if result:
             return result
-        return WordClass(word, "apostrophe_hyphenated", "unclassified")
+        return WordClass(word, "elision", "unclassified")
 
-    # Apostrophe only
+    # Apostrophe only (elision already tried above)
     if has_apostrophe:
         result = _classify_apostrophe(lower, word)
         if result:
@@ -593,8 +715,8 @@ def _classify_apostrophe(lower: str, word: str) -> WordClass | None:
         return WordClass(word, "apostrophe", "aphetic", "poetic")
     if lower in _DIALECTAL_PRONOUN_REDUCTION:
         return WordClass(word, "apostrophe", "dialectal", "pronoun_reduction")
-    if lower in _DIALECTAL_MEDIAL:
-        return WordClass(word, "apostrophe", "dialectal", "medial")
+    # NOTE: interior elision (ne'er, o'clock, etc.) is now handled by the
+    # elision top-level branch in classify_word(), not here.  See Issue #59.
     if lower in _DIALECTAL_INITIAL:
         return WordClass(word, "apostrophe", "dialectal", "initial")
     if lower in _DIALECTAL_YALL:
@@ -639,11 +761,16 @@ def _classify_hyphenated(lower: str, word: str) -> WordClass | None:
     if _NUMBER_WORD.match(lower):
         return WordClass(word, "hyphenated", "number_word")
 
-    # Phrasal modifiers: state-of-the-art, run-of-the-mill, etc.
-    # (checked before prefixed because "out-of-date" should be phrasal,
-    # not prefixed with "out-")
-    if _PHRASAL_MODIFIER.match(lower):
-        return WordClass(word, "hyphenated", "phrasal_modifier")
+    # Prepositional compounds: jack-in-the-box, state-of-the-art, etc.
+    # Full (non-elided) preposition inside a hyphenated compound.
+    # Checked before prefixed because "out-of-date" should be prepositional,
+    # not prefixed with "out-".
+    #
+    # Related GitHub Issue:
+    #     #59 — Introduce elision top-level category
+    #     https://github.com/craigtrim/pystylometry/issues/59
+    if _PREPOSITIONAL_COMPOUND.match(lower):
+        return WordClass(word, "hyphenated", "compound", "prepositional")
 
     # Productive prefixes: re-enter, co-operate, anti-hero, etc.
     if _HYPHEN_PREFIXES.match(lower):
@@ -652,12 +779,41 @@ def _classify_hyphenated(lower: str, word: str) -> WordClass | None:
     return None
 
 
-def _classify_apostrophe_hyphenated(
-    lower: str, word: str
-) -> WordClass | None:
-    """Classify words containing both apostrophe and hyphen."""
-    if lower in _APOSTROPHE_HYPHENATED:
-        return WordClass(word, "apostrophe_hyphenated", "compound_reduction")
+def _classify_elision(lower: str, word: str) -> WordClass | None:
+    """Classify words involving elision (sound deletion marked by apostrophe).
+
+    Elision is the top-level category for all forms where sounds were dropped
+    and an apostrophe marks the omission.  Three subtypes:
+
+    - ``elision.interior``: sounds dropped inside a single word
+      (ne'er, o'clock, hallowe'en, ma'am)
+    - ``elision.of``: "of" elided to o' inside a hyphenated compound
+      (jack-o'-lantern, cloak-o'-shadows)
+    - ``elision.and``: "and" elided to 'n' inside a hyphenated compound
+      (rock-'n'-roll, fish-'n'-chips)
+
+    Related GitHub Issues:
+        #57 — Reclassify apostrophe.dialectal.medial as apostrophe.syncopated
+        https://github.com/craigtrim/pystylometry/issues/57
+        #59 — Introduce elision top-level category
+        https://github.com/craigtrim/pystylometry/issues/59
+    """
+    # Interior elision: single words with apostrophe marking dropped sounds
+    if lower in _ELISION_INTERIOR:
+        return WordClass(word, "elision", "interior")
+
+    # Elision of "of": exact word-list lookup
+    if lower in _ELISION_OF:
+        return WordClass(word, "elision", "of")
+
+    # Elision of "of": productive *-o'-* regex
+    if _ELISION_OF_PATTERN.match(lower):
+        return WordClass(word, "elision", "of")
+
+    # Elision of "and": productive *-'n'-* regex
+    if _ELISION_AND_PATTERN.match(lower):
+        return WordClass(word, "elision", "and")
+
     return None
 
 

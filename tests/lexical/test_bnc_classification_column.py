@@ -638,9 +638,9 @@ class TestEdgeCaseClassifications:
         assert classify_word("'gainst").label == "apostrophe.aphetic.poetic"
         assert classify_word("'neath").label == "apostrophe.aphetic.poetic"
 
-    def test_dialectal_medial(self):
-        """Medial dialectal forms should classify correctly."""
-        assert classify_word("o'clock").label == "apostrophe.dialectal.medial"
+    def test_elision_interior(self):
+        """Interior elision (Issue #59)."""
+        assert classify_word("o'clock").label == "elision.interior"
 
     def test_reduplicated_exact(self):
         """Exact reduplications should classify correctly."""
@@ -688,7 +688,8 @@ class TestBulkL1Categories:
             ("house", "lexical"),
             ("don't", "apostrophe"),
             ("zig-zag", "hyphenated"),
-            ("jack-o'-lantern", "apostrophe_hyphenated"),
+            ("jack-o'-lantern", "elision"),
+            ("ne'er", "elision"),
             ("cafe\u0301", "unicode"),
             ("1st", "numeric"),
         ],
@@ -704,8 +705,8 @@ class TestBulkL1Categories:
         expected_l1s = {
             "lexical",
             "apostrophe",
+            "elision",
             "hyphenated",
-            "apostrophe_hyphenated",
             "unicode",
             "numeric",
             "other",
@@ -722,8 +723,9 @@ class TestBulkL1Categories:
             for w in [
                 "house",
                 "don't",
-                "zig-zag",
+                "ne'er",
                 "jack-o'-lantern",
+                "zig-zag",
                 "cafe\u0301",
                 "1st",
                 "foo@bar",

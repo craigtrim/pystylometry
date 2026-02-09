@@ -320,12 +320,11 @@ class TestDialectalForms:
         result = classify_word(word)
         assert result.label == "apostrophe.dialectal.pronoun_reduction"
 
-    @pytest.mark.parametrize(
-        "word", ["ma'am", "o'clock", "ne'er", "e'er", "o'er", "ha'penny"]
-    )
-    def test_medial(self, word):
+    @pytest.mark.parametrize("word", ["ma'am", "o'clock", "ne'er", "e'er", "o'er", "ha'penny"])
+    def test_elision_interior(self, word):
+        """Interior elision: sounds dropped inside a single word (Issue #59)."""
         result = classify_word(word)
-        assert result.label == "apostrophe.dialectal.medial"
+        assert result.label == "elision.interior"
 
     @pytest.mark.parametrize(
         "word",
@@ -483,9 +482,9 @@ class TestPrefixedForms:
     )
     def test_prefixed(self, word, prefix):
         result = classify_word(word)
-        assert result.label == "hyphenated.prefixed", (
-            f"{word} (prefix={prefix}) should be hyphenated.prefixed"
-        )
+        assert (
+            result.label == "hyphenated.prefixed"
+        ), f"{word} (prefix={prefix}) should be hyphenated.prefixed"
 
 
 # ===================================================================
@@ -625,8 +624,8 @@ class TestReduplicated:
 # ===================================================================
 
 
-class TestPhrasalModifiers:
-    """Multi-hyphen chains with connecting words."""
+class TestPrepositionalCompounds:
+    """Hyphenated compounds with full (non-elided) prepositions (Issue #59)."""
 
     @pytest.mark.parametrize(
         "word",
@@ -647,9 +646,9 @@ class TestPhrasalModifiers:
             "better-than-average",
         ],
     )
-    def test_phrasal_modifier(self, word):
+    def test_prepositional_compound(self, word):
         result = classify_word(word)
-        assert result.label == "hyphenated.phrasal_modifier"
+        assert result.label == "hyphenated.compound.prepositional"
 
 
 # ===================================================================
@@ -695,12 +694,12 @@ class TestHyphenatedUnclassified:
 
 
 # ===================================================================
-# L1: apostrophe_hyphenated — Compound reductions
+# L1: elision — Sounds dropped, marked by apostrophe (Issue #59)
 # ===================================================================
 
 
-class TestApostropheHyphenated:
-    """Words with both apostrophe and hyphen."""
+class TestElision:
+    """Elision: sound deletion marked by apostrophe."""
 
     @pytest.mark.parametrize(
         "word",
@@ -709,19 +708,49 @@ class TestApostropheHyphenated:
             "will-o'-the-wisp",
             "cat-o'-nine-tails",
             "tam-o'-shanter",
+            "man-o'-war",
         ],
     )
-    def test_compound_reduction(self, word):
+    def test_elision_of_word_list(self, word):
+        """Established o' = elided 'of' compounds (Issue #59)."""
         result = classify_word(word)
-        assert result.label == "apostrophe_hyphenated.compound_reduction"
+        assert result.label == "elision.of"
+
+    @pytest.mark.parametrize(
+        "word",
+        [
+            "cloak-o'-shadows",
+            "road-o'-bones",
+            "breath-o'-life",
+            "bridge-o'-worlds",
+        ],
+    )
+    def test_elision_of_regex(self, word):
+        """Productive *-o'-* pattern catches literary coinages (Issue #59)."""
+        result = classify_word(word)
+        assert result.label == "elision.of"
+
+    @pytest.mark.parametrize(
+        "word",
+        [
+            "rock-'n'-roll",
+            "fish-'n'-chips",
+            "pick-'n'-mix",
+            "drum-'n'-bass",
+        ],
+    )
+    def test_elision_and(self, word):
+        """'n' = elided 'and' in compounds (Issue #59)."""
+        result = classify_word(word)
+        assert result.label == "elision.and"
 
     def test_unknown_apostrophe_hyphen(self):
-        """An unknown word with both should fallback gracefully."""
+        """An unknown word with apostrophe+hyphen should fallback gracefully."""
         result = classify_word("foo-bar's-baz")
-        # Should try apostrophe patterns, then hyphen patterns,
-        # then fall through to unclassified
+        # Should try elision, then apostrophe, then hyphenated,
+        # then fall through to elision.unclassified
         assert result.l1 in (
-            "apostrophe_hyphenated",
+            "elision",
             "apostrophe",
             "hyphenated",
         )
@@ -851,10 +880,10 @@ class TestEdgeCases:
         assert result.l2 == "compound"
         assert result.l3 == "self"
 
-    def test_phrasal_modifier_priority_over_prefix(self):
-        """'out-of-date' should be phrasal_modifier, not prefixed with 'out-'."""
+    def test_prepositional_compound_priority_over_prefix(self):
+        """'out-of-date' should be compound.prepositional, not prefixed with 'out-' (Issue #59)."""
         result = classify_word("out-of-date")
-        assert result.label == "hyphenated.phrasal_modifier"
+        assert result.label == "hyphenated.compound.prepositional"
 
     def test_its_vs_possessive(self):
         """'it's' is in the copula list, not possessive."""
@@ -922,8 +951,7 @@ class TestAllWordListsReachable:
         for word in _NEGATIVE_CONTRACTIONS:
             result = classify_word(word)
             assert result.label == "apostrophe.contraction.negative", (
-                f"'{word}' should be apostrophe.contraction.negative, "
-                f"got {result.label}"
+                f"'{word}' should be apostrophe.contraction.negative, " f"got {result.label}"
             )
 
     def test_all_copula_enclitics(self):
@@ -932,8 +960,7 @@ class TestAllWordListsReachable:
         for word in _COPULA_ENCLITICS:
             result = classify_word(word)
             assert result.label == "apostrophe.contraction.copula", (
-                f"'{word}' should be apostrophe.contraction.copula, "
-                f"got {result.label}"
+                f"'{word}' should be apostrophe.contraction.copula, " f"got {result.label}"
             )
 
     def test_all_auxiliary_enclitics(self):
@@ -942,8 +969,7 @@ class TestAllWordListsReachable:
         for word in _AUXILIARY_ENCLITICS:
             result = classify_word(word)
             assert result.label == "apostrophe.contraction.auxiliary", (
-                f"'{word}' should be apostrophe.contraction.auxiliary, "
-                f"got {result.label}"
+                f"'{word}' should be apostrophe.contraction.auxiliary, " f"got {result.label}"
             )
 
     def test_all_enclitics(self):
@@ -951,9 +977,9 @@ class TestAllWordListsReachable:
 
         for word in _ENCLITICS:
             result = classify_word(word)
-            assert result.label == "apostrophe.enclitic", (
-                f"'{word}' should be apostrophe.enclitic, got {result.label}"
-            )
+            assert (
+                result.label == "apostrophe.enclitic"
+            ), f"'{word}' should be apostrophe.enclitic, got {result.label}"
 
     def test_all_aphetic_archaic(self):
         from pystylometry.lexical.word_class import _APHETIC_ARCHAIC
@@ -961,8 +987,7 @@ class TestAllWordListsReachable:
         for word in _APHETIC_ARCHAIC:
             result = classify_word(word)
             assert result.label == "apostrophe.aphetic.archaic", (
-                f"'{word}' should be apostrophe.aphetic.archaic, "
-                f"got {result.label}"
+                f"'{word}' should be apostrophe.aphetic.archaic, " f"got {result.label}"
             )
 
     def test_all_aphetic_poetic(self):
@@ -971,8 +996,7 @@ class TestAllWordListsReachable:
         for word in _APHETIC_POETIC:
             result = classify_word(word)
             assert result.label == "apostrophe.aphetic.poetic", (
-                f"'{word}' should be apostrophe.aphetic.poetic, "
-                f"got {result.label}"
+                f"'{word}' should be apostrophe.aphetic.poetic, " f"got {result.label}"
             )
 
     def test_all_dialectal_pronoun_reduction(self):
@@ -981,23 +1005,17 @@ class TestAllWordListsReachable:
         for word in _DIALECTAL_PRONOUN_REDUCTION:
             result = classify_word(word)
             assert result.label == "apostrophe.dialectal.pronoun_reduction", (
-                f"'{word}' should be apostrophe.dialectal.pronoun_reduction, "
-                f"got {result.label}"
+                f"'{word}' should be apostrophe.dialectal.pronoun_reduction, " f"got {result.label}"
             )
 
-    def test_all_dialectal_medial(self):
-        from pystylometry.lexical.word_class import _DIALECTAL_MEDIAL
+    def test_all_elision_interior(self):
+        """All entries in _ELISION_INTERIOR must classify as elision.interior (Issue #59)."""
+        from pystylometry.lexical.word_class import _ELISION_INTERIOR
 
-        for word in _DIALECTAL_MEDIAL:
+        for word in _ELISION_INTERIOR:
             result = classify_word(word)
-            # jack-o'-lantern is in both _DIALECTAL_MEDIAL and
-            # _APOSTROPHE_HYPHENATED; it should classify as the
-            # apostrophe_hyphenated form because it has both flags
-            if "'" in word and "-" in word:
-                continue  # skip dual-flag entries
-            assert result.label == "apostrophe.dialectal.medial", (
-                f"'{word}' should be apostrophe.dialectal.medial, "
-                f"got {result.label}"
+            assert result.label == "elision.interior", (
+                f"'{word}' should be elision.interior, " f"got {result.label}"
             )
 
     def test_all_dialectal_initial(self):
@@ -1006,8 +1024,7 @@ class TestAllWordListsReachable:
         for word in _DIALECTAL_INITIAL:
             result = classify_word(word)
             assert result.label == "apostrophe.dialectal.initial", (
-                f"'{word}' should be apostrophe.dialectal.initial, "
-                f"got {result.label}"
+                f"'{word}' should be apostrophe.dialectal.initial, " f"got {result.label}"
             )
 
     def test_all_dialectal_yall(self):
@@ -1016,8 +1033,7 @@ class TestAllWordListsReachable:
         for word in _DIALECTAL_YALL:
             result = classify_word(word)
             assert result.label == "apostrophe.dialectal.regional", (
-                f"'{word}' should be apostrophe.dialectal.regional, "
-                f"got {result.label}"
+                f"'{word}' should be apostrophe.dialectal.regional, " f"got {result.label}"
             )
 
     def test_all_reduplicated_exact(self):
@@ -1026,8 +1042,7 @@ class TestAllWordListsReachable:
         for word in _REDUPLICATED_EXACT:
             result = classify_word(word)
             assert result.label == "hyphenated.reduplicated.exact", (
-                f"'{word}' should be hyphenated.reduplicated.exact, "
-                f"got {result.label}"
+                f"'{word}' should be hyphenated.reduplicated.exact, " f"got {result.label}"
             )
 
     def test_all_reduplicated_rhyming(self):
@@ -1036,8 +1051,7 @@ class TestAllWordListsReachable:
         for word in _REDUPLICATED_RHYMING:
             result = classify_word(word)
             assert result.label == "hyphenated.reduplicated.rhyming", (
-                f"'{word}' should be hyphenated.reduplicated.rhyming, "
-                f"got {result.label}"
+                f"'{word}' should be hyphenated.reduplicated.rhyming, " f"got {result.label}"
             )
 
     def test_all_reduplicated_ablaut(self):
@@ -1046,8 +1060,7 @@ class TestAllWordListsReachable:
         for word in _REDUPLICATED_ABLAUT:
             result = classify_word(word)
             assert result.label == "hyphenated.reduplicated.ablaut", (
-                f"'{word}' should be hyphenated.reduplicated.ablaut, "
-                f"got {result.label}"
+                f"'{word}' should be hyphenated.reduplicated.ablaut, " f"got {result.label}"
             )
 
     def test_all_directional(self):
@@ -1056,19 +1069,15 @@ class TestAllWordListsReachable:
         for word in _DIRECTIONAL:
             result = classify_word(word)
             assert result.label == "hyphenated.directional", (
-                f"'{word}' should be hyphenated.directional, "
-                f"got {result.label}"
+                f"'{word}' should be hyphenated.directional, " f"got {result.label}"
             )
 
-    def test_all_apostrophe_hyphenated(self):
-        from pystylometry.lexical.word_class import _APOSTROPHE_HYPHENATED
+    def test_all_elision_of(self):
+        """All entries in _ELISION_OF must classify as elision.of (Issue #59)."""
+        from pystylometry.lexical.word_class import _ELISION_OF
 
-        for word in _APOSTROPHE_HYPHENATED:
+        for word in _ELISION_OF:
             result = classify_word(word)
-            assert (
-                result.label == "apostrophe_hyphenated.compound_reduction"
-            ), (
-                f"'{word}' should be "
-                f"apostrophe_hyphenated.compound_reduction, "
-                f"got {result.label}"
+            assert result.label == "elision.of", (
+                f"'{word}' should be elision.of, " f"got {result.label}"
             )
