@@ -1052,23 +1052,27 @@ Thresholds:
             assert isinstance(w_obj, WordAnalysis)
             return (cat_counts.get(w_obj.word, 0), w_obj.ratio or 0)
 
-        _over_sorted = sorted(
-            result.overused, key=lambda x: _sort_key(x, works_overused), reverse=True
-        ) if works_total else result.overused
-        _under_sorted = sorted(
-            result.underused, key=lambda x: _sort_key(x, works_underused), reverse=True
-        ) if works_total else result.underused
-        _notbnc_sorted = sorted(
-            result.not_in_bnc, key=lambda x: _sort_key(x, works_notbnc), reverse=True
-        ) if works_total else result.not_in_bnc
+        _over_sorted = (
+            sorted(result.overused, key=lambda x: _sort_key(x, works_overused), reverse=True)
+            if works_total
+            else result.overused
+        )
+        _under_sorted = (
+            sorted(result.underused, key=lambda x: _sort_key(x, works_underused), reverse=True)
+            if works_total
+            else result.underused
+        )
+        _notbnc_sorted = (
+            sorted(result.not_in_bnc, key=lambda x: _sort_key(x, works_notbnc), reverse=True)
+            if works_total
+            else result.not_in_bnc
+        )
 
         output = {
             "stats": stats,
             "overused": [_json_word(w, works_overused) for w in _over_sorted],
             "underused": [_json_word(w, works_underused) for w in _under_sorted],
-            "not_in_bnc": [
-                _json_word(w, works_notbnc) for w in _notbnc_sorted
-            ],
+            "not_in_bnc": [_json_word(w, works_notbnc) for w in _notbnc_sorted],
         }
         output_path.write_text(json.dumps(output, indent=2))
         console.print(f'[green]✓[/green] JSON saved to: [white]"{output_path}"[/white]')
@@ -1106,11 +1110,15 @@ Thresholds:
                 return "no"
             return ""
 
-        _csv_over = sorted(
-            result.overused,
-            key=lambda x: (works_overused.get(x.word, 0), x.ratio or 0),
-            reverse=True,
-        ) if works_total else result.overused
+        _csv_over = (
+            sorted(
+                result.overused,
+                key=lambda x: (works_overused.get(x.word, 0), x.ratio or 0),
+                reverse=True,
+            )
+            if works_total
+            else result.overused
+        )
         for w in _csv_over:
             expected = f"{w.expected:.2f}" if w.expected else ""
             ratio = f"{w.ratio:.4f}" if w.ratio else ""
@@ -1130,11 +1138,15 @@ Thresholds:
                 )
             lines.append(line)
 
-        _csv_under = sorted(
-            result.underused,
-            key=lambda x: (works_underused.get(x.word, 0), x.ratio or 0),
-            reverse=True,
-        ) if works_total else result.underused
+        _csv_under = (
+            sorted(
+                result.underused,
+                key=lambda x: (works_underused.get(x.word, 0), x.ratio or 0),
+                reverse=True,
+            )
+            if works_total
+            else result.underused
+        )
         for w in _csv_under:
             expected = f"{w.expected:.2f}" if w.expected else ""
             ratio = f"{w.ratio:.4f}" if w.ratio else ""
@@ -1154,26 +1166,24 @@ Thresholds:
                 )
             lines.append(line)
 
-        _csv_notbnc = sorted(
-            result.not_in_bnc,
-            key=lambda x: (works_notbnc.get(x.word, 0), x.observed or 0),
-            reverse=True,
-        ) if works_total else result.not_in_bnc
+        _csv_notbnc = (
+            sorted(
+                result.not_in_bnc,
+                key=lambda x: (works_notbnc.get(x.word, 0), x.observed or 0),
+                reverse=True,
+            )
+            if works_total
+            else result.not_in_bnc
+        )
         for w in _csv_notbnc:
             in_wn = fmt_wordnet(w.in_wordnet)
             in_gn = fmt_gngram(w.in_gngram)
             cls = _classify_csv(w.word).label
             if works_total:
                 wk = f"{works_notbnc.get(w.word, 0)}/{works_total}"
-                line = (
-                    f"not-in-bnc\t{w.word}\t{w.observed}\t\t{wk}\t"
-                    f"\t{in_wn}\t{in_gn}\t{cls}"
-                )
+                line = f"not-in-bnc\t{w.word}\t{w.observed}\t\t{wk}\t" f"\t{in_wn}\t{in_gn}\t{cls}"
             else:
-                line = (
-                    f"not-in-bnc\t{w.word}\t{w.observed}\t\t\t{in_wn}\t{in_gn}"
-                    f"\t{cls}"
-                )
+                line = f"not-in-bnc\t{w.word}\t{w.observed}\t\t\t{in_wn}\t{in_gn}" f"\t{cls}"
             lines.append(line)
 
         output_path.write_text("\n".join(lines))
@@ -1208,10 +1218,33 @@ Thresholds:
         # ── Summary sheet (first tab) ──
         ws_summary = wb.create_sheet("summary")
 
+        # ── Corpus section — books analysed ──
+        book_names: list[str] = []
+        if txt_files:
+            book_names = [tf.stem for tf in txt_files]
+        elif args.input_file:
+            book_names = [args.input_file.stem]
+
+        c = ws_summary.cell(row=1, column=1, value="Corpus")
+        c.font = font_header
+        c.fill = fill_header
+        c = ws_summary.cell(row=1, column=2, value="")
+        c.fill = fill_header
+        c = ws_summary.cell(row=1, column=3, value="")
+        c.fill = fill_header
+
+        ws_summary.cell(row=2, column=1, value="Total Books")
+        ws_summary.cell(row=2, column=2, value=len(book_names))
+        for bi, bname in enumerate(book_names):
+            ws_summary.cell(row=3 + bi, column=1, value=bname)
+
+        # Offset: corpus header (1) + total row (1) + book rows + blank row
+        top10_start = 3 + len(book_names) + 1
+
         # Headers: 3 columns side by side
         headers = ["Top 10 Overused", "Top 10 Underused", "Top 10 Not in BNC"]
         for ci, hdr in enumerate(headers, start=1):
-            c = ws_summary.cell(row=1, column=ci, value=hdr)
+            c = ws_summary.cell(row=top10_start, column=ci, value=hdr)
             c.font = font_header
             c.fill = fill_header
 
@@ -1221,7 +1254,7 @@ Thresholds:
         top_not_in_bnc = [w.word for w in result.not_in_bnc[:10]]
 
         for i in range(10):
-            row = i + 2
+            row = top10_start + 1 + i
             if i < len(top_overused):
                 ws_summary.cell(row=row, column=1, value=top_overused[i])
             if i < len(top_underused):
@@ -1230,7 +1263,7 @@ Thresholds:
                 ws_summary.cell(row=row, column=3, value=top_not_in_bnc[i])
 
         # ── Descriptive stats below the top-10 table ──
-        stats_start = 14  # row 12 = last word row, 13 = blank, 14 = header
+        stats_start = top10_start + 12  # 10 word rows + 1 blank
         stat_headers = ["Metric", "Count", "% of Total Tokens"]
         for ci, hdr in enumerate(stat_headers, start=1):
             c = ws_summary.cell(row=stats_start, column=ci, value=hdr)
@@ -1292,33 +1325,59 @@ Thresholds:
         ws_over = wb.create_sheet("overused")
         if works_total:
             _over_hdr = [
-                "word", "observed", "expected", "works", "ratio", "in_wordnet",
-                "in_gngram", "classification",
+                "word",
+                "observed",
+                "expected",
+                "works",
+                "ratio",
+                "in_wordnet",
+                "in_gngram",
+                "classification",
             ]
         else:
             _over_hdr = [
-                "word", "observed", "expected", "ratio", "in_wordnet", "in_gngram",
+                "word",
+                "observed",
+                "expected",
+                "ratio",
+                "in_wordnet",
+                "in_gngram",
                 "classification",
             ]
         ws_over.append(_over_hdr)
-        _xl_over = sorted(
-            result.overused,
-            key=lambda x: (works_overused.get(x.word, 0), x.ratio or 0),
-            reverse=True,
-        ) if works_total else sorted(result.overused, key=lambda x: x.ratio or 0, reverse=True)
+        _xl_over = (
+            sorted(
+                result.overused,
+                key=lambda x: (works_overused.get(x.word, 0), x.ratio or 0),
+                reverse=True,
+            )
+            if works_total
+            else sorted(result.overused, key=lambda x: x.ratio or 0, reverse=True)
+        )
         for w in _xl_over:
             in_wn = fmt_wordnet_excel(w.in_wordnet)
             in_gn = fmt_gngram_excel(w.in_gngram)
             cls = _classify_xl(w.word).label
             if works_total:
                 row_data = [
-                    w.word, w.observed, w.expected,
+                    w.word,
+                    w.observed,
+                    w.expected,
                     f"{works_overused.get(w.word, 0)}/{works_total}",
-                    w.ratio, in_wn, in_gn, cls,
+                    w.ratio,
+                    in_wn,
+                    in_gn,
+                    cls,
                 ]
             else:
                 row_data = [
-                    w.word, w.observed, w.expected, w.ratio, in_wn, in_gn, cls,
+                    w.word,
+                    w.observed,
+                    w.expected,
+                    w.ratio,
+                    in_wn,
+                    in_gn,
+                    cls,
                 ]
             ws_over.append(row_data)
 
@@ -1326,33 +1385,59 @@ Thresholds:
         ws_under = wb.create_sheet("underused")
         if works_total:
             _under_hdr = [
-                "word", "observed", "expected", "works", "ratio", "in_wordnet",
-                "in_gngram", "classification",
+                "word",
+                "observed",
+                "expected",
+                "works",
+                "ratio",
+                "in_wordnet",
+                "in_gngram",
+                "classification",
             ]
         else:
             _under_hdr = [
-                "word", "observed", "expected", "ratio", "in_wordnet", "in_gngram",
+                "word",
+                "observed",
+                "expected",
+                "ratio",
+                "in_wordnet",
+                "in_gngram",
                 "classification",
             ]
         ws_under.append(_under_hdr)
-        _xl_under = sorted(
-            result.underused,
-            key=lambda x: (works_underused.get(x.word, 0), x.ratio or 0),
-            reverse=True,
-        ) if works_total else sorted(result.underused, key=lambda x: x.ratio or 0, reverse=True)
+        _xl_under = (
+            sorted(
+                result.underused,
+                key=lambda x: (works_underused.get(x.word, 0), x.ratio or 0),
+                reverse=True,
+            )
+            if works_total
+            else sorted(result.underused, key=lambda x: x.ratio or 0, reverse=True)
+        )
         for w in _xl_under:
             in_wn = fmt_wordnet_excel(w.in_wordnet)
             in_gn = fmt_gngram_excel(w.in_gngram)
             cls = _classify_xl(w.word).label
             if works_total:
                 row_data = [
-                    w.word, w.observed, w.expected,
+                    w.word,
+                    w.observed,
+                    w.expected,
                     f"{works_underused.get(w.word, 0)}/{works_total}",
-                    w.ratio, in_wn, in_gn, cls,
+                    w.ratio,
+                    in_wn,
+                    in_gn,
+                    cls,
                 ]
             else:
                 row_data = [
-                    w.word, w.observed, w.expected, w.ratio, in_wn, in_gn, cls,
+                    w.word,
+                    w.observed,
+                    w.expected,
+                    w.ratio,
+                    in_wn,
+                    in_gn,
+                    cls,
                 ]
             ws_under.append(row_data)
 
@@ -1360,34 +1445,52 @@ Thresholds:
         ws_notbnc = wb.create_sheet("not-in-bnc")
         if works_total:
             _notbnc_hdr = [
-                "word", "observed", "works", "in_wordnet", "in_gngram",
+                "word",
+                "observed",
+                "works",
+                "in_wordnet",
+                "in_gngram",
                 "classification",
             ]
         else:
             _notbnc_hdr = [
-                "word", "observed", "in_wordnet", "in_gngram",
+                "word",
+                "observed",
+                "in_wordnet",
+                "in_gngram",
                 "classification",
             ]
         ws_notbnc.append(_notbnc_hdr)
 
-        _xl_notbnc = sorted(
-            result.not_in_bnc,
-            key=lambda x: (works_notbnc.get(x.word, 0), x.observed or 0),
-            reverse=True,
-        ) if works_total else result.not_in_bnc
+        _xl_notbnc = (
+            sorted(
+                result.not_in_bnc,
+                key=lambda x: (works_notbnc.get(x.word, 0), x.observed or 0),
+                reverse=True,
+            )
+            if works_total
+            else result.not_in_bnc
+        )
         for w in _xl_notbnc:
             in_wn = fmt_wordnet_excel(w.in_wordnet)
             in_gn = fmt_gngram_excel(w.in_gngram)
             cls = _classify_xl(w.word).label
             if works_total:
                 row_data = [
-                    w.word, w.observed,
+                    w.word,
+                    w.observed,
                     f"{works_notbnc.get(w.word, 0)}/{works_total}",
-                    in_wn, in_gn, cls,
+                    in_wn,
+                    in_gn,
+                    cls,
                 ]
             else:
                 row_data = [
-                    w.word, w.observed, in_wn, in_gn, cls,
+                    w.word,
+                    w.observed,
+                    in_wn,
+                    in_gn,
+                    cls,
                 ]
             ws_notbnc.append(row_data)
 
@@ -1463,7 +1566,8 @@ Thresholds:
                 ws.row_dimensions[row_num].height = 20
             # Header rows get 25
             ws.row_dimensions[1].height = 25
-        # Summary has a second header row for stats
+        # Summary has additional header rows for top-10 and stats sections
+        ws_summary.row_dimensions[top10_start].height = 25
         ws_summary.row_dimensions[stats_start].height = 25
 
         wb.save(output_path)
@@ -1504,6 +1608,745 @@ Thresholds:
     table.add_row("Overused", f"[red]{len(result.overused):,}[/red]")
 
     console.print(table)
+    console.print()
+
+
+def mega_cli() -> None:
+    """CLI entry point for comprehensive mega analysis."""
+    parser = argparse.ArgumentParser(
+        prog="mega",
+        description="Comprehensive stylometric analysis — every metric in one Excel workbook.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  mega --input-file manuscript.txt --output-file /tmp/analysis.xlsx
+  mega --input-dir ~/ebooks/Author --output-file /tmp/author.xlsx
+
+Generates a multi-tab Excel workbook with:
+  Dashboard, Lexical Diversity, Readability, Sentences, Function Words,
+  Style Markers, Character, N-grams, Prosody, Cohesion, Genre & Register,
+  Dialect, Style Drift, Repetition, BNC Overused/Underused/Not Found.
+
+Optional modules (readability, syntactic, prosody) are attempted and
+gracefully skipped when dependencies are not installed.
+""",
+    )
+
+    input_group = parser.add_mutually_exclusive_group(required=True)
+    input_group.add_argument(
+        "--input-file", "-i", type=Path, metavar="FILE",
+        help="Path to text file to analyze",
+    )
+    input_group.add_argument(
+        "--input-dir", "-d", type=Path, metavar="DIR",
+        help="Directory of .txt files to analyze as a single corpus",
+    )
+    parser.add_argument(
+        "--output-file", "-o", type=Path, required=True, metavar="FILE",
+        help="Output Excel file path (.xlsx)",
+    )
+
+    args = parser.parse_args()
+
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.text import Text
+
+    console = Console(stderr=True)
+
+    # ── Input loading ──
+    if args.input_dir:
+        if not args.input_dir.is_dir():
+            console.print(f"[red]Error:[/red] Directory not found: {args.input_dir}")
+            sys.exit(1)
+        txt_files = sorted(args.input_dir.glob("*.txt"))
+        if not txt_files:
+            console.print(f"[red]Error:[/red] No .txt files found in: {args.input_dir}")
+            sys.exit(1)
+        parts: list[str] = []
+        for tf in txt_files:
+            try:
+                parts.append(tf.read_text(encoding="utf-8"))
+            except Exception as e:
+                console.print(f"[red]Error reading {tf.name}:[/red] {e}")
+                sys.exit(1)
+        text = "\n".join(parts)
+        file_count = len(txt_files)
+    else:
+        if not args.input_file.exists():
+            console.print(f"[red]Error:[/red] File not found: {args.input_file}")
+            sys.exit(1)
+        try:
+            text = args.input_file.read_text(encoding="utf-8")
+        except Exception as e:
+            console.print(f"[red]Error reading file:[/red] {e}")
+            sys.exit(1)
+        file_count = 1
+
+    token_count = len(text.split())
+    char_count = len(text)
+
+    # ── Banner ──
+    console.print()
+    header = Text()
+    header.append("PYSTYLOMETRY", style="bold cyan")
+    header.append(" — ", style="dim")
+    header.append("Mega Analysis", style="bold white")
+    console.print(Panel(header, border_style="cyan"))
+
+    console.print()
+    console.print("[bold]INPUT[/bold]", style="cyan")
+    console.print("─" * 60, style="dim")
+    if args.input_dir:
+        console.print(f"  Dir:     [white]{args.input_dir}[/white]")
+        console.print(f"  Files:   [green]{file_count}[/green] .txt files")
+    else:
+        console.print(f"  File:    [white]{args.input_file}[/white]")
+    console.print(f"  Size:    [green]{char_count:,}[/green] chars / [green]{token_count:,}[/green] tokens")
+
+    console.print()
+    console.print("[bold]OUTPUT[/bold]", style="cyan")
+    console.print("─" * 60, style="dim")
+    console.print(f"  Format:  [magenta]Excel (.xlsx)[/magenta]")
+    console.print(f"  File:    [white]{args.output_file}[/white]")
+
+    console.print()
+    console.print("[bold]ANALYSIS[/bold]", style="cyan")
+    console.print("─" * 60, style="dim")
+
+    # ── Run all analyses ──
+    from pystylometry.mega import run_mega, write_mega_excel
+
+    results = run_mega(text, console)
+
+    # ── Write Excel ──
+    console.print()
+    console.print("  [dim]Writing Excel workbook...[/dim]", end="")
+    write_mega_excel(results, args.output_file)
+    console.print(" [green]done[/green]")
+
+    # ── Summary ──
+    skipped = results.get("_skipped", [])
+    tab_count = 17 - len(skipped)
+    console.print()
+    console.print(f'[green]✓[/green] Saved to: [white]"{args.output_file}"[/white]')
+    console.print(f"  Tabs: [green]{tab_count}[/green] populated, [yellow]{len(skipped)}[/yellow] skipped")
+    if skipped:
+        for name, reason in skipped:
+            console.print(f"    [yellow]•[/yellow] {name}: {reason}")
+    console.print()
+
+
+# ---------------------------------------------------------------------------
+# word-class  —  Word classification distribution (Issue #54)
+# ---------------------------------------------------------------------------
+
+
+def classify_cli() -> None:
+    """CLI entry point for word-class distribution analysis.
+
+    Classifies every word in a text using the morphological taxonomy and
+    produces a distribution table showing each classification label, its
+    count, and its percentage of total words.
+
+    Related GitHub Issue:
+        #54 -- Add word-class distribution report
+        https://github.com/craigtrim/pystylometry/issues/54
+    """
+    parser = argparse.ArgumentParser(
+        prog="word-class",
+        description="Produce a distribution table of word classifications.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  word-class --input-file manuscript.txt
+  word-class -i manuscript.txt --format excel -o report.xlsx
+  word-class --input-dir ~/ebooks/Author -o report.xlsx --format excel
+
+Output:
+  A table with one row per classification label (sorted a-z):
+    label           count   percentage
+    lexical         62134   96.8217
+
+  Percentages should sum to 100%. If they don't, it indicates
+  words not yet covered by the classification taxonomy.
+""",
+    )
+
+    input_group = parser.add_mutually_exclusive_group(required=True)
+    input_group.add_argument(
+        "--input-file",
+        "-i",
+        type=Path,
+        metavar="FILE",
+        help="Path to text file to analyze",
+    )
+    input_group.add_argument(
+        "--input-dir",
+        "-d",
+        type=Path,
+        metavar="DIR",
+        help="Directory of .txt files to analyze as a single corpus (requires --output-file)",
+    )
+    parser.add_argument(
+        "--output-file",
+        "-o",
+        type=Path,
+        default=None,
+        metavar="FILE",
+        help="Output file (default: <input>_word_class.<ext>)",
+    )
+    parser.add_argument(
+        "--format",
+        choices=["csv", "excel"],
+        default="csv",
+        help="Output format: csv (tab-delimited .tsv) or excel (.xlsx). Default: csv",
+    )
+
+    args = parser.parse_args()
+
+    from rich.console import Console
+    from rich.text import Text
+    from rich.panel import Panel
+
+    console = Console()
+
+    # -- Input loading (matches BNC pattern) --------------------------------
+    file_count: int = 1
+
+    if args.input_dir:
+        if not args.input_dir.is_dir():
+            console.print(f"[red]Error:[/red] Directory not found: {args.input_dir}")
+            sys.exit(1)
+        if not args.output_file:
+            console.print("[red]Error:[/red] --output-file is required when using --input-dir")
+            sys.exit(1)
+
+        txt_files = sorted(args.input_dir.glob("*.txt"))
+        if not txt_files:
+            console.print(f"[red]Error:[/red] No .txt files found in: {args.input_dir}")
+            sys.exit(1)
+
+        parts: list[str] = []
+        for tf in txt_files:
+            try:
+                parts.append(tf.read_text(encoding="utf-8"))
+            except Exception as e:
+                console.print(f"[red]Error reading {tf.name}:[/red] {e}")
+                sys.exit(1)
+        text = "\n".join(parts)
+        file_count = len(txt_files)
+    else:
+        if not args.input_file.exists():
+            console.print(f"[red]Error:[/red] File not found: {args.input_file}")
+            sys.exit(1)
+        try:
+            text = args.input_file.read_text(encoding="utf-8")
+        except Exception as e:
+            console.print(f"[red]Error reading file:[/red] {e}")
+            sys.exit(1)
+
+    # -- Determine output path ----------------------------------------------
+    suffix_map = {"csv": ".tsv", "excel": ".xlsx"}
+    if args.output_file:
+        output_path = args.output_file
+    else:
+        suffix = suffix_map[args.format]
+        output_path = args.input_file.with_name(
+            f"{args.input_file.stem}_word_class{suffix}"
+        )
+
+    # -- Banner -------------------------------------------------------------
+    token_count = len(text.split())
+    char_count = len(text)
+
+    console.print()
+    header = Text()
+    header.append("PYSTYLOMETRY", style="bold cyan")
+    header.append(" — ", style="dim")
+    header.append("Word Classification Distribution", style="bold white")
+    console.print(Panel(header, border_style="cyan"))
+
+    console.print()
+    console.print("[bold]INPUT[/bold]", style="cyan")
+    console.print("─" * 60, style="dim")
+    if args.input_dir:
+        console.print(f"  Dir:     [white]{args.input_dir}[/white]")
+        console.print(f"  Files:   [green]{file_count}[/green] .txt files")
+    else:
+        console.print(f"  File:    [white]{args.input_file}[/white]")
+    _sz = f"[green]{char_count:,}[/green] chars / [green]{token_count:,}[/green] tokens"
+    console.print(f"  Size:    {_sz}")
+
+    # -- Analyse ------------------------------------------------------------
+    console.print()
+    console.print("[bold]ANALYSIS[/bold]", style="cyan")
+    console.print("─" * 60, style="dim")
+
+    from pystylometry.lexical.word_class_distribution import (
+        compute_word_class_distribution,
+    )
+
+    with console.status("  Classifying words..."):
+        result = compute_word_class_distribution(text)
+
+    console.print(f"  Tokens:  [green]{result.total_words:,}[/green]")
+    console.print(f"  Labels:  [green]{result.unique_labels}[/green] distinct classifications")
+
+    pct_sum = result.percentage_sum
+    if abs(pct_sum - 100.0) > 0.01:
+        console.print(
+            f"  Sum:     [yellow]{pct_sum:.4f}%[/yellow]  (expected 100% — "
+            f"gap indicates unclassified words)"
+        )
+    else:
+        console.print(f"  Sum:     [green]{pct_sum:.4f}%[/green]")
+
+    # -- Write output -------------------------------------------------------
+    console.print()
+    console.print("[bold]OUTPUT[/bold]", style="cyan")
+    console.print("─" * 60, style="dim")
+
+    if args.format == "csv":
+        lines = [
+            "label\tcount\tpercentage\truns\trun_mean\trun_median"
+            "\trun_mode\trun_min\trun_max"
+        ]
+        for entry in result.classifications:
+            rs = entry.run_stats
+            lines.append(
+                f"{entry.label}\t{entry.count}\t{entry.percentage:.4f}"
+                f"\t{rs.runs}\t{rs.mean:.4f}\t{rs.median:.4f}"
+                f"\t{rs.mode}\t{rs.min}\t{rs.max}"
+            )
+        output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        console.print(f"  Format:  [magenta]CSV (tab-delimited .tsv)[/magenta]")
+
+    elif args.format == "excel":
+        try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Alignment, Font, PatternFill
+        except ImportError:
+            console.print("[red]Error:[/red] Excel export requires openpyxl.")
+            console.print("  Install with: [yellow]pip install pystylometry[excel][/yellow]")
+            console.print("  Or for pipx: [yellow]pipx inject pystylometry openpyxl[/yellow]")
+            sys.exit(1)
+
+        wb = Workbook()
+        wb.remove(wb.active)
+
+        align = Alignment(horizontal="center", vertical="center")
+        font_header = Font(bold=True, size=14)
+        fill_header = PatternFill(
+            start_color="D9E2F3", end_color="D9E2F3", fill_type="solid"
+        )
+        font_bold = Font(bold=True)
+
+        ws = wb.create_sheet("Word Classification")
+        ws.append([
+            "Label", "Count", "Unique", "Percentage",
+            "Runs", "Run Mean", "Run Median", "Run Mode", "Run Min", "Run Max",
+        ])
+
+        # Style header
+        for cell in ws[1]:
+            cell.font = font_header
+            cell.fill = fill_header
+            cell.alignment = align
+
+        # Data rows
+        for entry in result.classifications:
+            rs = entry.run_stats
+            ws.append([
+                entry.label, entry.count, entry.unique,
+                round(entry.percentage, 4),
+                rs.runs, round(rs.mean, 4), round(rs.median, 4),
+                rs.mode, rs.min, rs.max,
+            ])
+
+        # Summary row
+        total_unique = sum(e.unique for e in result.classifications)
+        ws.append([])
+        ws.append(["TOTAL", result.total_words, total_unique, round(pct_sum, 4)])
+        summary_row = ws.max_row
+        for col in range(1, 11):
+            ws.cell(row=summary_row, column=col).font = font_bold
+            ws.cell(row=summary_row, column=col).alignment = align
+
+        # Warning if sum != 100%
+        if abs(pct_sum - 100.0) > 0.01:
+            ws.append([])
+            ws.append([f"WARNING: Sum is {pct_sum:.4f}%, expected 100%"])
+            ws.cell(row=ws.max_row, column=1).font = Font(color="FF0000", bold=True)
+
+        # Column widths and alignment
+        ws.column_dimensions["A"].width = 40
+        for letter in ("B", "C", "D", "E", "F", "G", "H", "I", "J"):
+            ws.column_dimensions[letter].width = 12
+        # Integer columns get comma formatting: Count(B), Unique(C), Runs(E),
+        # Run Mode(H), Run Min(I), Run Max(J).
+        comma_cols = {2, 3, 5, 8, 9, 10}
+        for row in ws.iter_rows(min_row=2, max_row=ws.max_row):
+            for cell in row:
+                cell.alignment = align
+                if cell.column in comma_cols and isinstance(cell.value, (int, float)):
+                    cell.number_format = "#,##0"
+        # Left-align the label column
+        for row in ws.iter_rows(min_col=1, max_col=1):
+            for cell in row:
+                if cell.row > 1:
+                    cell.alignment = Alignment(horizontal="left", vertical="center")
+
+        # Row heights
+        ws.row_dimensions[1].height = 25
+        for r in range(2, ws.max_row + 1):
+            ws.row_dimensions[r].height = 20
+
+        # ── Max Run Examples tab (labels where run_max > 1 and < 10) ──
+        if result.max_run_examples:
+            from collections import Counter as _ExCounter
+
+            ws_ex = wb.create_sheet("Run Max Examples")
+            ws_ex.append(["Label", "Run Max", "Tokens", "Occurrences"])
+            for cell in ws_ex[1]:
+                cell.font = font_header
+                cell.fill = fill_header
+                cell.alignment = align
+
+            for label in sorted(result.max_run_examples):
+                examples = result.max_run_examples[label]
+                entry = next(e for e in result.classifications if e.label == label)
+                # Deduplicate: count how many times each unique sequence appears
+                seq_counts = _ExCounter(tuple(seq) for seq in examples)
+                for seq_tuple, occ in sorted(
+                    seq_counts.items(), key=lambda x: (-x[1], x[0]),
+                ):
+                    ws_ex.append([
+                        label, entry.run_stats.max,
+                        " ".join(seq_tuple), occ,
+                    ])
+
+            ws_ex.column_dimensions["A"].width = 40
+            ws_ex.column_dimensions["B"].width = 12
+            ws_ex.column_dimensions["C"].width = 60
+            ws_ex.column_dimensions["D"].width = 14
+            for row in ws_ex.iter_rows(min_row=2, max_row=ws_ex.max_row):
+                for cell in row:
+                    cell.alignment = align
+            # Left-align label and tokens columns
+            for row in ws_ex.iter_rows(min_col=1, max_col=1, min_row=2):
+                for cell in row:
+                    cell.alignment = Alignment(horizontal="left", vertical="center")
+            for row in ws_ex.iter_rows(min_col=3, max_col=3, min_row=2):
+                for cell in row:
+                    cell.alignment = Alignment(horizontal="left", vertical="center")
+            ws_ex.row_dimensions[1].height = 25
+            for r in range(2, ws_ex.max_row + 1):
+                ws_ex.row_dimensions[r].height = 20
+
+        # ── Tokens by Label tab (unique tokens + count, excludes lexical) ──
+        if result.tokens_by_label:
+            from collections import Counter as _Counter
+            from openpyxl.formatting.rule import ColorScaleRule
+            from openpyxl.styles import Border, Side
+            from openpyxl.utils import get_column_letter
+
+            import re as _re
+
+            ws_tok = wb.create_sheet("Tokens by Label")
+            sorted_labels = sorted(result.tokens_by_label)
+
+            def _break_label(lbl: str) -> str:
+                return "\n".join(_re.split(r"[._]", lbl))
+
+            # ── Header row ──
+            header: list[str] = []
+            for label in sorted_labels:
+                header.append(_break_label(label))
+                header.append("N")
+            ws_tok.append(header)
+
+            # Fonts
+            font_label_hdr = Font(name="Calibri", size=14, italic=True)
+            font_n_hdr = Font(name="Calibri", size=12, italic=True)
+            font_word = Font(name="Calibri", size=11)
+            font_num = Font(name="Calibri", size=10)
+
+            # Alignments
+            hdr_align_token = Alignment(
+                horizontal="right", vertical="bottom", wrap_text=True,
+            )
+            hdr_align_n = Alignment(
+                horizontal="left", vertical="bottom", wrap_text=True,
+            )
+            align_token = Alignment(horizontal="right", vertical="center")
+            align_count = Alignment(horizontal="left", vertical="center")
+
+            # Fills
+            fill_white = PatternFill(
+                start_color="FFFFFF", end_color="FFFFFF", fill_type="solid",
+            )
+
+            # Border side
+            thin = Side(style="thin")
+
+            # Style headers
+            for cell in ws_tok[1]:
+                cell.fill = fill_header
+                if cell.column % 2 == 1:
+                    cell.font = font_label_hdr
+                    cell.alignment = hdr_align_token
+                else:
+                    cell.font = font_n_hdr
+                    cell.alignment = hdr_align_n
+
+            # Header row height
+            max_segments = max(
+                len(_re.split(r"[._]", lbl)) for lbl in sorted_labels
+            )
+            ws_tok.row_dimensions[1].height = max_segments * 15 + 10
+
+            # ── Deduplicate tokens per label ──
+            label_unique: dict[str, list[tuple[str, int]]] = {}
+            max_unique = 0
+            for label in sorted_labels:
+                counts = _Counter(result.tokens_by_label[label])
+                ranked = sorted(counts.items(), key=lambda x: (-x[1], x[0]))
+                label_unique[label] = ranked
+                max_unique = max(max_unique, len(ranked))
+
+            # ── Column widths ──
+            total_cols = len(sorted_labels) * 2
+            for col_idx in range(1, total_cols + 1):
+                letter = get_column_letter(col_idx)
+                ws_tok.column_dimensions[letter].width = (
+                    25 if col_idx % 2 == 1 else 10
+                )
+
+            # ── Write data + style per column pair ──
+            for pair_idx, label in enumerate(sorted_labels):
+                col_token = pair_idx * 2 + 1
+                col_count = pair_idx * 2 + 2
+                items = label_unique[label]
+                n_items = len(items)
+                last_data_row = n_items + 1  # 1-based (header is row 1)
+
+                # Write values
+                for row_idx, (token, cnt) in enumerate(items):
+                    excel_row = row_idx + 2
+                    ws_tok.cell(
+                        row=excel_row, column=col_token, value=token,
+                    )
+                    ws_tok.cell(
+                        row=excel_row, column=col_count, value=cnt,
+                    )
+
+                # Style data cells + outline borders per column
+                for row_idx in range(n_items):
+                    excel_row = row_idx + 2
+                    is_first = row_idx == 0
+                    is_last = row_idx == n_items - 1
+
+                    # Determine border edges for this row in the column
+                    top_side = thin if is_first else None
+                    bottom_side = thin if is_last else None
+
+                    bdr = Border(
+                        left=thin, right=thin,
+                        top=top_side, bottom=bottom_side,
+                    )
+
+                    cell_tok = ws_tok.cell(row=excel_row, column=col_token)
+                    cell_tok.font = font_word
+                    cell_tok.alignment = align_token
+                    cell_tok.fill = fill_white
+                    cell_tok.border = bdr
+
+                    cell_cnt = ws_tok.cell(row=excel_row, column=col_count)
+                    cell_cnt.font = font_num
+                    cell_cnt.alignment = align_count
+                    cell_cnt.fill = fill_white
+                    cell_cnt.border = bdr
+
+                # Header outline borders (top + left/right + bottom)
+                hdr_bdr_tok = Border(
+                    left=thin, right=thin, top=thin, bottom=thin,
+                )
+                ws_tok.cell(row=1, column=col_token).border = hdr_bdr_tok
+                ws_tok.cell(row=1, column=col_count).border = hdr_bdr_tok
+
+                # Conditional formatting: green→white on count column
+                if n_items > 0:
+                    cnt_letter = get_column_letter(col_count)
+                    cell_range = f"{cnt_letter}2:{cnt_letter}{last_data_row}"
+                    ws_tok.conditional_formatting.add(
+                        cell_range,
+                        ColorScaleRule(
+                            start_type="min", start_color="FFFFFF",
+                            end_type="max", end_color="63BE7B",
+                        ),
+                    )
+
+            # ── Row heights ──
+            for row_idx in range(max_unique):
+                ws_tok.row_dimensions[row_idx + 2].height = 20
+
+        wb.save(output_path)
+        console.print(f"  Format:  [magenta]Excel (.xlsx)[/magenta]")
+
+    console.print(f"  File:    [white]{output_path}[/white]")
+    console.print()
+    console.print(f'[green]✓[/green] Saved to: [white]"{output_path}"[/white]')
+    console.print()
+
+
+# ---------------------------------------------------------------------------
+# bnc-meta  —  Comparative BNC summary analysis across authors (Issue #55)
+# ---------------------------------------------------------------------------
+
+
+def bnc_meta_cli() -> None:
+    """CLI entry point for comparative BNC meta-analysis across authors.
+
+    Reads summary statistics from multiple per-author BNC Excel files and
+    produces a single comparative workbook with counts and percentages
+    side-by-side.
+
+    Related GitHub Issue:
+        #55 -- Add bnc-meta CLI for comparative BNC summary analysis across authors
+        https://github.com/craigtrim/pystylometry/issues/55
+    """
+    parser = argparse.ArgumentParser(
+        prog="bnc-meta",
+        description="Compare BNC summary statistics across multiple author Excel files.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  bnc-meta --input-dir /tmp --output-file /tmp/bnc-comparison.xlsx
+  bnc-meta -d /tmp -o /tmp/comparison.xlsx
+
+Input:
+  A directory containing .xlsx files produced by:
+    bnc --input-dir [author-dir] --format excel --output-file Author.xlsx
+
+  Each file must have a "summary" sheet with BNC stats.
+  Author name is derived from the filename (e.g., "Mark Twain.xlsx" -> "Mark Twain").
+
+Output:
+  An Excel workbook with two sheets:
+    counts       - Raw counts (Total Tokens, Unique Tokens, Overused, Underused, Not in BNC)
+    percentages  - Percentage of total tokens (Unique, Overused, Underused, Not in BNC)
+""",
+    )
+
+    parser.add_argument(
+        "--input-dir",
+        "-d",
+        type=Path,
+        required=True,
+        metavar="DIR",
+        help="Directory of BNC Excel files (one per author)",
+    )
+    parser.add_argument(
+        "--output-file",
+        "-o",
+        type=Path,
+        required=True,
+        metavar="FILE",
+        help="Output Excel file path (.xlsx)",
+    )
+
+    args = parser.parse_args()
+
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.table import Table
+    from rich.text import Text
+
+    console = Console(stderr=True)
+
+    # ── Validation ──
+    if not args.input_dir.is_dir():
+        console.print(f"[red]Error:[/red] Directory not found: {args.input_dir}")
+        sys.exit(1)
+
+    xlsx_files = sorted(args.input_dir.glob("*.xlsx"))
+    xlsx_files = [f for f in xlsx_files if not f.name.startswith("~$")]
+    if not xlsx_files:
+        console.print(f"[red]Error:[/red] No .xlsx files found in: {args.input_dir}")
+        sys.exit(1)
+
+    # ── Banner ──
+    console.print()
+    header = Text()
+    header.append("PYSTYLOMETRY", style="bold cyan")
+    header.append(" — ", style="dim")
+    header.append("BNC Meta-Analysis", style="bold white")
+    console.print(Panel(header, border_style="cyan"))
+
+    console.print()
+    console.print("[bold]INPUT[/bold]", style="cyan")
+    console.print("─" * 60, style="dim")
+    console.print(f"  Dir:     [white]{args.input_dir}[/white]")
+    console.print(f"  Files:   [green]{len(xlsx_files)}[/green] .xlsx files")
+
+    console.print()
+    console.print("[bold]OUTPUT[/bold]", style="cyan")
+    console.print("─" * 60, style="dim")
+    console.print(f"  Format:  [magenta]Excel (.xlsx)[/magenta]")
+    console.print(f"  File:    [white]{args.output_file}[/white]")
+
+    # ── Read summaries ──
+    console.print()
+    console.print("[bold]ANALYSIS[/bold]", style="cyan")
+    console.print("─" * 60, style="dim")
+
+    from pystylometry.lexical.bnc_meta import (
+        METRIC_LABELS,
+        read_bnc_summaries,
+        write_bnc_meta_excel,
+    )
+
+    with console.status("  Reading BNC Excel files..."):
+        summaries = read_bnc_summaries(args.input_dir)
+
+    if not summaries:
+        console.print("[red]Error:[/red] No valid BNC summary sheets found in any .xlsx file.")
+        sys.exit(1)
+
+    skipped = len(xlsx_files) - len(summaries)
+    console.print(f"  Authors: [green]{len(summaries)}[/green] loaded")
+    if skipped:
+        console.print(f"  Skipped: [yellow]{skipped}[/yellow] (missing summary sheet)")
+
+    # ── Write Excel ──
+    with console.status("  Writing comparative workbook..."):
+        write_bnc_meta_excel(summaries, args.output_file)
+
+    # ── Console preview (authors as rows, truncated for large sets) ──
+    console.print()
+    max_preview = 10
+    preview = summaries[:max_preview]
+
+    table = Table(title="Counts", border_style="cyan", header_style="bold cyan")
+    table.add_column("Author", style="bold")
+    for metric in METRIC_LABELS:
+        table.add_column(metric, justify="right")
+
+    for s in preview:
+        table.add_row(
+            s.author, f"{s.total_tokens:,}", f"{s.unique_tokens:,}",
+            f"{s.overused:,}", f"{s.underused:,}", f"{s.not_in_bnc:,}",
+        )
+    if len(summaries) > max_preview:
+        table.add_row(f"... +{len(summaries) - max_preview} more", *[""] * len(METRIC_LABELS), style="dim")
+
+    console.print(table)
+
+    console.print()
+    console.print(f'[green]✓[/green] Saved to: [white]"{args.output_file}"[/white]')
+    console.print(f"  Sheets: [green]counts[/green], [green]percentages[/green]")
+    console.print(f"  Authors: [green]{len(summaries)}[/green] columns")
     console.print()
 
 
