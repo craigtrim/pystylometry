@@ -784,6 +784,32 @@ def compute_rhythm_prosody(text: str) -> RhythmProsodyResult:
 
     cmu_coverage = len(word_stress_patterns) / len(set(words)) if words else 0.0
 
+    # Syllable distribution: total occurrences and unique word types per bucket
+    # Buckets: 1–7 individually, 8+ grouped
+    _SYLLABLE_BUCKETS = list(range(1, 8))  # 1..7
+    syl_total: dict[str, int] = {}
+    syl_unique: dict[str, int] = {}
+    words_by_bucket: dict[str, set[str]] = {str(b): set() for b in _SYLLABLE_BUCKETS}
+    words_by_bucket["8+"] = set()
+    total_by_bucket: dict[str, int] = {str(b): 0 for b in _SYLLABLE_BUCKETS}
+    total_by_bucket["8+"] = 0
+
+    for word, sc in zip(words, syl_counts):
+        # CMU dictionary edge case: some phoneme strings lack stress-marked
+        # vowels, causing syllable_count() to return 0.  No real English word
+        # has 0 syllables — clamp to 1 so the bucket lookup succeeds.
+        # Related GitHub Issue:
+        #     #63 - CMU dictionary edge case: syllable_count returns 0
+        #     https://github.com/craigtrim/pystylometry/issues/63
+        sc = max(1, sc)
+        bucket = str(sc) if sc <= 7 else "8+"
+        total_by_bucket[bucket] += 1
+        words_by_bucket[bucket].add(word.lower())
+
+    for bucket in [str(b) for b in _SYLLABLE_BUCKETS] + ["8+"]:
+        syl_total[bucket] = total_by_bucket[bucket]
+        syl_unique[bucket] = len(words_by_bucket[bucket])
+
     metadata: dict[str, Any] = {
         "word_count": len(words),
         "unique_words": len(set(w.lower() for w in words)),
@@ -791,6 +817,8 @@ def compute_rhythm_prosody(text: str) -> RhythmProsodyResult:
         "total_syllables": sum(syl_counts),
         "cmu_coverage": cmu_coverage,
         "syllable_distribution": dict(Counter(syl_counts)),
+        "syllable_total_by_bucket": syl_total,
+        "syllable_unique_by_bucket": syl_unique,
         "word_stress_patterns": word_stress_patterns,
     }
 

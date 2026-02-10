@@ -883,6 +883,25 @@ def _prosody_tab(ws: Any, pr: Any) -> None:
     ws.append(["Sentence Rhythm Score", _fmt(pr.sentence_rhythm_score)])
     ws.append(["Avg Consonant Cluster", _fmt(pr.mean_consonant_cluster_length)])
 
+    # Syllable distribution: Total and Unique per bucket (1–7, 8+)
+    meta = pr.metadata if hasattr(pr, "metadata") else {}
+    syl_total = meta.get("syllable_total_by_bucket", {})
+    syl_unique = meta.get("syllable_unique_by_bucket", {})
+    if syl_total:
+        _section_row(ws, "Syllable Distribution")
+        # Sub-header
+        row_num = ws.max_row + 1
+        ws.cell(row=row_num, column=1, value="Syllables")
+        ws.cell(row=row_num, column=2, value="Total")
+        ws.cell(row=row_num, column=3, value="Unique")
+        for col in range(1, 4):
+            c = ws.cell(row=row_num, column=col)
+            c.font = Font(bold=True)
+        # Data rows
+        buckets = [str(b) for b in range(1, 8)] + ["8+"]
+        for bucket in buckets:
+            ws.append([bucket, syl_total.get(bucket, 0), syl_unique.get(bucket, 0)])
+
 
 def _cohesion_tab(ws: Any, co: Any) -> None:
     """Write the Cohesion detail tab."""
