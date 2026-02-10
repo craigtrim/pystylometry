@@ -407,7 +407,18 @@ def write_mega_excel(results: dict[str, Any], output_path: Path) -> None:
         _prosody_tab(ws, results["prosody"])
     else:
         _skip_tab(ws, "pronouncing", "readability")
-    _auto_width(ws)
+    for col_letter in ["A", "B", "C", "D", "E"]:
+        ws.column_dimensions[col_letter].width = 25
+    _align_all(ws)
+    _set_row_heights(ws)
+
+    # ── 9b. Syllables ─────────────────────────────────────────────────────
+    ws = wb.create_sheet("Syllables")
+    if "prosody" in results:
+        _syllables_tab(ws, results["prosody"])
+    else:
+        _skip_tab(ws, "pronouncing", "readability")
+    _auto_width(ws, min_w=20)
     _align_all(ws)
     _set_row_heights(ws)
 
@@ -883,24 +894,68 @@ def _prosody_tab(ws: Any, pr: Any) -> None:
     ws.append(["Sentence Rhythm Score", _fmt(pr.sentence_rhythm_score)])
     ws.append(["Avg Consonant Cluster", _fmt(pr.mean_consonant_cluster_length)])
 
-    # Syllable distribution: Total and Unique per bucket (1–7, 8+)
+    # Syllable distribution: Total and Unique per bucket (1–11, 12+)
     meta = pr.metadata if hasattr(pr, "metadata") else {}
     syl_total = meta.get("syllable_total_by_bucket", {})
     syl_unique = meta.get("syllable_unique_by_bucket", {})
     if syl_total:
+        # Empty separator row
+        ws.append([])
         _section_row(ws, "Syllable Distribution")
-        # Sub-header
+        # Sub-header with section styling
         row_num = ws.max_row + 1
-        ws.cell(row=row_num, column=1, value="Syllables")
-        ws.cell(row=row_num, column=2, value="Total")
-        ws.cell(row=row_num, column=3, value="Unique")
-        for col in range(1, 4):
+        headers = ["Syllables", "Total", "% of Total", "Unique", "% of Unique"]
+        for col_idx, hdr in enumerate(headers, start=1):
+            ws.cell(row=row_num, column=col_idx, value=hdr)
+        for col in range(1, len(headers) + 1):
             c = ws.cell(row=row_num, column=col)
-            c.font = Font(bold=True)
+            c.font = _FONT_HEADER
+            c.fill = _FILL_HEADER
+            c.alignment = Alignment(horizontal="center", vertical="center")
         # Data rows
-        buckets = [str(b) for b in range(1, 8)] + ["8+"]
+        buckets = [str(b) for b in range(1, 12)] + ["12+"]
+        sum_total = sum(syl_total.get(b, 0) for b in buckets)
+        sum_unique = sum(syl_unique.get(b, 0) for b in buckets)
         for bucket in buckets:
-            ws.append([bucket, syl_total.get(bucket, 0), syl_unique.get(bucket, 0)])
+            t = syl_total.get(bucket, 0)
+            u = syl_unique.get(bucket, 0)
+            pct_total = _fmt((t / sum_total * 100) if sum_total else 0.0)
+            pct_unique = _fmt((u / sum_unique * 100) if sum_unique else 0.0)
+            ws.append([bucket, t, pct_total, u, pct_unique])
+
+
+def _syllables_tab(ws: Any, pr: Any) -> None:
+    """Write the Syllables tab — unique words with 5+ syllables, one column per bucket.
+
+    Layout:
+        Column A = 5-syllable words
+        Column B = 6-syllable words
+        ...
+        Column G = 11-syllable words
+        Column H = 12+-syllable words
+    Each column header is the syllable count; rows below are unique words sorted
+    alphabetically.  Columns are independent (unequal lengths).
+    """
+    if not pr:
+        return
+
+    meta = pr.metadata if hasattr(pr, "metadata") else {}
+    words_by_bucket = meta.get("syllable_words_by_bucket", {})
+
+    buckets = [str(b) for b in range(5, 12)] + ["12+"]
+    word_lists = [words_by_bucket.get(b, []) for b in buckets]
+
+    # Header row
+    ws.append(buckets)
+    _style_header(ws)
+
+    # Data rows — each column may have different length
+    max_len = max((len(wl) for wl in word_lists), default=0)
+    for i in range(max_len):
+        row = []
+        for wl in word_lists:
+            row.append(wl[i] if i < len(wl) else None)
+        ws.append(row)
 
 
 def _cohesion_tab(ws: Any, co: Any) -> None:

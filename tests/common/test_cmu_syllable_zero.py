@@ -135,23 +135,33 @@ class TestSyllableBucketLogic:
         assert "0" not in dist  # no zero bucket
 
     def test_polysyllabic_buckets(self) -> None:
-        """Polysyllabic words land in the correct higher buckets."""
+        """Polysyllabic words land in the correct higher buckets.
+
+        Bucket scheme: individual buckets 1-11, overflow at 12+.
+        """
         text = "Extraordinary communication internationalization."
         result = compute_rhythm_prosody(text)
 
         dist = result.metadata["syllable_total_by_bucket"]
         # These words have 6, 5, and 8 syllables respectively
         assert "0" not in dist
-        # At least some tokens in high buckets
-        high_count = sum(dist.get(str(i), 0) for i in range(4, 8)) + dist.get("8+", 0)
+        # At least some tokens in high buckets (4-11 plus 12+)
+        high_count = (
+            sum(dist.get(str(i), 0) for i in range(4, 12))
+            + dist.get("12+", 0)
+        )
         assert high_count > 0
 
     def test_distribution_keys_are_valid(self) -> None:
-        """All bucket keys are '1'-'7' or '8+', never '0'."""
+        """All bucket keys are '1'-'11' or '12+', never '0'.
+
+        Bucket scheme updated from '1'-'7' + '8+' to '1'-'11' + '12+'.
+        See rhythm_prosody.py for the canonical _SYLLABLE_BUCKETS definition.
+        """
         text = "The quick brown fox jumps over the lazy dog."
         result = compute_rhythm_prosody(text)
 
-        valid_keys = {str(i) for i in range(1, 8)} | {"8+"}
+        valid_keys = {str(i) for i in range(1, 12)} | {"12+"}
         for key in result.metadata["syllable_total_by_bucket"]:
             assert key in valid_keys, f"Unexpected bucket key: {key}"
         for key in result.metadata["syllable_unique_by_bucket"]:
@@ -164,6 +174,60 @@ class TestSyllableBucketLogic:
 
         bucket_sum = sum(result.metadata["syllable_total_by_bucket"].values())
         assert bucket_sum == result.metadata["word_count"]
+
+    def test_no_old_8_plus_bucket(self) -> None:
+        """The old '8+' overflow bucket must not appear in output.
+
+        After extending buckets to 1-11 + 12+, the legacy '8+' key
+        should never be present.
+        """
+        text = "Extraordinary internationalization characterization."
+        result = compute_rhythm_prosody(text)
+
+        assert "8+" not in result.metadata["syllable_total_by_bucket"]
+        assert "8+" not in result.metadata["syllable_unique_by_bucket"]
+
+    def test_individual_buckets_8_through_11_exist(self) -> None:
+        """Buckets '8' through '11' are valid individual bucket keys.
+
+        These were previously collapsed into '8+' and are now tracked
+        individually for finer-grained syllable distribution analysis.
+        """
+        text = "The quick brown fox jumps over the lazy dog."
+        result = compute_rhythm_prosody(text)
+
+        valid_keys = {str(i) for i in range(1, 12)} | {"12+"}
+        for key in result.metadata["syllable_total_by_bucket"]:
+            assert key in valid_keys
+
+    def test_bucket_count_is_twelve(self) -> None:
+        """The total/unique bucket dicts have exactly 12 keys (1-11 + 12+)."""
+        text = "The cat sat on the mat."
+        result = compute_rhythm_prosody(text)
+
+        assert len(result.metadata["syllable_total_by_bucket"]) == 12
+        assert len(result.metadata["syllable_unique_by_bucket"]) == 12
+
+    def test_zero_bucket_never_present(self) -> None:
+        """Bucket '0' must never appear — the max(1, sc) clamp prevents it.
+
+        Related GitHub Issue:
+            #63 - CMU dictionary edge case: syllable_count returns 0
+            https://github.com/craigtrim/pystylometry/issues/63
+        """
+        for text in [
+            "The cat sat.",
+            "Extraordinary communication internationalization.",
+            "A I.",
+            "The beautiful garden had extraordinary flowers and lovely trees.",
+        ]:
+            result = compute_rhythm_prosody(text)
+            assert "0" not in result.metadata["syllable_total_by_bucket"], (
+                f"Bucket '0' found in total_by_bucket for: {text!r}"
+            )
+            assert "0" not in result.metadata["syllable_unique_by_bucket"], (
+                f"Bucket '0' found in unique_by_bucket for: {text!r}"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -230,6 +294,19 @@ class TestAPNewsCorpusIntegration:
         dist = result.metadata["syllable_distribution"]
         assert 0 not in dist, "syllable_distribution should never have a 0-syllable key"
         assert all(k >= 1 for k in dist.keys())
+
+    def test_bucket_keys_valid_on_real_corpus(self) -> None:
+        """All bucket keys are '1'-'11' or '12+' on real AP News text.
+
+        Ensures no legacy '8+' or invalid '0' keys survive in production.
+        """
+        text = _load_apnews_chunk("chunk_00001.txt")
+        result = compute_rhythm_prosody(text)
+
+        valid_keys = {str(i) for i in range(1, 12)} | {"12+"}
+        for key in result.metadata["syllable_total_by_bucket"]:
+            assert key in valid_keys, f"Unexpected bucket key: {key}"
+        assert "8+" not in result.metadata["syllable_total_by_bucket"]
 
     def test_all_numeric_fields_finite(self) -> None:
         """No NaN or Inf in any numeric output field on real text."""

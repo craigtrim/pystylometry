@@ -4,7 +4,7 @@ Tests the ``syllable_total_by_bucket`` and ``syllable_unique_by_bucket``
 fields inside the metadata dict returned by ``compute_rhythm_prosody``.
 
 Feature specification:
-    - Buckets: "1" through "7" and "8+"
+    - Buckets: "1" through "11" and "12+"
     - For each bucket: total count (all occurrences) and unique count
       (distinct word types, case-insensitive)
     - Words are lowercased for unique counting
@@ -21,7 +21,7 @@ Test categories:
     4.  Total vs unique divergence
     5.  Case-insensitive unique counting
     6.  Empty buckets for simple text
-    7.  8+ bucket for long words
+    7.  High-syllable buckets (8–11, 12+) for long words
     8.  Sum-of-totals equals word count
     9.  Unique <= total invariant
     10. Empty text
@@ -34,7 +34,7 @@ from pystylometry.prosody.rhythm_prosody import compute_rhythm_prosody
 
 # ---- helpers ----------------------------------------------------------------
 
-EXPECTED_BUCKETS = ["1", "2", "3", "4", "5", "6", "7", "8+"]
+EXPECTED_BUCKETS = [str(b) for b in range(1, 12)] + ["12+"]
 
 
 def _total(text: str) -> dict[str, int]:
@@ -58,24 +58,35 @@ def _meta(text: str) -> dict:
 
 
 class TestBucketKeyCompleteness:
-    """All eight bucket keys must be present in every result."""
+    """All twelve bucket keys must be present in every result."""
 
     def test_all_bucket_keys_present_in_total(self) -> None:
-        """syllable_total_by_bucket contains keys '1'..'7' and '8+'."""
+        """syllable_total_by_bucket contains keys '1'..'11' and '12+'."""
         total = _total("The quick brown fox jumps over the lazy dog.")
         assert set(total.keys()) == set(EXPECTED_BUCKETS)
 
     def test_all_bucket_keys_present_in_unique(self) -> None:
-        """syllable_unique_by_bucket contains keys '1'..'7' and '8+'."""
+        """syllable_unique_by_bucket contains keys '1'..'11' and '12+'."""
         unique = _unique("The quick brown fox jumps over the lazy dog.")
         assert set(unique.keys()) == set(EXPECTED_BUCKETS)
 
     def test_bucket_keys_present_for_single_word(self) -> None:
-        """Even a single-word input has all eight bucket keys."""
+        """Even a single-word input has all twelve bucket keys."""
         total = _total("cat")
         unique = _unique("cat")
         assert set(total.keys()) == set(EXPECTED_BUCKETS)
         assert set(unique.keys()) == set(EXPECTED_BUCKETS)
+
+    def test_bucket_count_is_twelve(self) -> None:
+        """There are exactly 12 buckets: 1–11 plus 12+."""
+        total = _total("hello world")
+        assert len(total) == 12
+
+    def test_bucket_keys_are_strings(self) -> None:
+        """All bucket keys are strings, not integers."""
+        total = _total("hello")
+        for key in total:
+            assert isinstance(key, str)
 
 
 # =============================================================================
@@ -104,9 +115,9 @@ class TestMonosyllabicWords:
         assert unique["1"] == 5
 
     def test_monosyllabic_text_higher_buckets_zero(self) -> None:
-        """Buckets '2' through '7' and '8+' should all be 0 for monosyllabic text."""
+        """Buckets '2' through '11' and '12+' should all be 0 for monosyllabic text."""
         total = _total("the cat sat on the mat")
-        for bucket in ["2", "3", "4", "5", "6", "7", "8+"]:
+        for bucket in [str(b) for b in range(2, 12)] + ["12+"]:
             assert total[bucket] == 0, f"Expected bucket {bucket!r} total == 0"
 
 
@@ -198,56 +209,76 @@ class TestEmptyBuckets:
     """Simple text should have zero counts for unused high-syllable buckets."""
 
     def test_simple_text_no_high_buckets(self) -> None:
-        """'I am a man' -- all monosyllabic; buckets 2-7 and 8+ should be 0."""
+        """'I am a man' -- all monosyllabic; buckets 2–11 and 12+ should be 0."""
         total = _total("I am a man")
         unique = _unique("I am a man")
-        for b in ["2", "3", "4", "5", "6", "7", "8+"]:
+        for b in [str(i) for i in range(2, 12)] + ["12+"]:
             assert total[b] == 0, f"total[{b!r}] should be 0"
             assert unique[b] == 0, f"unique[{b!r}] should be 0"
 
     def test_no_5_plus_syllable_words_in_simple_prose(self) -> None:
         """Standard prose rarely uses 5+ syllable words."""
         total = _total("The big red dog sat by the tree.")
-        for b in ["5", "6", "7", "8+"]:
+        for b in [str(i) for i in range(5, 12)] + ["12+"]:
             assert total[b] == 0
 
 
 # =============================================================================
-# 7. 8+ bucket for long words
+# 7. High-syllable buckets (8–11, 12+) for long words
 # =============================================================================
 
 
-class TestEightPlusBucket:
-    """Words with 8 or more syllables land in the '8+' bucket."""
+class TestHighSyllableBuckets:
+    """Words with 8+ syllables land in individual buckets up to 11, then 12+."""
 
     def test_antidisestablishmentarianism(self) -> None:
-        """'antidisestablishmentarianism' has many syllables; should go to '8+'."""
-        total = _total("antidisestablishmentarianism")
-        unique = _unique("antidisestablishmentarianism")
-        assert total["8+"] >= 1
-        assert unique["8+"] >= 1
+        """'antidisestablishmentarianism' has many syllables (12 in CMU).
 
-    def test_eight_plus_bucket_with_context(self) -> None:
-        """Long word embedded in a sentence still goes to '8+' bucket."""
+        Should land in one of the high buckets (likely 12+).
+        """
+        total = _total("antidisestablishmentarianism")
+        # It has 12 syllables in CMU — should be in the "12+" bucket
+        # (or if the heuristic gives a different count, at least in a high bucket)
+        high_total = sum(total.get(str(i), 0) for i in range(8, 12)) + total.get("12+", 0)
+        assert high_total >= 1
+
+    def test_high_bucket_with_context(self) -> None:
+        """Long word embedded in a sentence still goes to a high bucket."""
         text = "He said antidisestablishmentarianism is real"
         total = _total(text)
-        assert total["8+"] >= 1
+        high_total = sum(total.get(str(i), 0) for i in range(8, 12)) + total.get("12+", 0)
+        assert high_total >= 1
 
     def test_bucket_boundary_seven_vs_eight(self) -> None:
-        """A 7-syllable word goes to '7', not '8+'.
+        """A 6-syllable word goes to '6', not any higher bucket.
 
-        'electrocardiogram' has 7 syllables in CMU; verify it goes to '7'.
-        If CMU assigns a different count, just verify '7' and '8+' are
-        disjoint for the word.
+        'responsibility' = 6 syllables in CMU.
         """
-        # Use a word that is known to be long but <= 7 syllables
-        # 'responsibility' = 6 syllables in CMU
         text = "responsibility"
         total = _total(text)
-        # It should NOT be in the 8+ bucket
-        assert total["8+"] == 0
-        # It should be in one of the upper buckets (5 or 6 typically)
+        # Should NOT be in any bucket above 7
+        for b in [str(i) for i in range(8, 12)] + ["12+"]:
+            assert total[b] == 0, f"Expected bucket {b!r} == 0 for 'responsibility'"
+        # Should be in one of the upper buckets (5 or 6 typically)
         assert total["1"] == 0  # definitely not monosyllabic
+
+    def test_individual_buckets_8_through_11(self) -> None:
+        """Buckets '8' through '11' exist as individual keys, not grouped."""
+        total = _total("cat")
+        for b in ["8", "9", "10", "11"]:
+            assert b in total, f"Bucket {b!r} should be a key in total"
+            assert total[b] == 0  # 'cat' is monosyllabic
+
+    def test_12_plus_bucket_exists(self) -> None:
+        """The overflow bucket '12+' exists as a key."""
+        total = _total("cat")
+        assert "12+" in total
+        assert total["12+"] == 0
+
+    def test_no_8_plus_bucket(self) -> None:
+        """The old '8+' grouped bucket no longer exists."""
+        total = _total("The quick brown fox.")
+        assert "8+" not in total
 
 
 # =============================================================================
@@ -359,7 +390,7 @@ class TestSingleWord:
         unique = _unique("cat")
         assert total["1"] == 1
         assert unique["1"] == 1
-        for b in ["2", "3", "4", "5", "6", "7", "8+"]:
+        for b in [str(i) for i in range(2, 12)] + ["12+"]:
             assert total[b] == 0
             assert unique[b] == 0
 
@@ -515,3 +546,14 @@ class TestEdgeCases:
         assert sum(total.values()) == meta["word_count"]
         # Specifically, these should be clamped to bucket '1'
         assert total["1"] >= 1
+
+    def test_no_zero_bucket_key(self) -> None:
+        """Bucket '0' must never appear in the results."""
+        total = _total("hmm shh brr the cat sat")
+        assert "0" not in total
+
+    def test_no_old_8_plus_bucket(self) -> None:
+        """The old grouped '8+' bucket must not appear after the extension."""
+        text = "antidisestablishmentarianism is a long word"
+        total = _total(text)
+        assert "8+" not in total

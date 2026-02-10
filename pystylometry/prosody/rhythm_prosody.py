@@ -784,15 +784,17 @@ def compute_rhythm_prosody(text: str) -> RhythmProsodyResult:
 
     cmu_coverage = len(word_stress_patterns) / len(set(words)) if words else 0.0
 
-    # Syllable distribution: total occurrences and unique word types per bucket
-    # Buckets: 1–7 individually, 8+ grouped
-    _SYLLABLE_BUCKETS = list(range(1, 8))  # 1..7
+    # Syllable distribution: total occurrences and unique word types per bucket.
+    # Buckets: 1–11 individually, 12+ grouped.  Extended from 8+ to give
+    # visibility into the long tail of polysyllabic vocabulary.
+    _SYLLABLE_BUCKETS = list(range(1, 12))  # 1..11
+    _OVERFLOW_BUCKET = "12+"
     syl_total: dict[str, int] = {}
     syl_unique: dict[str, int] = {}
     words_by_bucket: dict[str, set[str]] = {str(b): set() for b in _SYLLABLE_BUCKETS}
-    words_by_bucket["8+"] = set()
+    words_by_bucket[_OVERFLOW_BUCKET] = set()
     total_by_bucket: dict[str, int] = {str(b): 0 for b in _SYLLABLE_BUCKETS}
-    total_by_bucket["8+"] = 0
+    total_by_bucket[_OVERFLOW_BUCKET] = 0
 
     for word, sc in zip(words, syl_counts):
         # CMU dictionary edge case: some phoneme strings lack stress-marked
@@ -802,13 +804,22 @@ def compute_rhythm_prosody(text: str) -> RhythmProsodyResult:
         #     #63 - CMU dictionary edge case: syllable_count returns 0
         #     https://github.com/craigtrim/pystylometry/issues/63
         sc = max(1, sc)
-        bucket = str(sc) if sc <= 7 else "8+"
+        bucket = str(sc) if sc <= 11 else _OVERFLOW_BUCKET
         total_by_bucket[bucket] += 1
         words_by_bucket[bucket].add(word.lower())
 
-    for bucket in [str(b) for b in _SYLLABLE_BUCKETS] + ["8+"]:
+    for bucket in [str(b) for b in _SYLLABLE_BUCKETS] + [_OVERFLOW_BUCKET]:
         syl_total[bucket] = total_by_bucket[bucket]
         syl_unique[bucket] = len(words_by_bucket[bucket])
+
+    # Word lists for high-syllable buckets (5–11, 12+), sorted alphabetically.
+    # Used by the mega "Syllables" tab to enumerate polysyllabic vocabulary.
+    _HIGH_BUCKETS = [str(b) for b in range(5, 12)] + [_OVERFLOW_BUCKET]
+    syllable_words_by_bucket: dict[str, list[str]] = {
+        bucket: sorted(words_by_bucket[bucket])
+        for bucket in _HIGH_BUCKETS
+        if words_by_bucket.get(bucket)
+    }
 
     metadata: dict[str, Any] = {
         "word_count": len(words),
@@ -819,6 +830,7 @@ def compute_rhythm_prosody(text: str) -> RhythmProsodyResult:
         "syllable_distribution": dict(Counter(syl_counts)),
         "syllable_total_by_bucket": syl_total,
         "syllable_unique_by_bucket": syl_unique,
+        "syllable_words_by_bucket": syllable_words_by_bucket,
         "word_stress_patterns": word_stress_patterns,
     }
 

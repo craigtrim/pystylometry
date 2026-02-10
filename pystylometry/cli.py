@@ -2423,23 +2423,31 @@ Output:
     console.print(f"  Dir:     [white]{args.input_dir}[/white]")
 
     from pystylometry.lexical.mega_meta import (
+        CHARACTER_METRIC_LABELS,
         NGRAM_METRIC_LABELS,
         PROSODY_METRIC_LABELS,
+        SYLLABLE_BUCKETS,
+        read_character_summaries,
         read_ngram_summaries,
         read_prosody_summaries,
+        read_syllable_summaries,
         write_mega_meta_excel,
     )
 
     with console.status("  Reading mega Excel files..."):
         summaries = read_ngram_summaries(args.input_dir)
         prosody_summaries = read_prosody_summaries(args.input_dir)
+        syllable_summaries = read_syllable_summaries(args.input_dir)
+        character_summaries = read_character_summaries(args.input_dir)
 
-    if not summaries and not prosody_summaries:
+    if not summaries and not prosody_summaries and not syllable_summaries and not character_summaries:
         console.print("[red]Error:[/red] No valid sheets found in any .xlsx file.")
         sys.exit(1)
 
-    console.print(f"  N-grams: [green]{len(summaries)}[/green] authors loaded")
-    console.print(f"  Prosody: [green]{len(prosody_summaries)}[/green] authors loaded")
+    console.print(f"  N-grams:    [green]{len(summaries)}[/green] authors loaded")
+    console.print(f"  Prosody:    [green]{len(prosody_summaries)}[/green] authors loaded")
+    console.print(f"  Syllables:  [green]{len(syllable_summaries)}[/green] authors loaded")
+    console.print(f"  Character:  [green]{len(character_summaries)}[/green] authors loaded")
 
     console.print()
     console.print("[bold]OUTPUT[/bold]", style="cyan")
@@ -2449,7 +2457,12 @@ Output:
 
     # ── Write Excel ──
     with console.status("  Writing comparative workbook..."):
-        write_mega_meta_excel(summaries, args.output_file, prosody_summaries=prosody_summaries)
+        write_mega_meta_excel(
+            summaries, args.output_file,
+            prosody_summaries=prosody_summaries,
+            syllable_summaries=syllable_summaries,
+            character_summaries=character_summaries,
+        )
 
     # ── Console preview: N-grams ──
     console.print()
@@ -2509,6 +2522,57 @@ Output:
         console.print()
         console.print(table_p)
 
+    # ── Console preview: Syllables ──
+    if syllable_summaries:
+        preview_s = syllable_summaries[:max_preview]
+        table_s = Table(title="Syllables", border_style="cyan", header_style="bold cyan")
+        table_s.add_column("Author", style="bold")
+        for bucket in SYLLABLE_BUCKETS:
+            table_s.add_column(bucket, justify="right")
+
+        for s in preview_s:
+            table_s.add_row(
+                s.author,
+                *[f"{s.totals.get(b, 0):,}" for b in SYLLABLE_BUCKETS],
+            )
+        if len(syllable_summaries) > max_preview:
+            table_s.add_row(
+                f"... +{len(syllable_summaries) - max_preview} more",
+                *[""] * len(SYLLABLE_BUCKETS),
+                style="dim",
+            )
+        console.print()
+        console.print(table_s)
+
+    # ── Console preview: Character ──
+    if character_summaries:
+        preview_c = character_summaries[:max_preview]
+        table_c = Table(title="Character", border_style="cyan", header_style="bold cyan")
+        table_c.add_column("Author", style="bold")
+        for metric in CHARACTER_METRIC_LABELS:
+            table_c.add_column(metric, justify="right")
+
+        for c in preview_c:
+            table_c.add_row(
+                c.author,
+                f"{c.avg_word_length:.4f}",
+                f"{c.avg_sentence_length_chars:.4f}",
+                f"{c.punctuation_density:.4f}",
+                f"{c.punctuation_variety:.4f}",
+                f"{c.vowel_consonant_ratio:.4f}",
+                f"{c.digit_ratio:.4f}",
+                f"{c.uppercase_ratio:.4f}",
+                f"{c.whitespace_ratio:.4f}",
+            )
+        if len(character_summaries) > max_preview:
+            table_c.add_row(
+                f"... +{len(character_summaries) - max_preview} more",
+                *[""] * len(CHARACTER_METRIC_LABELS),
+                style="dim",
+            )
+        console.print()
+        console.print(table_c)
+
     # ── Summary ──
     console.print()
     console.print(f'[green]✓[/green] Saved to: [white]"{args.output_file}"[/white]')
@@ -2517,6 +2581,10 @@ Output:
         sheets.append(f"N-grams ({len(summaries)} authors)")
     if prosody_summaries:
         sheets.append(f"Prosody ({len(prosody_summaries)} authors)")
+    if syllable_summaries:
+        sheets.append(f"Syllables ({len(syllable_summaries)} authors)")
+    if character_summaries:
+        sheets.append(f"Character ({len(character_summaries)} authors)")
     console.print(f"  Sheets: [green]{', '.join(sheets)}[/green]")
     console.print()
 
