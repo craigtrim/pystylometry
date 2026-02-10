@@ -45,6 +45,8 @@ mega = "pystylometry.cli:mega_cli"
 word-class = "pystylometry.cli:classify_cli"
 # bnc-meta --input-dir /tmp --output-file /tmp/bnc-comparison.xlsx
 bnc-meta = "pystylometry.cli:bnc_meta_cli"
+# mega-meta --input-dir ~/Desktop/mega-output --output-file /tmp/mega-comparison.xlsx
+mega-meta = "pystylometry.cli:mega_meta_cli"
 
 [tool.poetry.urls]
 Homepage = "https://github.com/craigtrim/pystylometry"

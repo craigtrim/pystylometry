@@ -2350,5 +2350,176 @@ Output:
     console.print()
 
 
+def mega_meta_cli() -> None:
+    """CLI entry point for comparative mega meta-analysis across authors.
+
+    Reads N-gram and Prosody metrics from multiple per-author mega Excel files
+    and produces a single comparative workbook.
+    """
+    parser = argparse.ArgumentParser(
+        prog="mega-meta",
+        description="Compare mega stylometric metrics across multiple author Excel files.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  mega-meta --input-dir ~/Desktop/mega-output --output-file /tmp/mega-comparison.xlsx
+  mega-meta -d ~/Desktop/mega-output -o /tmp/mega-comparison.xlsx
+
+Input:
+  A directory (with optional subdirectories) containing .xlsx files produced by:
+    mega --input-dir [author-dir] --output-file Author.xlsx
+
+  Each file should have an "N-grams" and/or "Prosody" sheet.
+  Author name is derived from the filename (e.g., "Mark Twain.xlsx" -> "Mark Twain").
+
+Output:
+  An Excel workbook with N-grams and Prosody sheets (authors as rows, metrics as columns).
+""",
+    )
+
+    parser.add_argument(
+        "--input-dir",
+        "-d",
+        type=Path,
+        required=True,
+        metavar="DIR",
+        help="Directory of mega Excel files (one per author)",
+    )
+    parser.add_argument(
+        "--output-file",
+        "-o",
+        type=Path,
+        required=True,
+        metavar="FILE",
+        help="Output Excel file path (.xlsx)",
+    )
+
+    args = parser.parse_args()
+
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.table import Table
+    from rich.text import Text
+
+    console = Console(stderr=True)
+
+    # ── Validation ──
+    if not args.input_dir.is_dir():
+        console.print(f"[red]Error:[/red] Directory not found: {args.input_dir}")
+        sys.exit(1)
+
+    # ── Banner ──
+    console.print()
+    header = Text()
+    header.append("PYSTYLOMETRY", style="bold cyan")
+    header.append(" — ", style="dim")
+    header.append("Mega Meta-Analysis", style="bold white")
+    console.print(Panel(header, border_style="cyan"))
+
+    # ── Read summaries ──
+    console.print()
+    console.print("[bold]INPUT[/bold]", style="cyan")
+    console.print("─" * 60, style="dim")
+    console.print(f"  Dir:     [white]{args.input_dir}[/white]")
+
+    from pystylometry.lexical.mega_meta import (
+        NGRAM_METRIC_LABELS,
+        PROSODY_METRIC_LABELS,
+        read_ngram_summaries,
+        read_prosody_summaries,
+        write_mega_meta_excel,
+    )
+
+    with console.status("  Reading mega Excel files..."):
+        summaries = read_ngram_summaries(args.input_dir)
+        prosody_summaries = read_prosody_summaries(args.input_dir)
+
+    if not summaries and not prosody_summaries:
+        console.print("[red]Error:[/red] No valid sheets found in any .xlsx file.")
+        sys.exit(1)
+
+    console.print(f"  N-grams: [green]{len(summaries)}[/green] authors loaded")
+    console.print(f"  Prosody: [green]{len(prosody_summaries)}[/green] authors loaded")
+
+    console.print()
+    console.print("[bold]OUTPUT[/bold]", style="cyan")
+    console.print("─" * 60, style="dim")
+    console.print(f"  Format:  [magenta]Excel (.xlsx)[/magenta]")
+    console.print(f"  File:    [white]{args.output_file}[/white]")
+
+    # ── Write Excel ──
+    with console.status("  Writing comparative workbook..."):
+        write_mega_meta_excel(summaries, args.output_file, prosody_summaries=prosody_summaries)
+
+    # ── Console preview: N-grams ──
+    console.print()
+    max_preview = 10
+
+    if summaries:
+        preview = summaries[:max_preview]
+        table = Table(title="N-grams", border_style="cyan", header_style="bold cyan")
+        table.add_column("Author", style="bold")
+        for metric in NGRAM_METRIC_LABELS:
+            table.add_column(metric, justify="right")
+
+        for s in preview:
+            table.add_row(
+                s.author,
+                f"{s.char_bigram_entropy:.4f}",
+                f"{s.char_bigram_perplexity:.4f}",
+                f"{s.word_bigram_entropy:.4f}",
+                f"{s.word_bigram_perplexity:,}",
+            )
+        if len(summaries) > max_preview:
+            table.add_row(
+                f"... +{len(summaries) - max_preview} more",
+                *[""] * len(NGRAM_METRIC_LABELS),
+                style="dim",
+            )
+        console.print(table)
+
+    # ── Console preview: Prosody ──
+    if prosody_summaries:
+        preview_p = prosody_summaries[:max_preview]
+        table_p = Table(title="Prosody", border_style="cyan", header_style="bold cyan")
+        table_p.add_column("Author", style="bold")
+        for metric in PROSODY_METRIC_LABELS:
+            table_p.add_column(metric, justify="right")
+
+        for p in preview_p:
+            table_p.add_row(
+                p.author,
+                f"{p.mean_syllables_per_word:.4f}",
+                f"{p.syllable_std_dev:.4f}",
+                f"{p.polysyllabic_ratio:.4f}",
+                f"{p.monosyllabic_ratio:.4f}",
+                f"{p.rhythmic_regularity:.4f}",
+                f"{p.alliteration_density:.4f}",
+                f"{p.assonance_density:.4f}",
+                f"{p.consonance_density:.4f}",
+                f"{p.sentence_rhythm_score:.4f}",
+                f"{p.avg_consonant_cluster:.4f}",
+            )
+        if len(prosody_summaries) > max_preview:
+            table_p.add_row(
+                f"... +{len(prosody_summaries) - max_preview} more",
+                *[""] * len(PROSODY_METRIC_LABELS),
+                style="dim",
+            )
+        console.print()
+        console.print(table_p)
+
+    # ── Summary ──
+    console.print()
+    console.print(f'[green]✓[/green] Saved to: [white]"{args.output_file}"[/white]')
+    sheets = []
+    if summaries:
+        sheets.append(f"N-grams ({len(summaries)} authors)")
+    if prosody_summaries:
+        sheets.append(f"Prosody ({len(prosody_summaries)} authors)")
+    console.print(f"  Sheets: [green]{', '.join(sheets)}[/green]")
+    console.print()
+
+
 if __name__ == "__main__":
     drift_cli()
