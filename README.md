@@ -29,7 +29,7 @@ pip install pystylometry[all]         # Everything
 | [**ngrams**](https://github.com/craigtrim/pystylometry/tree/master/pystylometry/ngrams) | Word/character/POS n-grams, Shannon entropy, skipgrams | N-gram profiles and entropy |
 | [**dialect**](https://github.com/craigtrim/pystylometry/tree/master/pystylometry/dialect) | British/American classification, spelling/grammar/vocabulary markers, markedness | Regional dialect detection |
 | [**consistency**](https://github.com/craigtrim/pystylometry/tree/master/pystylometry/consistency) | Sliding-window chi-squared drift, pattern classification | Intra-document style analysis |
-| [**prosody**](https://github.com/craigtrim/pystylometry/tree/master/pystylometry/prosody) | Syllable stress, rhythm regularity | Prose rhythm (requires spaCy) |
+| [**prosody**](https://github.com/craigtrim/pystylometry/tree/master/pystylometry/prosody) | Syllable stress, rhythm regularity, sentence syllable patterns, pattern repetition | Prose rhythm (requires cmudict) |
 | [**viz**](https://github.com/craigtrim/pystylometry/tree/master/pystylometry/viz) | Timeline, scatter, report (PNG + interactive HTML) | Drift detection visualization |
 
 ## Development

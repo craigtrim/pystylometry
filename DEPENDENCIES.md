@@ -7,11 +7,14 @@
 ## Core Dependencies (Always Required)
 
 ```toml
-numpy>=1.20.0          # ~15 MB - Numerical operations
-stylometry-ttr>=0.1.0  # ~50 KB - TTR metrics
+numpy>=1.20.0                # ~15 MB - Numerical operations
+stylometry-ttr>=0.1.0        # ~50 KB - TTR metrics
+fast-sentence-segment>=0.1.0 # Sentence segmentation (Issue #69)
 ```
 
 **Total core install: ~15 MB**
+
+**Note:** Issue #69 replaced custom regex sentence segmentation with fast-sentence-segment for better accuracy and reliability.
 
 ## What Works with Core Only
 

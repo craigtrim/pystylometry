@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import re
-
 from .tokenizer import Tokenizer
 
 # ===== Convenience Functions =====
@@ -73,50 +71,37 @@ def advanced_tokenize(
 
 # ===== Sentence Splitting =====
 
-# Common abbreviations that shouldn't trigger sentence boundaries
-_ABBREVIATIONS = {
-    "mr.",
-    "mrs.",
-    "ms.",
-    "dr.",
-    "prof.",
-    "sr.",
-    "jr.",
-    "st.",
-    "vs.",
-    "etc.",
-    "e.g.",
-    "i.e.",
-    "al.",
-    "fig.",
-    "vol.",
-    "no.",
-    "inc.",
-    "corp.",
-    "ltd.",
-    "co.",
-    "ph.d.",
-    "m.d.",
-    "b.a.",
-    "m.a.",
-    "j.d.",
-    "rev.",
-    "gen.",
-    "rep.",
-    "sen.",
-    "capt.",
-}
+# Related GitHub Issue:
+#     #69 - Replace custom regex sentence segmentation with fast-sentence-segment
+#     https://github.com/craigtrim/pystylometry/issues/69
+#     #68 - Replace spaCy with built-in utilities
+#     https://github.com/craigtrim/pystylometry/issues/68
+try:
+    from fast_sentence_segment import segment
+except ImportError:
+    raise ImportError(
+        "The 'fast-sentence-segment' library is required for sentence segmentation. "
+        "Install it with: pip install pystylometry"
+    )
 
 
 def split_sentences(text: str) -> list[str]:
-    """
-    Split text into sentences with improved boundary detection.
+    """Split text into sentences using fast-sentence-segment.
 
-    Handles common abbreviations and edge cases better than simple
-    splitting on sentence-ending punctuation. Uses a two-pass approach:
-    1. Protect known abbreviations from splitting
-    2. Split on sentence boundaries
-    3. Restore abbreviations
+    Uses the fast-sentence-segment library for accurate, reliable
+    sentence boundary detection. Handles abbreviations, edge cases,
+    and complex punctuation patterns automatically using spaCy's
+    sentence segmentation engine with English-specific rules.
+
+    This replaces the previous custom regex implementation (Issue #69)
+    which had issues with mid-sentence splits, fragment detection, and
+    inconsistent segmentation.
+
+    Related GitHub Issue:
+        #69 - Replace custom regex with fast-sentence-segment
+        https://github.com/craigtrim/pystylometry/issues/69
+        #68 - Replace spaCy with built-in utilities
+        https://github.com/craigtrim/pystylometry/issues/68
 
     Args:
         text: Input text to split
@@ -128,53 +113,27 @@ def split_sentences(text: str) -> list[str]:
         >>> sentences = split_sentences("Dr. Smith arrived. He was happy.")
         >>> print(sentences)
         ['Dr. Smith arrived.', 'He was happy.']
+
+    Note:
+        Requires spaCy's English model (en_core_web_sm) to be installed.
+        Run: python -m spacy download en_core_web_sm
+
+    References:
+        fast-sentence-segment: https://pypi.org/project/fast-sentence-segment/
     """
-    if not text:
+    if not text or not text.strip():
         return []
 
-    # Temporarily replace abbreviations with placeholders
-    protected_text = text
-    replacements = {}
-    for i, abbr in enumerate(_ABBREVIATIONS):
-        if abbr in text.lower():
-            placeholder = f"__ABBR{i}__"
-            # Case-insensitive replacement
-            pattern = re.compile(re.escape(abbr), re.IGNORECASE)
-            matches = pattern.findall(protected_text)
-            if matches:
-                replacements[placeholder] = matches[0]
-                protected_text = pattern.sub(placeholder, protected_text, count=1)
-
-    # Split on sentence boundaries: period/question/exclamation + whitespace + capital letter
-    # Simple pattern that avoids variable-width look-behind
-    sentences = re.split(r"([.!?]+)\s+(?=[A-Z])", protected_text)
-
-    # Reconstruct sentences (regex split includes the captured groups)
-    result = []
-    i = 0
-    while i < len(sentences):
-        if i + 1 < len(sentences) and sentences[i + 1] in (".", "!", "?", ".!", "!?", "?.", "..."):
-            # Combine text with its punctuation
-            sentence = sentences[i] + sentences[i + 1]
-            i += 2
-        else:
-            sentence = sentences[i]
-            i += 1
-
-        # Restore abbreviations
-        for placeholder, original in replacements.items():
-            sentence = sentence.replace(placeholder, original)
-
-        sentence = sentence.strip()
-        if sentence:
-            result.append(sentence)
-
-    # Fallback: if we only got one sentence, try simpler split
-    if len(result) <= 1 and text:
-        sentences = re.split(r"[.!?]+\s+", text)
-        result = [s.strip() for s in sentences if s.strip()]
-
-    return result
+    # Use fast-sentence-segment for accurate sentence boundary detection
+    #
+    # Related GitHub Issue:
+    #     #69 - Replaces 70+ lines of custom regex with battle-tested library
+    #     https://github.com/craigtrim/pystylometry/issues/69
+    #
+    # Note: segment() returns list of paragraphs (each paragraph is a list of sentences)
+    # We flatten this to return a simple list of all sentences
+    paragraphs = segment(text)
+    return [sentence for paragraph in paragraphs for sentence in paragraph]
 
 
 def check_optional_dependency(module_name: str, extra_name: str) -> bool:
