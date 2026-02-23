@@ -216,6 +216,41 @@ def run_mega(text: str, console: Console) -> dict[str, Any]:
     results["drift"] = compute_kilgarriff_drift(text)
     console.print(" [green]done[/green]")
 
+    # -- Sentence Syllable Patterns (requires cmudict) ----------------------
+    # No size limit (Issue #68: replaced spaCy with built-in utilities)
+    #
+    # Related GitHub Issue:
+    #     #68 - Replace spaCy with built-in utilities (removes 1M char limit)
+    #     https://github.com/craigtrim/pystylometry/issues/68
+    #     #66 - Sentence-level syllable analysis
+    #     https://github.com/craigtrim/pystylometry/issues/66
+    try:
+        console.print("  [dim]Running[/dim] sentence syllable patterns...", end="")
+        from pystylometry.prosody import compute_sentence_syllable_patterns
+
+        results["sentence_syllables"] = compute_sentence_syllable_patterns(text)
+        console.print(" [green]done[/green]")
+    except (ImportError, Exception) as exc:
+        skipped.append(("Sentence Syllables", str(exc)))
+        console.print(f" [yellow]skipped[/yellow] ({exc})")
+
+    # -- Syllable Pattern Repetition (requires sentence syllables) -----------
+    # Related GitHub Issue:
+    #     #67 - Syllable pattern repetition analysis
+    #     https://github.com/craigtrim/pystylometry/issues/67
+    if "sentence_syllables" in results:
+        try:
+            console.print("  [dim]Running[/dim] syllable pattern repetition...", end="")
+            from pystylometry.prosody import analyze_syllable_pattern_repetition
+
+            results["syllable_patterns"] = analyze_syllable_pattern_repetition(
+                results["sentence_syllables"]
+            )
+            console.print(" [green]done[/green]")
+        except (ImportError, Exception) as exc:
+            skipped.append(("Syllable Patterns", str(exc)))
+            console.print(f" [yellow]skipped[/yellow] ({exc})")
+
     # -- Readability (requires pronouncing) ----------------------------------
     try:
         console.print("  [dim]Running[/dim] readability indices...", end="")
@@ -351,19 +386,7 @@ def write_mega_excel(results: dict[str, Any], output_path: Path) -> None:
     _align_all(ws)
     _set_row_heights(ws)
 
-    # ── 4. Sentences ───────────────────────────────────────────────────────
-    ws = wb.create_sheet("Sentences")
-    if "syntactic" in results:
-        ws.append(["Metric", "Value", "Std Dev"])
-        _style_header(ws)
-        _sentences_tab(ws, results["syntactic"])
-    else:
-        _skip_tab(ws, "spacy", "syntactic")
-    _auto_width(ws)
-    _align_all(ws)
-    _set_row_heights(ws)
-
-    # ── 5. Function Words ─────────────────────────────────────────────────
+    # ── 4. Function Words ─────────────────────────────────────────────────
     ws = wb.create_sheet("Function Words")
     ws.append(["Metric", "Value"])
     _style_header(ws)
@@ -372,7 +395,7 @@ def write_mega_excel(results: dict[str, Any], output_path: Path) -> None:
     _align_all(ws)
     _set_row_heights(ws)
 
-    # ── 6. Style Markers ──────────────────────────────────────────────────
+    # ── 5. Style Markers ──────────────────────────────────────────────────
     ws = wb.create_sheet("Style Markers")
     ws.append(["Marker", "Value"])
     _style_header(ws)
@@ -381,11 +404,20 @@ def write_mega_excel(results: dict[str, Any], output_path: Path) -> None:
     _align_all(ws)
     _set_row_heights(ws)
 
-    # ── 7. Character ──────────────────────────────────────────────────────
+    # ── 6. Character ──────────────────────────────────────────────────────
     ws = wb.create_sheet("Character")
     ws.append(["Metric", "Value", "Std Dev"])
     _style_header(ws)
     _character_tab(ws, results.get("character"))
+    _auto_width(ws)
+    _align_all(ws)
+    _set_row_heights(ws)
+
+    # ── 7. Punctuation ────────────────────────────────────────────────────
+    ws = wb.create_sheet("Punctuation")
+    ws.append(["Metric", "Value", "Std Dev"])
+    _style_header(ws)
+    _punctuation_tab(ws, results.get("character"), results.get("markers"))
     _auto_width(ws)
     _align_all(ws)
     _set_row_heights(ws)
@@ -412,7 +444,7 @@ def write_mega_excel(results: dict[str, Any], output_path: Path) -> None:
     _align_all(ws)
     _set_row_heights(ws)
 
-    # ── 9b. Syllables ─────────────────────────────────────────────────────
+    # ── 10. Syllables ────────────────────────────────────────────────────
     ws = wb.create_sheet("Syllables")
     if "prosody" in results:
         _syllables_tab(ws, results["prosody"])
@@ -422,7 +454,7 @@ def write_mega_excel(results: dict[str, Any], output_path: Path) -> None:
     _align_all(ws)
     _set_row_heights(ws)
 
-    # ── 10. Cohesion ──────────────────────────────────────────────────────
+    # ── 11. Cohesion ──────────────────────────────────────────────────────
     ws = wb.create_sheet("Cohesion")
     if "cohesion" in results:
         ws.append(["Metric", "Value"])
@@ -434,7 +466,7 @@ def write_mega_excel(results: dict[str, Any], output_path: Path) -> None:
     _align_all(ws)
     _set_row_heights(ws)
 
-    # ── 11. Genre & Register ──────────────────────────────────────────────
+    # ── 12. Genre & Register ─────────────────────────────────────────────
     ws = wb.create_sheet("Genre & Register")
     ws.append(["Metric", "Value"])
     _style_header(ws)
@@ -443,7 +475,7 @@ def write_mega_excel(results: dict[str, Any], output_path: Path) -> None:
     _align_all(ws)
     _set_row_heights(ws)
 
-    # ── 12. Dialect ───────────────────────────────────────────────────────
+    # ── 13. Dialect ──────────────────────────────────────────────────────
     ws = wb.create_sheet("Dialect")
     ws.append(["Metric", "Value"])
     _style_header(ws)
@@ -452,7 +484,7 @@ def write_mega_excel(results: dict[str, Any], output_path: Path) -> None:
     _align_all(ws)
     _set_row_heights(ws)
 
-    # ── 13. Drift ─────────────────────────────────────────────────────────
+    # ── 14. Drift ────────────────────────────────────────────────────────
     ws = wb.create_sheet("Style Drift")
     ws.append(["Metric", "Value"])
     _style_header(ws)
@@ -461,7 +493,8 @@ def write_mega_excel(results: dict[str, Any], output_path: Path) -> None:
     _align_all(ws)
     _set_row_heights(ws)
 
-    # ── 14. Repetition ────────────────────────────────────────────────────
+
+    # ── 16. Repetition ───────────────────────────────────────────────────
     ws = wb.create_sheet("Repetition")
     if "rep_uni" in results:
         ws.append(["Word / N-gram", "Count", "Expected", "Repetition Score"])
@@ -473,7 +506,19 @@ def write_mega_excel(results: dict[str, Any], output_path: Path) -> None:
     _align_all(ws)
     _set_row_heights(ws)
 
-    # ── 15-17. BNC detail tabs ────────────────────────────────────────────
+    # ── 17. BNC Summary ──────────────────────────────────────────────────
+    ws = wb.create_sheet("BNC Summary")
+    if "bnc" in results:
+        ws.append(["Metric", "Count", "% of Total Tokens"])
+        _style_header(ws)
+        _bnc_summary_tab(ws, results["bnc"])
+    else:
+        _skip_tab(ws, "bnc-lookup", "lexical")
+    _auto_width(ws)
+    _align_all(ws)
+    _set_row_heights(ws)
+
+    # ── 18-20. BNC detail tabs ───────────────────────────────────────────
     if "bnc" in results:
         _bnc_detail_tabs(wb, results["bnc"])
     else:
@@ -592,8 +637,12 @@ def _dashboard_rows(ws: Any, results: dict[str, Any]) -> None:
         _r("Style", "Modal Density", mk.modal_density, "Modal auxiliaries per 100 words")
         _r("Style", "Negation Density", mk.negation_density, "Negation markers per 100 words")
         _r("Style", "Exclamation Density", mk.exclamation_density, "Exclamation marks per 100 words")
+        _r("Style", "Question Density", mk.question_density, "Question marks per 100 words")
         _r("Style", "Dash Density", mk.dash_density, "Dashes per 100 words")
         _r("Style", "Ellipsis Density", mk.ellipsis_density, "Ellipses per 100 words")
+        _r("Style", "Quotation Density", mk.quotation_density, "Quotation marks per 100 words")
+        _r("Style", "Semicolon Density", mk.semicolon_density, "Semicolons per 100 words")
+        _r("Style", "Colon Density", mk.colon_density, "Colons per 100 words")
 
     # -- N-grams --
     ng = results.get("ngrams", {})
@@ -633,6 +682,7 @@ def _dashboard_rows(ws: Any, results: dict[str, Any]) -> None:
         _r("Drift", "Confidence", dr.pattern_confidence, "Classification confidence")
         _r("Drift", "Mean Chi-Squared", dr.mean_chi_squared, "Average chi-squared across chunk pairs")
         _r("Drift", "Status", dr.status, "Analysis status")
+
 
     # -- Skipped --
     for tab_name, reason in results.get("_skipped", []):
@@ -850,6 +900,41 @@ def _character_tab(ws: Any, ch: Any) -> None:
         ws.append([letter, _fmt(ch.letter_frequency[letter]), ""])
 
 
+def _punctuation_tab(ws: Any, ch: Any, mk: Any) -> None:
+    """Write the Punctuation detail tab.
+
+    Consolidates all punctuation-related metrics from Character and Style Markers.
+    """
+    if not ch and not mk:
+        return
+
+    # Overall punctuation metrics (from character analysis)
+    if ch:
+        _section_row(ws, "Overall Punctuation")
+        ws.append(["Punctuation Density", _fmt(ch.punctuation_density), _fmt(ch.punctuation_density_dist.std)])
+        ws.append(["Punctuation Variety", _fmt(ch.punctuation_variety), ""])
+        ws.append(["Total Punctuation Marks", ch.metadata.get("total_punctuation", "N/A"), ""])
+
+        # Show which punctuation types are used
+        punct_types = ch.metadata.get("punctuation_types", [])
+        if punct_types:
+            ws.append(["Punctuation Types Used", ", ".join(punct_types), ""])
+
+    # Specific punctuation patterns (from style markers)
+    if mk:
+        _section_row(ws, "Specific Punctuation Densities (per 100 words)")
+        ws.append(["Period (.)", "Sentence-ending", ""])
+        ws.append(["Comma (,)", "Phrase separation", ""])
+        ws.append(["Exclamation (!)", _fmt(mk.exclamation_density), ""])
+        ws.append(["Question (?)", _fmt(mk.question_density), ""])
+        ws.append(["Semicolon (;)", _fmt(mk.semicolon_density), ""])
+        ws.append(["Colon (:)", _fmt(mk.colon_density), ""])
+        ws.append(["Dash (—)", _fmt(mk.dash_density), ""])
+        ws.append(["Ellipsis (...)", _fmt(mk.ellipsis_density), ""])
+        ws.append(["Quotation (\" \")", _fmt(mk.quotation_density), ""])
+        ws.append(["Parenthetical ( )", _fmt(mk.parenthetical_density), ""])
+
+
 def _ngrams_tab(ws: Any, ng: dict[str, Any]) -> None:
     """Write the N-grams detail tab."""
     if not ng:
@@ -1038,6 +1123,117 @@ def _drift_tab(ws: Any, dr: Any) -> None:
                 ws.append([f"Pair {i}-{i + 1}", _fmt(score)])
 
 
+def _sentence_syllables_tab(ws: Any, result: Any) -> None:
+    """Write the Sentence Syllables detail tab."""
+    if not result:
+        return
+
+    # Summary section
+    ws.append(["Summary Statistics", ""])
+    ws.append(["Total Sentences Analyzed", len(result.sentences)])
+    ws.append(["Mean Syllables/Sentence", _fmt(result.mean_syllables_per_sentence)])
+    ws.append(["Std Dev Syllables/Sentence", _fmt(result.std_syllables_per_sentence)])
+    ws.append(["Sentence Syllable CV", _fmt(result.sentence_syllable_cv)])
+    ws.append(["Mean Sentence Complexity", _fmt(result.mean_sentence_complexity)])
+    ws.append(["Std Sentence Complexity", _fmt(result.std_sentence_complexity)])
+    ws.append(["Complexity Uniformity Score", _fmt(result.complexity_uniformity_score)])
+    ws.append([])
+
+    _section_row(ws, "Per-Sentence Breakdown")
+    ws.append(["Sentence #", "Words", "Total Syll", "Mean Syll/Word", "CV", "Per-Word Syllables"])
+
+    for sent in result.sentences:
+        syllables_str = ",".join(map(str, sent.syllables_per_word))
+        ws.append([
+            sent.sentence_index + 1,
+            sent.word_count,
+            sent.syllable_count,
+            _fmt(sent.mean_syllables),
+            _fmt(sent.syllable_cv),
+            syllables_str
+        ])
+
+
+def _syllable_patterns_tab(ws: Any, result: Any) -> None:
+    """Write the Syllable Patterns detail tab.
+
+    Related GitHub Issue:
+        #67 - Syllable pattern repetition analysis
+        https://github.com/craigtrim/pystylometry/issues/67
+
+    Displays repeated syllable patterns across sentences with summary
+    statistics, pattern frequency histogram, and top repeated patterns.
+
+    Academic Reference:
+        Pattern repetition reveals formulaic writing and rhythmic templates
+        (Gibbon, 2017; Lagutina & Lagutina, 2019).
+    """
+    if not result:
+        return
+
+    # Summary section
+    _section_row(ws, "Pattern Repetition Summary")
+    ws.append(["Total Unique Patterns", result.total_unique_patterns])
+    ws.append(["Total Pattern Instances", result.total_pattern_instances])
+    ws.append(["Pattern Diversity Ratio", _fmt(result.pattern_diversity_ratio)])
+    ws.append(["Repeated Pattern Count", result.repeated_pattern_count])
+    ws.append(["Repetition Ratio", _fmt(result.repetition_ratio)])
+    ws.append(["Pattern Entropy (bits)", _fmt(result.pattern_entropy)])
+    ws.append([])
+
+    # Position-specific metrics
+    _section_row(ws, "Position-Specific Metrics")
+    ws.append(["Starting Pattern Repetition Rate", _fmt(result.starting_pattern_repetition_rate)])
+    ws.append(["Ending Pattern Repetition Rate", _fmt(result.ending_pattern_repetition_rate)])
+
+    if result.most_common_start:
+        pattern, count = result.most_common_start
+        pattern_str = "-".join(map(str, pattern))
+        ws.append(["Most Common Starting Pattern", f"{pattern_str} ({count}x)"])
+
+    if result.most_common_end:
+        pattern, count = result.most_common_end
+        pattern_str = "-".join(map(str, pattern))
+        ws.append(["Most Common Ending Pattern", f"{pattern_str} ({count}x)"])
+
+    ws.append([])
+
+    # Pattern frequency histogram
+    if result.pattern_frequency_histogram:
+        _section_row(ws, "Pattern Frequency Distribution")
+        ws.append(["Repetitions", "Number of Patterns"])
+
+        for rep_count in sorted(result.pattern_frequency_histogram.keys()):
+            num_patterns = result.pattern_frequency_histogram[rep_count]
+            ws.append([rep_count, num_patterns])
+
+        ws.append([])
+
+    # Top repeated patterns (limit to top 50)
+    if result.top_repeated_patterns:
+        _section_row(ws, "Top Repeated Patterns")
+        ws.append(["Pattern", "Count", "Sentences", "Positions", "N-gram Size"])
+
+        for pattern in result.top_repeated_patterns[:50]:
+            pattern_str = "-".join(map(str, pattern.pattern))
+            sentences_str = ", ".join(map(str, pattern.sentence_indices[:10]))  # First 10
+            if len(pattern.sentence_indices) > 10:
+                sentences_str += f" ... (+{len(pattern.sentence_indices) - 10} more)"
+
+            # Count position types
+            positions_summary = f"start:{pattern.positions.count('start')} mid:{pattern.positions.count('mid')} end:{pattern.positions.count('end')}"
+
+            ngram_size = len(pattern.pattern)
+
+            ws.append([
+                pattern_str,
+                pattern.count,
+                sentences_str,
+                positions_summary,
+                ngram_size
+            ])
+
+
 def _repetition_tab(ws: Any, rep_uni: Any, rep_ng: Any) -> None:
     """Write the Repetition detail tab."""
     if rep_uni and hasattr(rep_uni, "repetitive_words") and rep_uni.repetitive_words:
@@ -1048,6 +1244,32 @@ def _repetition_tab(ws: Any, rep_uni: Any, rep_ng: Any) -> None:
         _section_row(ws, "Repetitive N-grams")
         for rn in rep_ng.repetitive_ngrams[:50]:
             ws.append([" ".join(rn.ngram), rn.count, "", _fmt(rn.frequency_per_10k)])
+
+
+def _bnc_summary_tab(ws: Any, bnc: Any) -> None:
+    """Write the BNC Summary tab with token counts and percentages."""
+    total_tokens = bnc.total_tokens
+    unique_tokens = bnc.unique_tokens
+    overused_count = len(bnc.overused)
+    underused_count = len(bnc.underused)
+    not_in_bnc_count = len(bnc.not_in_bnc)
+
+    # Calculate percentages
+    pct_unique = (unique_tokens / total_tokens * 100) if total_tokens > 0 else 0
+    pct_overused = (overused_count / total_tokens * 100) if total_tokens > 0 else 0
+    pct_underused = (underused_count / total_tokens * 100) if total_tokens > 0 else 0
+    pct_not_in_bnc = (not_in_bnc_count / total_tokens * 100) if total_tokens > 0 else 0
+
+    # Write rows
+    ws.append(["Total Tokens", total_tokens, ""])
+    ws.append(["Unique Tokens", unique_tokens, f"{pct_unique:.2f}%"])
+    ws.append(["Overused", overused_count, f"{pct_overused:.2f}%"])
+    ws.append(["Underused", underused_count, f"{pct_underused:.2f}%"])
+    ws.append(["Not in BNC", not_in_bnc_count, f"{pct_not_in_bnc:.2f}%"])
+
+    # Format the Count column with thousand separators
+    for row_idx in range(2, ws.max_row + 1):
+        ws.cell(row=row_idx, column=2).number_format = "#,##0"
 
 
 def _bnc_detail_tabs(wb: Workbook, bnc: Any) -> None:
