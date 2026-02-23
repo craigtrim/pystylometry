@@ -1623,9 +1623,9 @@ Examples:
   mega --input-dir ~/ebooks/Author --output-file /tmp/author.xlsx
 
 Generates a multi-tab Excel workbook with:
-  Dashboard, Lexical Diversity, Readability, Sentences, Function Words,
-  Style Markers, Character, N-grams, Prosody, Cohesion, Genre & Register,
-  Dialect, Style Drift, Repetition, BNC Overused/Underused/Not Found.
+  Dashboard, Lexical Diversity, Readability, Function Words, Style Markers,
+  Character, Punctuation, N-grams, Prosody, Syllables, Cohesion, Genre & Register,
+  Dialect, Style Drift, Sentence Syllables, Repetition, BNC Overused/Underused/Not Found.
 
 Optional modules (readability, syntactic, prosody) are attempted and
 gracefully skipped when dependencies are not installed.
@@ -2423,14 +2423,20 @@ Output:
     console.print(f"  Dir:     [white]{args.input_dir}[/white]")
 
     from pystylometry.lexical.mega_meta import (
+        BNC_METRIC_LABELS,
+        BNC_PCT_METRIC_LABELS,
         CHARACTER_METRIC_LABELS,
+        LEXICAL_METRIC_LABELS,
         NGRAM_METRIC_LABELS,
         PROSODY_METRIC_LABELS,
         SYLLABLE_BUCKETS,
+        read_bnc_summaries,
         read_character_summaries,
+        read_lexical_diversity_summaries,
         read_ngram_summaries,
         read_prosody_summaries,
         read_syllable_summaries,
+        read_syllable_words,
         write_mega_meta_excel,
     )
 
@@ -2439,15 +2445,20 @@ Output:
         prosody_summaries = read_prosody_summaries(args.input_dir)
         syllable_summaries = read_syllable_summaries(args.input_dir)
         character_summaries = read_character_summaries(args.input_dir)
+        syllable_words = read_syllable_words(args.input_dir)
+        lexical_diversity_summaries = read_lexical_diversity_summaries(args.input_dir)
+        bnc_summaries = read_bnc_summaries(args.input_dir)
 
-    if not summaries and not prosody_summaries and not syllable_summaries and not character_summaries:
+    if not summaries and not prosody_summaries and not syllable_summaries and not character_summaries and not bnc_summaries:
         console.print("[red]Error:[/red] No valid sheets found in any .xlsx file.")
         sys.exit(1)
 
-    console.print(f"  N-grams:    [green]{len(summaries)}[/green] authors loaded")
-    console.print(f"  Prosody:    [green]{len(prosody_summaries)}[/green] authors loaded")
-    console.print(f"  Syllables:  [green]{len(syllable_summaries)}[/green] authors loaded")
-    console.print(f"  Character:  [green]{len(character_summaries)}[/green] authors loaded")
+    console.print(f"  N-grams:           [green]{len(summaries)}[/green] authors loaded")
+    console.print(f"  Prosody:           [green]{len(prosody_summaries)}[/green] authors loaded")
+    console.print(f"  Syllables:         [green]{len(syllable_summaries)}[/green] authors loaded")
+    console.print(f"  Character:         [green]{len(character_summaries)}[/green] authors loaded")
+    console.print(f"  Lexical Diversity: [green]{len(lexical_diversity_summaries)}[/green] authors loaded")
+    console.print(f"  BNC Summary:       [green]{len(bnc_summaries)}[/green] authors loaded")
 
     console.print()
     console.print("[bold]OUTPUT[/bold]", style="cyan")
@@ -2462,116 +2473,10 @@ Output:
             prosody_summaries=prosody_summaries,
             syllable_summaries=syllable_summaries,
             character_summaries=character_summaries,
+            syllable_words=syllable_words,
+            lexical_diversity_summaries=lexical_diversity_summaries,
+            bnc_summaries=bnc_summaries,
         )
-
-    # ── Console preview: N-grams ──
-    console.print()
-    max_preview = 10
-
-    if summaries:
-        preview = summaries[:max_preview]
-        table = Table(title="N-grams", border_style="cyan", header_style="bold cyan")
-        table.add_column("Author", style="bold")
-        for metric in NGRAM_METRIC_LABELS:
-            table.add_column(metric, justify="right")
-
-        for s in preview:
-            table.add_row(
-                s.author,
-                f"{s.char_bigram_entropy:.4f}",
-                f"{s.char_bigram_perplexity:.4f}",
-                f"{s.word_bigram_entropy:.4f}",
-                f"{s.word_bigram_perplexity:,}",
-            )
-        if len(summaries) > max_preview:
-            table.add_row(
-                f"... +{len(summaries) - max_preview} more",
-                *[""] * len(NGRAM_METRIC_LABELS),
-                style="dim",
-            )
-        console.print(table)
-
-    # ── Console preview: Prosody ──
-    if prosody_summaries:
-        preview_p = prosody_summaries[:max_preview]
-        table_p = Table(title="Prosody", border_style="cyan", header_style="bold cyan")
-        table_p.add_column("Author", style="bold")
-        for metric in PROSODY_METRIC_LABELS:
-            table_p.add_column(metric, justify="right")
-
-        for p in preview_p:
-            table_p.add_row(
-                p.author,
-                f"{p.mean_syllables_per_word:.4f}",
-                f"{p.syllable_std_dev:.4f}",
-                f"{p.polysyllabic_ratio:.4f}",
-                f"{p.monosyllabic_ratio:.4f}",
-                f"{p.rhythmic_regularity:.4f}",
-                f"{p.alliteration_density:.4f}",
-                f"{p.assonance_density:.4f}",
-                f"{p.consonance_density:.4f}",
-                f"{p.sentence_rhythm_score:.4f}",
-                f"{p.avg_consonant_cluster:.4f}",
-            )
-        if len(prosody_summaries) > max_preview:
-            table_p.add_row(
-                f"... +{len(prosody_summaries) - max_preview} more",
-                *[""] * len(PROSODY_METRIC_LABELS),
-                style="dim",
-            )
-        console.print()
-        console.print(table_p)
-
-    # ── Console preview: Syllables ──
-    if syllable_summaries:
-        preview_s = syllable_summaries[:max_preview]
-        table_s = Table(title="Syllables", border_style="cyan", header_style="bold cyan")
-        table_s.add_column("Author", style="bold")
-        for bucket in SYLLABLE_BUCKETS:
-            table_s.add_column(bucket, justify="right")
-
-        for s in preview_s:
-            table_s.add_row(
-                s.author,
-                *[f"{s.totals.get(b, 0):,}" for b in SYLLABLE_BUCKETS],
-            )
-        if len(syllable_summaries) > max_preview:
-            table_s.add_row(
-                f"... +{len(syllable_summaries) - max_preview} more",
-                *[""] * len(SYLLABLE_BUCKETS),
-                style="dim",
-            )
-        console.print()
-        console.print(table_s)
-
-    # ── Console preview: Character ──
-    if character_summaries:
-        preview_c = character_summaries[:max_preview]
-        table_c = Table(title="Character", border_style="cyan", header_style="bold cyan")
-        table_c.add_column("Author", style="bold")
-        for metric in CHARACTER_METRIC_LABELS:
-            table_c.add_column(metric, justify="right")
-
-        for c in preview_c:
-            table_c.add_row(
-                c.author,
-                f"{c.avg_word_length:.4f}",
-                f"{c.avg_sentence_length_chars:.4f}",
-                f"{c.punctuation_density:.4f}",
-                f"{c.punctuation_variety:.4f}",
-                f"{c.vowel_consonant_ratio:.4f}",
-                f"{c.digit_ratio:.4f}",
-                f"{c.uppercase_ratio:.4f}",
-                f"{c.whitespace_ratio:.4f}",
-            )
-        if len(character_summaries) > max_preview:
-            table_c.add_row(
-                f"... +{len(character_summaries) - max_preview} more",
-                *[""] * len(CHARACTER_METRIC_LABELS),
-                style="dim",
-            )
-        console.print()
-        console.print(table_c)
 
     # ── Summary ──
     console.print()
@@ -2582,11 +2487,568 @@ Output:
     if prosody_summaries:
         sheets.append(f"Prosody ({len(prosody_summaries)} authors)")
     if syllable_summaries:
-        sheets.append(f"Syllables ({len(syllable_summaries)} authors)")
+        sheets.append(f"Syllables-Tot ({len(syllable_summaries)} authors)")
+        sheets.append(f"Syllables-Pct ({len(syllable_summaries)} authors)")
+    if syllable_words:
+        sheets.append("Syllables-Txt")
     if character_summaries:
         sheets.append(f"Character ({len(character_summaries)} authors)")
+    if lexical_diversity_summaries:
+        sheets.append(f"Lexical Diversity ({len(lexical_diversity_summaries)} authors)")
+    if bnc_summaries:
+        sheets.append(f"BNC Summary Tot ({len(bnc_summaries)} authors)")
+        sheets.append(f"BNC Summary Pct ({len(bnc_summaries)} authors)")
     console.print(f"  Sheets: [green]{', '.join(sheets)}[/green]")
     console.print()
+
+
+# ---------------------------------------------------------------------------
+# prosody  —  Prosody-only analysis (rhythm, syllable patterns, repetition)
+# ---------------------------------------------------------------------------
+# Related GitHub Issues:
+#     #25 - Rhythm and Prosody Metrics
+#     https://github.com/craigtrim/pystylometry/issues/25
+#     #66 - Sentence-level syllable analysis
+#     https://github.com/craigtrim/pystylometry/issues/66
+#     #67 - Syllable pattern repetition analysis
+#     https://github.com/craigtrim/pystylometry/issues/67
+#     #68 - Replace spaCy with built-in utilities (removed size limit)
+#     https://github.com/craigtrim/pystylometry/issues/68
+
+
+def prosody_cli() -> None:
+    """CLI entry point for prosody-only analysis.
+
+    Analyzes rhythm, syllable patterns, and pattern repetition from text.
+    Lighter-weight alternative to mega for users who only need prosody metrics.
+
+    Related GitHub Issues:
+        #25 - Rhythm and Prosody Metrics
+        https://github.com/craigtrim/pystylometry/issues/25
+        #66 - Sentence-level syllable analysis
+        https://github.com/craigtrim/pystylometry/issues/66
+        #67 - Syllable pattern repetition analysis
+        https://github.com/craigtrim/pystylometry/issues/67
+        #68 - Replace spaCy with built-in utilities (no size limit!)
+        https://github.com/craigtrim/pystylometry/issues/68
+    """
+    parser = argparse.ArgumentParser(
+        prog="prosody",
+        description="Prosodic analysis — rhythm, syllable patterns, and repetition.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  prosody --input-file manuscript.txt --output-file analysis.xlsx
+  prosody --input-dir ~/ebooks/Author --output-file author-prosody.xlsx
+  prosody -d ~/ebooks/Author -o author-prosody.csv --format csv
+
+Analyzes:
+  • Rhythm & Prosody: Syllable stress patterns, rhythm regularity
+  • Sentence Syllables: Per-sentence syllable distribution, complexity uniformity
+  • Syllable Patterns: Repeated syllable n-gram patterns, formulaic writing detection
+
+Requires:
+  pip install pystylometry[readability]  # For cmudict syllable counting
+
+No size limit — works on texts of any length (Issue #68).
+""",
+    )
+
+    input_group = parser.add_mutually_exclusive_group(required=True)
+    input_group.add_argument(
+        "--input-file", "-i", type=Path, metavar="FILE",
+        help="Path to text file to analyze",
+    )
+    input_group.add_argument(
+        "--input-dir", "-d", type=Path, metavar="DIR",
+        help="Directory of .txt files to analyze as a single corpus",
+    )
+    parser.add_argument(
+        "--output-file", "-o", type=Path, required=True, metavar="FILE",
+        help="Output file path (.xlsx or .csv)",
+    )
+    parser.add_argument(
+        "--format", "-f", choices=["xlsx", "csv"], default="xlsx",
+        help="Output format: xlsx (default) or csv",
+    )
+
+    args = parser.parse_args()
+
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.text import Text
+
+    console = Console(stderr=True)
+
+    # ── Input loading ──
+    if args.input_dir:
+        if not args.input_dir.is_dir():
+            console.print(f"[red]Error:[/red] Directory not found: {args.input_dir}")
+            sys.exit(1)
+        txt_files = sorted(args.input_dir.glob("*.txt"))
+        if not txt_files:
+            console.print(f"[red]Error:[/red] No .txt files found in: {args.input_dir}")
+            sys.exit(1)
+        parts: list[str] = []
+        for tf in txt_files:
+            try:
+                parts.append(tf.read_text(encoding="utf-8"))
+            except Exception as e:
+                console.print(f"[red]Error reading {tf.name}:[/red] {e}")
+                sys.exit(1)
+        text = "\n".join(parts)
+        file_count = len(txt_files)
+    else:
+        if not args.input_file.exists():
+            console.print(f"[red]Error:[/red] File not found: {args.input_file}")
+            sys.exit(1)
+        try:
+            text = args.input_file.read_text(encoding="utf-8")
+        except Exception as e:
+            console.print(f"[red]Error reading file:[/red] {e}")
+            sys.exit(1)
+        file_count = 1
+
+    token_count = len(text.split())
+    char_count = len(text)
+
+    # ── Banner ──
+    console.print()
+    header = Text()
+    header.append("PYSTYLOMETRY", style="bold cyan")
+    header.append(" — ", style="dim")
+    header.append("Prosody Analysis", style="bold white")
+    console.print(Panel(header, border_style="cyan"))
+
+    console.print()
+    console.print("[bold]INPUT[/bold]", style="cyan")
+    console.print("─" * 60, style="dim")
+    if args.input_dir:
+        console.print(f"  Dir:     [white]{args.input_dir}[/white]")
+        console.print(f"  Files:   [green]{file_count}[/green] .txt files")
+    else:
+        console.print(f"  File:    [white]{args.input_file}[/white]")
+    console.print(f"  Size:    [green]{char_count:,}[/green] chars / [green]{token_count:,}[/green] tokens")
+
+    console.print()
+    console.print("[bold]OUTPUT[/bold]", style="cyan")
+    console.print("─" * 60, style="dim")
+    format_display = "Excel (.xlsx)" if args.format == "xlsx" else "CSV (.csv)"
+    console.print(f"  Format:  [magenta]{format_display}[/magenta]")
+    console.print(f"  File:    [white]{args.output_file}[/white]")
+
+    console.print()
+    console.print("[bold]ANALYSIS[/bold]", style="cyan")
+    console.print("─" * 60, style="dim")
+
+    # ── Run prosody analyses ──
+    results: dict[str, Any] = {}
+    skipped: list[tuple[str, str]] = []
+
+    # 1. Rhythm Prosody
+    #
+    # Related GitHub Issue:
+    #     #25 - Rhythm and Prosody Metrics
+    #     https://github.com/craigtrim/pystylometry/issues/25
+    try:
+        console.print("  [dim]Running[/dim] rhythm prosody...", end="")
+        from pystylometry.prosody import compute_rhythm_prosody
+
+        results["rhythm_prosody"] = compute_rhythm_prosody(text)
+        console.print(" [green]done[/green]")
+    except (ImportError, Exception) as exc:
+        skipped.append(("Rhythm Prosody", str(exc)))
+        console.print(f" [yellow]skipped[/yellow] ({exc})")
+
+    # 2. Sentence Syllable Patterns
+    #
+    # Related GitHub Issues:
+    #     #66 - Sentence-level syllable analysis
+    #     https://github.com/craigtrim/pystylometry/issues/66
+    #     #68 - Replace spaCy with built-in utilities (no size limit!)
+    #     https://github.com/craigtrim/pystylometry/issues/68
+    try:
+        console.print("  [dim]Running[/dim] sentence syllable patterns...", end="")
+        from pystylometry.prosody import compute_sentence_syllable_patterns
+
+        results["sentence_syllables"] = compute_sentence_syllable_patterns(text)
+        console.print(" [green]done[/green]")
+    except (ImportError, Exception) as exc:
+        skipped.append(("Sentence Syllables", str(exc)))
+        console.print(f" [yellow]skipped[/yellow] ({exc})")
+
+    # 3. Syllable Pattern Repetition
+    #
+    # Related GitHub Issue:
+    #     #67 - Syllable pattern repetition analysis
+    #     https://github.com/craigtrim/pystylometry/issues/67
+    #
+    # Only run if sentence syllables succeeded (it's a dependency)
+    if "sentence_syllables" in results:
+        try:
+            console.print("  [dim]Running[/dim] syllable pattern repetition...", end="")
+            from pystylometry.prosody import analyze_syllable_pattern_repetition
+
+            results["syllable_patterns"] = analyze_syllable_pattern_repetition(
+                results["sentence_syllables"]
+            )
+            console.print(" [green]done[/green]")
+        except (ImportError, Exception) as exc:
+            skipped.append(("Syllable Patterns", str(exc)))
+            console.print(f" [yellow]skipped[/yellow] ({exc})")
+    else:
+        skipped.append(("Syllable Patterns", "Depends on sentence syllables"))
+        console.print("  [yellow]skipped[/yellow] syllable pattern repetition (depends on sentence syllables)")
+
+    # ── Write output ──
+    console.print()
+    if args.format == "xlsx":
+        console.print("  [dim]Writing Excel workbook...[/dim]", end="")
+        _write_prosody_excel(results, args.output_file, text)
+        console.print(" [green]done[/green]")
+    else:
+        console.print("  [dim]Writing CSV files...[/dim]", end="")
+        _write_prosody_csv(results, args.output_file)
+        console.print(" [green]done[/green]")
+
+    # ── Summary ──
+    analysis_count = len(results)
+    console.print()
+    console.print(f'[green]✓[/green] Saved to: [white]"{args.output_file}"[/white]')
+    console.print(f"  Analyses: [green]{analysis_count}[/green] completed, [yellow]{len(skipped)}[/yellow] skipped")
+    if skipped:
+        for name, reason in skipped:
+            console.print(f"    [yellow]•[/yellow] {name}: {reason}")
+    console.print()
+
+
+def _write_prosody_excel(results: dict[str, Any], output_path: Path, text: str) -> None:
+    """Write prosody results to Excel workbook.
+
+    Related GitHub Issue:
+        #66, #67, #68 - Prosody analysis implementation
+
+    Args:
+        results: Analysis results dictionary
+        output_path: Path to output Excel file
+        text: Original input text (needed for sentence text extraction)
+    """
+    try:
+        import openpyxl
+        from openpyxl.styles import Alignment, Font
+        from openpyxl.utils import get_column_letter
+    except ImportError:
+        raise ImportError(
+            "The 'openpyxl' library is required for Excel output. "
+            "Install it with: pip install openpyxl"
+        )
+
+    # Helper function to apply center alignment to all cells in a sheet
+    def _apply_alignment(ws):
+        """Apply center and vertical center alignment to all cells."""
+        center_alignment = Alignment(horizontal='center', vertical='center')
+        for row in ws.iter_rows():
+            for cell in row:
+                cell.alignment = center_alignment
+
+    wb = openpyxl.Workbook()
+    wb.remove(wb.active)  # Remove default sheet
+
+    # ── Aggregate Metrics Sheet (First Tab) ──
+    # Contains ALL aggregate metrics: sentence syllables + rhythm prosody
+    # Related GitHub Issue:
+    #     #66 - Sentence-level syllable analysis
+    #     https://github.com/craigtrim/pystylometry/issues/66
+    #     #25 - Rhythm and Prosody Metrics
+    #     https://github.com/craigtrim/pystylometry/issues/25
+    ws = wb.create_sheet("Aggregate Metrics")
+
+    # Header
+    ws.append(["Metric", "Value"])
+    ws["A1"].font = Font(bold=True)
+    ws["B1"].font = Font(bold=True)
+
+    # ── Sentence Syllable Aggregate Metrics ──
+    if "sentence_syllables" in results:
+        # Section label
+        ws.append([])  # Blank row
+        ws.append(["SENTENCE SYLLABLE METRICS", ""])
+        current_row = ws.max_row
+        ws[f"A{current_row}"].font = Font(bold=True, size=12)
+
+        sent_syll = results["sentence_syllables"]
+        ws.append(["Mean Syllables/Sentence", f"{sent_syll.mean_syllables_per_sentence:.2f}"])
+        ws.append(["Std Dev Syllables/Sentence", f"{sent_syll.std_syllables_per_sentence:.2f}"])
+        ws.append(["Sentence Syllable CV", f"{sent_syll.sentence_syllable_cv:.2f}"])
+        ws.append(["Mean Sentence Complexity", f"{sent_syll.mean_sentence_complexity:.2f}"])
+        ws.append(["Std Sentence Complexity", f"{sent_syll.std_sentence_complexity:.2f}"])
+        ws.append(["Complexity Uniformity Score", f"{sent_syll.complexity_uniformity_score:.2f}"])
+
+    # ── Rhythm Prosody Aggregate Metrics ──
+    if "rhythm_prosody" in results:
+        # Section label
+        ws.append([])  # Blank row
+        ws.append(["RHYTHM PROSODY METRICS", ""])
+        current_row = ws.max_row
+        ws[f"A{current_row}"].font = Font(bold=True, size=12)
+
+        rhythm = results["rhythm_prosody"]
+        ws.append(["Mean Syllables/Word", f"{rhythm.mean_syllables_per_word:.2f}"])
+        ws.append(["Syllable Std Dev", f"{rhythm.syllable_std_dev:.2f}"])
+        ws.append(["Rhythmic Regularity", f"{rhythm.rhythmic_regularity:.2f}"])
+        ws.append(["Stress Pattern Entropy", f"{rhythm.stress_pattern_entropy:.2f}"])
+        ws.append(["Polysyllabic Ratio", f"{rhythm.polysyllabic_ratio:.2f}"])
+        ws.append(["Alliteration Density", f"{rhythm.alliteration_density:.2f}"])
+
+    # Auto-size columns
+    for col in ["A", "B"]:
+        ws.column_dimensions[col].width = 28
+
+    # Apply center alignment
+    _apply_alignment(ws)
+
+    # ── Sentence Syllables Sheet (ALL Sentences) ──
+    # Related GitHub Issue:
+    #     #66 - Sentence-level syllable analysis
+    #     https://github.com/craigtrim/pystylometry/issues/66
+    if "sentence_syllables" in results:
+        ws = wb.create_sheet("Sentence Syllables")
+        sent_syll = results["sentence_syllables"]
+
+        # Header
+        ws.append(["Sentence #", "Word Count", "Syllable Count", "Mean Syllables/Word", "Syllable CV"])
+        for cell in ws[1]:
+            cell.font = Font(bold=True)
+
+        # Calculate averages across all sentences
+        if sent_syll.sentences:
+            avg_word_count = sum(s.word_count for s in sent_syll.sentences) / len(sent_syll.sentences)
+            avg_syllable_count = sum(s.syllable_count for s in sent_syll.sentences) / len(sent_syll.sentences)
+            avg_mean_syllables = sum(s.mean_syllables for s in sent_syll.sentences) / len(sent_syll.sentences)
+            avg_syllable_cv = sum(s.syllable_cv for s in sent_syll.sentences) / len(sent_syll.sentences)
+
+            # Row 2: Total count + averages
+            ws.append([
+                len(sent_syll.sentences),
+                f"{avg_word_count:.4f}",
+                f"{avg_syllable_count:.4f}",
+                f"{avg_mean_syllables:.4f}",
+                f"{avg_syllable_cv:.4f}",
+            ])
+            # Make row 2 bold
+            for cell in ws[2]:
+                cell.font = Font(bold=True)
+
+        # Write ALL sentences (no limit)
+        for sent in sent_syll.sentences:
+            ws.append([
+                sent.sentence_index,
+                sent.word_count,
+                sent.syllable_count,
+                f"{sent.mean_syllables:.2f}",
+                f"{sent.syllable_cv:.2f}",
+            ])
+
+        # Auto-size columns
+        for col_idx in range(1, 6):
+            ws.column_dimensions[get_column_letter(col_idx)].width = 22
+
+        # Apply center alignment
+        _apply_alignment(ws)
+
+    # ── Complex Sentences Sheet ──
+    # Show sentences with above-average syllable count AND above-average word count
+    # Sorted by syllables/word from high to low
+    # Related GitHub Issue:
+    #     #66 - Sentence-level syllable analysis
+    #     https://github.com/craigtrim/pystylometry/issues/66
+    if "sentence_syllables" in results:
+        sent_syll = results["sentence_syllables"]
+
+        # Calculate mean word count and mean syllable count
+        mean_syllables = sent_syll.mean_syllables_per_sentence
+        if sent_syll.sentences:
+            mean_word_count = sum(s.word_count for s in sent_syll.sentences) / len(sent_syll.sentences)
+        else:
+            mean_word_count = 0
+
+        # Re-segment text to get sentence texts for display
+        from pystylometry._utils import split_sentences
+        sentence_texts = split_sentences(text)
+
+        # Create mapping of sentence_index to sentence text
+        sentence_text_map = {i: sent_text for i, sent_text in enumerate(sentence_texts)}
+
+        # Filter to sentences with above-average syllable count AND word count
+        # Then sort by syllables/word (mean_syllables) from high to low
+        above_average = [
+            s for s in sent_syll.sentences
+            if s.syllable_count > mean_syllables and s.word_count > mean_word_count
+        ]
+        complex_sentences = sorted(
+            above_average,
+            key=lambda s: s.mean_syllables,  # Sort by syllables/word
+            reverse=True
+        )[:250]  # Top 250
+
+        ws = wb.create_sheet("Complex Sentences")
+
+        # Header
+        ws.append(["Syllables/Word", "Word Count", "Total Syllables", "Sentence Index", "Sentence Text"])
+        for cell in ws[1]:
+            cell.font = Font(bold=True)
+
+        # Write complex sentences
+        for sent in complex_sentences:
+            # Get sentence text from map
+            sent_text = sentence_text_map.get(sent.sentence_index, "")
+            ws.append([
+                f"{sent.mean_syllables:.3f}",
+                sent.word_count,
+                sent.syllable_count,
+                sent.sentence_index,
+                sent_text,
+            ])
+
+        # Auto-size columns
+        ws.column_dimensions["A"].width = 18  # Syllables/Word
+        ws.column_dimensions["B"].width = 15  # Word Count
+        ws.column_dimensions["C"].width = 18  # Total Syllables
+        ws.column_dimensions["D"].width = 16  # Sentence Index
+        ws.column_dimensions["E"].width = 100  # Sentence Text (wide column)
+
+        # Apply center alignment
+        _apply_alignment(ws)
+
+        # Override: left-align sentence text column (column E)
+        for row in ws.iter_rows(min_col=5, max_col=5):  # Column E is the 5th column
+            for cell in row:
+                cell.alignment = Alignment(horizontal='left', vertical='center')
+
+    # ── Syllable Patterns Sheet (All patterns 4-12+) ──
+    # Single tab with all patterns, sorted by count
+    # Related GitHub Issue:
+    #     #67 - Syllable pattern repetition analysis
+    #     https://github.com/craigtrim/pystylometry/issues/67
+    if "syllable_patterns" in results:
+        patterns = results["syllable_patterns"]
+
+        # Collect all patterns (deduplicate by pattern)
+        all_patterns: dict[tuple, tuple[int, Any]] = {}  # pattern -> (size, pattern_obj)
+
+        # Check ngram_3_patterns, ngram_4_patterns, ngram_5_patterns
+        for ngram_size, pattern_list_name in [
+            (3, 'ngram_3_patterns'),
+            (4, 'ngram_4_patterns'),
+            (5, 'ngram_5_patterns'),
+        ]:
+            if hasattr(patterns, pattern_list_name):
+                pattern_list = getattr(patterns, pattern_list_name)
+                # Filter for frequency >= 2 and patterns with size >= 4
+                for p in pattern_list:
+                    if p.count >= 2 and ngram_size >= 4:
+                        if p.pattern not in all_patterns:
+                            all_patterns[p.pattern] = (ngram_size, p)
+
+        # Also collect from top_repeated_patterns
+        for pattern_obj in patterns.top_repeated_patterns:
+            if pattern_obj.count >= 2:  # Min frequency 2+
+                ngram_size = len(pattern_obj.pattern)
+                if ngram_size >= 4:  # Only patterns of size 4+
+                    if pattern_obj.pattern not in all_patterns:
+                        all_patterns[pattern_obj.pattern] = (ngram_size, pattern_obj)
+
+        # Convert to list and sort by count descending
+        pattern_rows = []
+        for pattern, (size, pattern_obj) in all_patterns.items():
+            # Label patterns 12+ as "12+"
+            size_label = str(size) if size < 12 else "12+"
+            pattern_rows.append((size_label, size, pattern_obj.pattern, pattern_obj.count))
+
+        # Sort by count descending
+        pattern_rows_sorted = sorted(pattern_rows, key=lambda x: x[3], reverse=True)
+
+        ws = wb.create_sheet("Syllable Patterns")
+
+        # Header
+        ws.append(["N-gram Size", "Pattern", "Count"])
+        for cell in ws[1]:
+            cell.font = Font(bold=True)
+
+        # Write patterns
+        for size_label, _, pattern, count in pattern_rows_sorted:
+            ws.append([size_label, str(pattern), count])
+
+        # Auto-size columns
+        ws.column_dimensions["A"].width = 15  # N-gram Size
+        ws.column_dimensions["B"].width = 50  # Pattern
+        ws.column_dimensions["C"].width = 15  # Count
+
+        # Apply center alignment
+        _apply_alignment(ws)
+
+    wb.save(output_path)
+
+
+def _write_prosody_csv(results: dict[str, Any], output_path: Path) -> None:
+    """Write prosody results to CSV file(s).
+
+    Creates multiple CSV files with suffixes for each analysis type.
+
+    Related GitHub Issue:
+        #66, #67, #68 - Prosody analysis implementation
+    """
+    import csv
+
+    base_path = output_path.with_suffix("")
+
+    # ── Rhythm Prosody CSV ──
+    if "rhythm_prosody" in results:
+        rhythm_path = base_path.with_name(f"{base_path.name}-rhythm.csv")
+        rhythm = results["rhythm_prosody"]
+
+        with open(rhythm_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["Metric", "Value"])
+            writer.writerow(["Mean Syllables/Word", f"{rhythm.mean_syllables_per_word:.2f}"])
+            writer.writerow(["Syllable Std Dev", f"{rhythm.syllable_std_dev:.2f}"])
+            writer.writerow(["Rhythmic Regularity", f"{rhythm.rhythmic_regularity:.2f}"])
+            writer.writerow(["Stress Pattern Entropy", f"{rhythm.stress_pattern_entropy:.2f}"])
+            writer.writerow(["Polysyllabic Ratio", f"{rhythm.polysyllabic_ratio:.2f}"])
+            writer.writerow(["Alliteration Density", f"{rhythm.alliteration_density:.2f}"])
+
+    # ── Sentence Syllables CSV ──
+    if "sentence_syllables" in results:
+        sent_path = base_path.with_name(f"{base_path.name}-sentences.csv")
+        sent_syll = results["sentence_syllables"]
+
+        with open(sent_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["Sentence #", "Word Count", "Syllable Count", "Mean Syllables/Word", "Syllable CV"])
+            for sent in sent_syll.sentences[:1000]:  # Limit to first 1000
+                writer.writerow([
+                    sent.sentence_index,
+                    sent.word_count,
+                    sent.syllable_count,
+                    f"{sent.mean_syllables:.2f}",
+                    f"{sent.syllable_cv:.2f}",
+                ])
+
+    # ── Syllable Patterns CSV ──
+    if "syllable_patterns" in results:
+        pattern_path = base_path.with_name(f"{base_path.name}-patterns.csv")
+        patterns = results["syllable_patterns"]
+
+        with open(pattern_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["Metric", "Value"])
+            writer.writerow(["Pattern Diversity Ratio", f"{patterns.pattern_diversity_ratio:.3f}"])
+            writer.writerow(["Repetition Ratio", f"{patterns.repetition_ratio:.3f}"])
+            writer.writerow(["Pattern Entropy", f"{patterns.pattern_entropy:.3f}"])
+            writer.writerow(["Total Unique Patterns", patterns.total_unique_patterns])
+            writer.writerow(["Repeated Pattern Count", patterns.repeated_pattern_count])
+            writer.writerow(["Starting Pattern Repetition", f"{patterns.starting_pattern_repetition_rate:.3f}"])
+            writer.writerow(["Ending Pattern Repetition", f"{patterns.ending_pattern_repetition_rate:.3f}"])
 
 
 if __name__ == "__main__":
