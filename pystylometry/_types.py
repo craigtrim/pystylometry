@@ -2517,6 +2517,98 @@ class DialectResult:
     metadata: dict[str, Any]
 
 
+# ===== Paragraph Segmentation Results =====
+# Related to GitHub Issue #71: Paragraph-Level Segmentation
+# https://github.com/craigtrim/pystylometry/issues/71
+# Related to GitHub Issue #69: AI Stylistic Tell Detection
+# https://github.com/craigtrim/pystylometry/issues/69
+
+
+@dataclass
+class ParagraphStatsResult:
+    """Result from paragraph-level statistical analysis.
+
+    Provides structural metrics derived from paragraph segmentation, enabling
+    AI-tell detectors that depend on paragraph boundaries — specifically mic
+    drop detection and stacked short paragraph detection.
+
+    The ``terminal_brevity_ratio`` per paragraph is the core signal for mic
+    drop detection: a last sentence that is much shorter than the paragraph
+    mean is a hallmark of LLM-style rhetorical deceleration.
+
+    The ``single_sentence_paragraph_ratio`` and ``short_paragraph_run_length``
+    together capture stacked short paragraph patterns — consecutive one-line
+    paragraphs used as a stylistic punch technique, which LLMs employ with
+    anomalously high frequency.
+
+    Related GitHub Issues:
+        #71 - Paragraph-Level Segmentation
+        https://github.com/craigtrim/pystylometry/issues/71
+        #69 - AI Stylistic Tell Detection
+        https://github.com/craigtrim/pystylometry/issues/69
+        #75 - AI-Tell Co-occurrence Scorer
+        https://github.com/craigtrim/pystylometry/issues/75
+
+    References:
+        Johnston, C. (2024). AI stylistic tell detection via co-occurrence
+            of tricolon, mic drop, and stacked paragraph patterns.
+    """
+
+    # ---- Paragraph counts ------------------------------------------------
+    paragraph_count: int
+    """Total number of paragraphs in the text."""
+
+    sentences_per_paragraph: list[int]
+    """Sentence count for each paragraph, in document order."""
+
+    words_per_paragraph: list[int]
+    """Word count for each paragraph, in document order."""
+
+    # ---- Aggregate sentence statistics -----------------------------------
+    mean_sentences_per_paragraph: float
+    """Mean number of sentences across all paragraphs."""
+
+    std_sentences_per_paragraph: float
+    """Standard deviation of sentence counts across paragraphs.
+    High std indicates irregular paragraph structure."""
+
+    # ---- Aggregate word statistics ---------------------------------------
+    mean_words_per_paragraph: float
+    """Mean word count across all paragraphs."""
+
+    std_words_per_paragraph: float
+    """Standard deviation of word counts across paragraphs."""
+
+    # ---- AI-tell signals -------------------------------------------------
+    single_sentence_paragraph_ratio: float
+    """Proportion of paragraphs containing exactly one sentence (0–1).
+
+    High values (> 0.4) are a signal for stacked short paragraph patterns,
+    which LLMs use as a rhetorical emphasis device with anomalously high
+    frequency compared to human writers.
+    """
+
+    short_paragraph_run_length: int
+    """Longest consecutive run of single-sentence paragraphs.
+
+    A run of 3+ is a strong stacked paragraph signal. Human writers rarely
+    sustain more than 2 consecutive one-sentence paragraphs outside of
+    stylistic prose; LLMs default to this pattern for emphasis.
+    """
+
+    terminal_brevity_ratios: list[float]
+    """Per-paragraph ratio: last_sentence_word_count / mean_sentence_word_count.
+
+    Values < 0.5 indicate mic-drop deceleration — the last sentence of a
+    paragraph is dramatically shorter than the paragraph mean, a hallmark
+    of LLM-generated rhetorical closers ("And that changes everything.").
+
+    One value per paragraph. Single-sentence paragraphs yield ratio 1.0.
+    """
+
+    metadata: dict[str, Any]
+
+
 # ===== Unified Analysis Result =====
 
 
