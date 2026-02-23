@@ -2227,6 +2227,184 @@ class RhythmProsodyResult:
     metadata: dict[str, Any]  # Syllable counts, stress patterns, phoneme data, etc.
 
 
+# ===== Sentence Syllable Pattern Results =====
+# Related to GitHub Issue #66: Sentence-level syllable analysis
+# https://github.com/craigtrim/pystylometry/issues/66
+# Related to GitHub Issue #65: AI-generated text detection module
+# https://github.com/craigtrim/pystylometry/issues/65
+
+
+@dataclass
+class SentenceSyllablePattern:
+    """Per-sentence syllable breakdown.
+
+    Captures syllable distribution within a single sentence, including
+    per-word syllable counts and sentence-level complexity metrics.
+
+    Related GitHub Issue:
+        #66 - Sentence-level syllable analysis
+        https://github.com/craigtrim/pystylometry/issues/66
+    """
+
+    sentence_index: int  # 0-indexed sentence number
+    word_count: int  # Total words in sentence
+    syllable_count: int  # Total syllables in sentence
+    syllables_per_word: list[int]  # Per-word syllable counts
+    mean_syllables: float  # Average syllables per word
+    syllable_cv: float  # Coefficient of variation
+
+
+@dataclass
+class SentenceSyllablePatternsResult:
+    """Result from sentence-level syllable analysis.
+
+    Analyzes syllable distribution patterns within individual sentences,
+    capturing rhythmic structure and complexity at the sentence level.
+    Useful for detecting uniform complexity patterns (AI detection signal)
+    and fine-grained prosodic analysis.
+
+    Related GitHub Issues:
+        #66 - Sentence-level syllable analysis
+        https://github.com/craigtrim/pystylometry/issues/66
+        #65 - AI-generated text detection module
+        https://github.com/craigtrim/pystylometry/issues/65
+
+    AI Detection Signal:
+        AI-generated text tends to produce sentences with uniform complexity:
+        - Similar total syllables per sentence (low CV)
+        - Similar syllables-per-word across sentences (low complexity variance)
+        - High complexity_uniformity_score (>0.8) indicates AI-like uniformity
+
+    Example:
+        >>> result = compute_sentence_syllable_patterns("The cat sat. The dog ran.")
+        >>> for sent in result.sentences:
+        ...     print(f"Sentence {sent.sentence_index}: {sent.syllable_count} syllables")
+        >>> print(f"Uniformity score: {result.complexity_uniformity_score:.2f}")
+    """
+
+    # Per-sentence breakdowns
+    sentences: list[SentenceSyllablePattern]
+
+    # Aggregate statistics
+    mean_syllables_per_sentence: float  # Avg total syllables per sentence
+    std_syllables_per_sentence: float  # Std dev of total syllables
+    sentence_syllable_cv: float  # CV of sentence syllable totals
+
+    # Complexity uniformity (AI detection signal)
+    mean_sentence_complexity: float  # Avg syllables/word at sentence level
+    std_sentence_complexity: float  # Std dev of sentence complexity
+    complexity_uniformity_score: float  # 0-1 (higher = more uniform, AI-like)
+
+    # Distributions
+    syllables_per_sentence_dist: Distribution  # Distribution of total syllables
+    complexity_dist: Distribution  # Distribution of syllables/word
+
+    metadata: dict[str, Any]
+
+
+# ===== Syllable Pattern Repetition Results =====
+# Related to GitHub Issue #67: Syllable pattern repetition analysis
+# https://github.com/craigtrim/pystylometry/issues/67
+# Related to GitHub Issue #66: Sentence-level syllable analysis
+# https://github.com/craigtrim/pystylometry/issues/66
+
+
+@dataclass
+class SyllablePatternNgram:
+    """A repeated syllable pattern n-gram.
+
+    Represents a sequence of syllable counts that appears multiple times
+    across sentences, indicating rhythmic repetition or formulaic structure.
+
+    Following computational prosody research (Gibbon, Plecháč), syllable
+    n-grams capture metrical feet (3-grams), phrase-level rhythms (4-grams),
+    and extended patterns (5-grams).
+
+    Related GitHub Issue:
+        #67 - Syllable pattern repetition analysis
+        https://github.com/craigtrim/pystylometry/issues/67
+
+    References:
+        Gibbon, D. (2017). Prosody: Rhythms and Melodies of Speech.
+        Plecháč, P., & Kolár, R. (2015). Automated Analysis of Poetic Texts.
+
+    Example:
+        >>> pattern = SyllablePatternNgram(
+        ...     pattern=(1, 2, 3, 1),
+        ...     count=5,
+        ...     sentence_indices=[2, 7, 14, 23, 31],
+        ...     positions=["start", "mid", "mid", "start", "end"]
+        ... )
+        >>> print(f"Pattern {pattern.pattern} appears {pattern.count} times")
+    """
+
+    pattern: tuple[int, ...]  # Syllable count sequence, e.g., (1, 2, 3, 1)
+    count: int  # Number of occurrences across all sentences
+    sentence_indices: list[int]  # Which sentences contain this pattern
+    positions: list[str]  # Position type: "start", "mid", or "end"
+
+
+@dataclass
+class SyllablePatternRepetitionResult:
+    """Analysis of repeated syllable patterns across sentences.
+
+    Detects rhythmic repetition and formulaic structures through n-gram
+    analysis of syllable sequences. Identifies patterns at multiple
+    granularities (3-5 syllable sequences) and computes position-specific
+    metrics for sentence openings and closings.
+
+    Repetitive syllable patterns indicate:
+    - Formulaic writing: Template-driven sentence construction
+    - Rhythmic preference: Consistent prosodic structure
+    - Stylistic habits: Unconscious patterns in clause/phrase construction
+    - Authorial fingerprint: Individual-specific rhythmic signatures
+
+    Related GitHub Issues:
+        #67 - Syllable pattern repetition analysis
+        https://github.com/craigtrim/pystylometry/issues/67
+        #66 - Sentence-level syllable analysis
+        https://github.com/craigtrim/pystylometry/issues/66
+
+    References:
+        Gibbon, D. (2017). Prosody: Rhythms and Melodies of Speech.
+        Plecháč, P., & Kolár, R. (2015). Automated Analysis of Poetic Texts.
+        Breen, M., & Clifton, C. (2012). Linguistic Rhythm Guides Parsing Decisions.
+        Lagutina, K., & Lagutina, N. (2019). Survey on Stylometric Text Features.
+
+    Example:
+        >>> sent_result = compute_sentence_syllable_patterns(text)
+        >>> pattern_result = analyze_syllable_pattern_repetition(sent_result)
+        >>> print(f"Repetition ratio: {pattern_result.repetition_ratio:.2f}")
+        >>> for pattern in pattern_result.top_repeated_patterns[:5]:
+        ...     print(f"Pattern {pattern.pattern}: {pattern.count} times")
+    """
+
+    # N-gram analysis by size (3-grams, 4-grams, 5-grams)
+    ngram_3_patterns: list[SyllablePatternNgram]
+    ngram_4_patterns: list[SyllablePatternNgram]
+    ngram_5_patterns: list[SyllablePatternNgram]
+
+    # Aggregate metrics
+    total_unique_patterns: int  # Total distinct n-grams across all sizes
+    total_pattern_instances: int  # Total n-gram occurrences
+    pattern_diversity_ratio: float  # unique / total (0-1, higher = more diverse)
+    repeated_pattern_count: int  # Patterns appearing 2+ times
+    repetition_ratio: float  # repeated / total (0-1, higher = more formulaic)
+
+    # Position-specific metrics
+    starting_pattern_repetition_rate: float  # Repeated openings / sentences
+    ending_pattern_repetition_rate: float  # Repeated closings / sentences
+    most_common_start: tuple[tuple[int, ...], int] | None  # (pattern, count)
+    most_common_end: tuple[tuple[int, ...], int] | None  # (pattern, count)
+
+    # Pattern distribution statistics
+    pattern_frequency_histogram: dict[int, int]  # {repetition_count: num_patterns}
+    pattern_entropy: float  # Shannon entropy of distribution (bits)
+    top_repeated_patterns: list[SyllablePatternNgram]  # Top patterns by frequency
+
+    metadata: dict[str, Any]
+
+
 # ===== Dialect Detection Results =====
 # Related to GitHub Issue #35: Dialect detection with extensible JSON markers
 # https://github.com/craigtrim/pystylometry/issues/35
